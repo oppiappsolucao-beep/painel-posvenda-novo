@@ -12,7 +12,11 @@ from zoneinfo import ZoneInfo
 # ===============================
 # CONFIG DA PÁGINA
 # ===============================
-st.set_page_config(page_title="Painel Pós-Venda", layout="wide")
+st.set_page_config(
+    page_title="Painel Pós-Venda",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
 # ===============================
 # LOGIN
@@ -25,7 +29,7 @@ def img_to_base64(path: str):
         file_path = Path(path)
         if file_path.exists():
             return base64.b64encode(file_path.read_bytes()).decode()
-    except:
+    except Exception:
         pass
     return None
 
@@ -34,7 +38,7 @@ def render_login_logo():
     if logo_b64:
         return f"""
             <div class="login-logo-wrap">
-                <img src="data:image/png;base64,{logo_b64}" class="login-logo" />
+                <img src="data:image/png;base64,{logo_b64}" class="login-logo" alt="SkoobPet">
             </div>
         """
     return """
@@ -51,65 +55,71 @@ def ensure_login() -> bool:
     logo_html = render_login_logo()
 
     st.markdown(
-        f"""
+        """
         <style>
-            .stApp {{
+            .stApp {
                 background: linear-gradient(180deg, #F3F4F6 0%, #ECEFF3 100%);
-            }}
+            }
 
-            .block-container {{
-                padding-top: 2rem !important;
-                padding-bottom: 2rem !important;
-                max-width: 1000px !important;
-            }}
+            header[data-testid="stHeader"] {
+                background: transparent !important;
+            }
 
-            .login-page-wrap {{
-                min-height: 80vh;
+            .block-container {
+                padding-top: 0rem !important;
+                padding-bottom: 0rem !important;
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+                max-width: 1100px !important;
+            }
+
+            .login-page-wrap {
+                min-height: 100vh;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 font-family: Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
-            }}
+            }
 
-            .login-shell {{
+            .login-shell {
                 width: 100%;
-                max-width: 780px;
+                max-width: 860px;
                 margin: 0 auto;
-            }}
+            }
 
-            .login-top-bar {{
+            .login-top-bar {
                 width: 100%;
                 height: 44px;
                 border-radius: 18px;
-                background: rgba(255,255,255,0.75);
+                background: rgba(255,255,255,0.78);
                 border: 1px solid rgba(15,23,42,0.05);
-                box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.70);
                 margin-bottom: 18px;
-            }}
+            }
 
-            .login-brand {{
+            .login-brand {
                 text-align: center;
-                margin-bottom: 20px;
-            }}
+                margin-bottom: 18px;
+            }
 
-            .login-logo-wrap {{
+            .login-logo-wrap {
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                margin-bottom: 10px;
-            }}
+                margin-bottom: 8px;
+            }
 
-            .login-logo {{
-                width: 220px;
-                max-width: 72%;
+            .login-logo {
+                width: 250px;
+                max-width: 78%;
                 height: auto;
                 object-fit: contain;
-                filter: drop-shadow(0 10px 25px rgba(15, 23, 42, 0.12));
-            }}
+                filter: drop-shadow(0 12px 26px rgba(15, 23, 42, 0.12));
+            }
 
-            .login-logo-fallback {{
-                width: 92px;
-                height: 92px;
+            .login-logo-fallback {
+                width: 96px;
+                height: 96px;
                 border-radius: 24px;
                 background: linear-gradient(135deg, #1B1D6D 0%, #9B0033 100%);
                 color: white;
@@ -119,64 +129,56 @@ def ensure_login() -> bool:
                 font-size: 44px;
                 margin: 0 auto 12px auto;
                 box-shadow: 0 12px 24px rgba(15,23,42,.15);
-            }}
+            }
 
-            .login-title {{
-                font-size: 38px;
-                line-height: 1.05;
-                font-weight: 900;
-                color: #1B1D6D;
-                margin: 0;
-            }}
-
-            .login-subtitle {{
+            .login-subtitle {
                 margin-top: 6px;
                 font-size: 18px;
                 color: #64748b;
                 font-weight: 500;
-            }}
+            }
 
-            .login-card {{
-                background: rgba(255,255,255,0.90);
+            .login-card {
+                background: rgba(255,255,255,0.92);
                 border: 1px solid rgba(15,23,42,0.06);
                 border-radius: 24px;
                 padding: 28px 26px 22px 26px;
                 box-shadow: 0 16px 40px rgba(15, 23, 42, 0.10);
                 backdrop-filter: blur(8px);
-            }}
+            }
 
-            .login-card-head {{
+            .login-card-head {
                 text-align: center;
                 margin-bottom: 20px;
-            }}
+            }
 
-            .login-mini-title {{
+            .login-mini-title {
                 font-size: 24px;
                 font-weight: 900;
                 color: #0f172a;
                 margin-bottom: 4px;
-            }}
+            }
 
-            .login-mini-sub {{
+            .login-mini-sub {
                 font-size: 14px;
                 color: #64748b;
-            }}
+            }
 
-            div[data-testid="stTextInput"] {{
+            div[data-testid="stTextInput"] {
                 margin-bottom: 8px;
-            }}
+            }
 
-            div[data-testid="stTextInput"] label {{
+            div[data-testid="stTextInput"] label {
                 margin-bottom: 6px;
-            }}
+            }
 
-            div[data-testid="stTextInput"] label p {{
+            div[data-testid="stTextInput"] label p {
                 font-size: 15px !important;
                 font-weight: 800 !important;
                 color: #0f172a !important;
-            }}
+            }
 
-            div[data-testid="stTextInput"] input {{
+            div[data-testid="stTextInput"] input {
                 background: #F8FAFC !important;
                 border: 1px solid rgba(15,23,42,0.10) !important;
                 border-radius: 16px !important;
@@ -185,14 +187,14 @@ def ensure_login() -> bool:
                 color: #0f172a !important;
                 font-size: 16px !important;
                 box-shadow: none !important;
-            }}
+            }
 
-            div[data-testid="stTextInput"] input:focus {{
+            div[data-testid="stTextInput"] input:focus {
                 border: 1px solid #1B1D6D !important;
                 box-shadow: 0 0 0 3px rgba(27,29,109,0.08) !important;
-            }}
+            }
 
-            div.stButton > button {{
+            div.stButton > button {
                 width: 100%;
                 height: 54px;
                 margin-top: 8px;
@@ -203,35 +205,35 @@ def ensure_login() -> bool:
                 font-size: 20px !important;
                 font-weight: 900 !important;
                 box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18) !important;
-            }}
+            }
 
-            div.stButton > button:hover {{
+            div.stButton > button:hover {
                 transform: translateY(-1px);
                 background: linear-gradient(90deg, #16185c 0%, #0f172a 100%) !important;
-            }}
+            }
 
             div.stButton > button:focus,
-            div.stButton > button:active {{
+            div.stButton > button:active {
                 outline: none !important;
                 box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18) !important;
-            }}
+            }
 
-            .login-footer {{
+            .login-footer {
                 text-align: center;
                 color: #94a3b8;
                 font-size: 12px;
                 margin-top: 16px;
-            }}
+            }
 
-            .login-badges {{
+            .login-badges {
                 display: flex;
                 gap: 10px;
                 justify-content: center;
                 flex-wrap: wrap;
                 margin-top: 12px;
-            }}
+            }
 
-            .login-badge {{
+            .login-badge {
                 background: #F8FAFC;
                 border: 1px solid rgba(15,23,42,0.06);
                 color: #475569;
@@ -239,32 +241,27 @@ def ensure_login() -> bool:
                 border-radius: 999px;
                 font-size: 12px;
                 font-weight: 700;
-            }}
+            }
 
-            @media (max-width: 640px) {{
-                .block-container {{
-                    padding-top: 1.1rem !important;
-                    padding-left: 1rem !important;
-                    padding-right: 1rem !important;
-                }}
+            @media (max-width: 640px) {
+                .block-container {
+                    padding-left: 0.85rem !important;
+                    padding-right: 0.85rem !important;
+                }
 
-                .login-title {{
-                    font-size: 28px;
-                }}
-
-                .login-subtitle {{
-                    font-size: 15px;
-                }}
-
-                .login-card {{
+                .login-card {
                     padding: 22px 16px 18px 16px;
                     border-radius: 20px;
-                }}
+                }
 
-                .login-logo {{
-                    width: 180px;
-                }}
-            }}
+                .login-logo {
+                    width: 190px;
+                }
+
+                .login-subtitle {
+                    font-size: 15px;
+                }
+            }
         </style>
         """,
         unsafe_allow_html=True
@@ -416,9 +413,9 @@ def norm(x):
 
 def is_done(status):
     return norm(status) in [
-        "feito","concluido","concluído","ok",
-        "realizado","finalizado","concluida","concluída",
-        "enviado","enviada"
+        "feito", "concluido", "concluído", "ok",
+        "realizado", "finalizado", "concluida", "concluída",
+        "enviado", "enviada"
     ]
 
 def is_error(status):
@@ -442,7 +439,7 @@ def brl_to_float(v):
     if isinstance(v, (int, float)) and not isinstance(v, bool):
         try:
             return float(v)
-        except:
+        except Exception:
             return 0.0
     s = str(v).replace("\u00a0", " ").strip()
     if s == "" or s.lower() in {"nan", "none", "-"}:
@@ -453,13 +450,13 @@ def brl_to_float(v):
         s = s.replace(".", "").replace(",", ".")
     try:
         return float(s)
-    except:
+    except Exception:
         return 0.0
 
 def money_br(v):
     try:
         v = float(v)
-    except:
+    except Exception:
         v = 0.0
     s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return f"R$ {s}"
@@ -632,12 +629,18 @@ else:
 # ===============================
 st.markdown("---")
 k1, k2, k3, k4, k5, k6 = st.columns(6)
-with k1: kpi_card("💬 1º contato hoje", c1, "registros de hoje", NAVY)
-with k2: kpi_card("💬 2º contato hoje", c2, "registros de hoje", NAVY_2)
-with k3: kpi_card("💬 3º contato hoje", c3, "registros de hoje", WINE_2)
-with k4: kpi_card("⚠️ Status com erro", erro_hoje, "atenção", WINE, value_color="#ef4444" if erro_hoje else "#0f172a")
-with k5: kpi_card("🛍️ Vendas no mês", vendas_mes, str(mes), "#F59E0B")
-with k6: kpi_card("💰 Faturamento", money_br(faturamento), "valor do filhote", NAVY, value_size=28)
+with k1:
+    kpi_card("💬 1º contato hoje", c1, "registros de hoje", NAVY)
+with k2:
+    kpi_card("💬 2º contato hoje", c2, "registros de hoje", NAVY_2)
+with k3:
+    kpi_card("💬 3º contato hoje", c3, "registros de hoje", WINE_2)
+with k4:
+    kpi_card("⚠️ Status com erro", erro_hoje, "atenção", WINE, value_color="#ef4444" if erro_hoje else "#0f172a")
+with k5:
+    kpi_card("🛍️ Vendas no mês", vendas_mes, str(mes), "#F59E0B")
+with k6:
+    kpi_card("💰 Faturamento", money_br(faturamento), "valor do filhote", NAVY, value_size=28)
 
 # ===============================
 # GRÁFICOS
@@ -676,8 +679,14 @@ with g2:
     if len(vp) == 0:
         st.info("Sem registros para o filtro selecionado.")
     else:
-        fig = px.bar(vp, x=COL["unidade"], y="Total", text="Total",
-                     color=COL["unidade"], color_discrete_sequence=BAR_SEQ)
+        fig = px.bar(
+            vp,
+            x=COL["unidade"],
+            y="Total",
+            text="Total",
+            color=COL["unidade"],
+            color_discrete_sequence=BAR_SEQ
+        )
         fig.update_traces(textposition="outside", cliponaxis=False)
         fig.update_layout(showlegend=False)
         st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
@@ -688,13 +697,22 @@ with g3:
         '<div class="panel-card"><div class="panel-head"><div class="panel-title">🐶 Raças mais vendidas (mês)</div></div><div class="panel-body">',
         unsafe_allow_html=True
     )
-    vr = (f.groupby(COL["raca"]).size().reset_index(name="Total")
-          .sort_values("Total", ascending=False).head(10))
+    vr = (
+        f.groupby(COL["raca"]).size().reset_index(name="Total")
+        .sort_values("Total", ascending=False)
+        .head(10)
+    )
     if len(vr) == 0:
         st.info("Sem registros para o filtro selecionado.")
     else:
-        fig = px.bar(vr, x=COL["raca"], y="Total", text="Total",
-                     color=COL["raca"], color_discrete_sequence=BAR_SEQ)
+        fig = px.bar(
+            vr,
+            x=COL["raca"],
+            y="Total",
+            text="Total",
+            color=COL["raca"],
+            color_discrete_sequence=BAR_SEQ
+        )
         fig.update_traces(textposition="outside", cliponaxis=False)
         fig.update_layout(showlegend=False)
         st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
@@ -706,13 +724,21 @@ with g4:
         unsafe_allow_html=True
     )
     if COL_VENDEDOR:
-        vv = (f.groupby(COL_VENDEDOR).size().reset_index(name="Total")
-              .sort_values("Total", ascending=False))
+        vv = (
+            f.groupby(COL_VENDEDOR).size().reset_index(name="Total")
+            .sort_values("Total", ascending=False)
+        )
         if len(vv) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = px.bar(vv, x=COL_VENDEDOR, y="Total", text="Total",
-                         color=COL_VENDEDOR, color_discrete_sequence=BAR_SEQ)
+            fig = px.bar(
+                vv,
+                x=COL_VENDEDOR,
+                y="Total",
+                text="Total",
+                color=COL_VENDEDOR,
+                color_discrete_sequence=BAR_SEQ
+            )
             fig.update_traces(textposition="outside", cliponaxis=False)
             fig.update_layout(showlegend=False)
             st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
