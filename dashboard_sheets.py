@@ -72,8 +72,8 @@ def ensure_login() -> bool:
                 display: flex;
                 align-items: flex-start;
                 justify-content: center;
-                padding-top: 20px;
-                padding-bottom: 28px;
+                padding-top: 18px;
+                padding-bottom: 24px;
                 font-family: Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
             }
 
@@ -85,7 +85,7 @@ def ensure_login() -> bool:
 
             .login-brand {
                 text-align: center;
-                margin-bottom: 12px;
+                margin-bottom: 10px;
             }
 
             .logo-center {
@@ -122,27 +122,31 @@ def ensure_login() -> bool:
                 text-align: center;
             }
 
+            /* CARD MENOR */
             .login-card {
                 background: rgba(255,255,255,0.95);
                 border: 1px solid rgba(15,23,42,0.06);
                 border-radius: 22px;
-                padding: 26px 24px 20px 24px;
+                padding: 12px 20px 10px 20px;
                 box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
+                margin-bottom: 2px;
             }
 
             .login-mini-title {
-                font-size: 22px;
+                font-size: 20px;
                 font-weight: 900;
                 text-align: center;
                 color: #0f172a;
-                margin-bottom: 4px;
+                margin-bottom: 2px;
+                line-height: 1.1;
             }
 
             .login-mini-sub {
                 text-align: center;
-                font-size: 13px;
+                font-size: 12px;
                 color: #64748b;
-                margin-bottom: 16px;
+                margin-bottom: 0;
+                line-height: 1.2;
             }
 
             div[data-testid="stTextInput"] label p {
@@ -232,11 +236,15 @@ def ensure_login() -> bool:
                 }
 
                 .login-card {
-                    padding: 20px 16px 16px 16px;
+                    padding: 10px 14px 8px 14px;
                 }
 
                 .login-subtitle {
                     font-size: 14px;
+                }
+
+                .login-mini-title {
+                    font-size: 18px;
                 }
             }
         </style>
@@ -261,6 +269,7 @@ def ensure_login() -> bool:
         <div class="login-card">
             <div class="login-mini-title">Acesso ao Painel</div>
             <div class="login-mini-sub">Digite seu usuário e senha para continuar</div>
+        </div>
         """,
         unsafe_allow_html=True
     )
@@ -287,12 +296,13 @@ def ensure_login() -> bool:
             <span class="login-badge">🐾 Operação interna SkoobPet</span>
         </div>
         <div class="login-footer">Painel interno • Uso autorizado apenas para a equipe</div>
-        </div></div></div>
+        </div></div>
         """,
         unsafe_allow_html=True
     )
 
     return False
+
 
 # ===============================
 # CONFIG
