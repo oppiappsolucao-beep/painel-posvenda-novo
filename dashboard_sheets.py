@@ -36,14 +36,12 @@ def img_to_base64(path: str):
 def render_login_logo():
     logo_b64 = img_to_base64("skoobpet.png")
     if logo_b64:
-        return f"""
-            <div class="login-logo-wrap">
-                <img src="data:image/png;base64,{logo_b64}" class="login-logo" alt="SkoobPet">
-            </div>
-        """
-    return """
-        <div class="login-logo-fallback">🐾</div>
-    """
+        return (
+            f'<div class="login-logo-wrap">'
+            f'<img src="data:image/png;base64,{logo_b64}" class="login-logo" alt="SkoobPet">'
+            f'</div>'
+        )
+    return '<div class="login-logo-fallback">🐾</div>'
 
 def ensure_login() -> bool:
     if "logged_in" not in st.session_state:
@@ -74,10 +72,12 @@ def ensure_login() -> bool:
             }
 
             .login-page-wrap {
-                min-height: 100vh;
+                width: 100%;
                 display: flex;
-                align-items: center;
+                align-items: flex-start;
                 justify-content: center;
+                padding-top: 22px;
+                padding-bottom: 28px;
                 font-family: Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
             }
 
@@ -94,12 +94,12 @@ def ensure_login() -> bool:
                 background: rgba(255,255,255,0.78);
                 border: 1px solid rgba(15,23,42,0.05);
                 box-shadow: inset 0 1px 0 rgba(255,255,255,0.70);
-                margin-bottom: 18px;
+                margin-bottom: 16px;
             }
 
             .login-brand {
                 text-align: center;
-                margin-bottom: 18px;
+                margin-bottom: 14px;
             }
 
             .login-logo-wrap {
@@ -249,6 +249,10 @@ def ensure_login() -> bool:
                     padding-right: 0.85rem !important;
                 }
 
+                .login-page-wrap {
+                    padding-top: 12px;
+                }
+
                 .login-card {
                     padding: 22px 16px 18px 16px;
                     border-radius: 20px;
@@ -271,12 +275,7 @@ def ensure_login() -> bool:
     st.markdown('<div class="login-top-bar"></div>', unsafe_allow_html=True)
 
     st.markdown(
-        f"""
-        <div class="login-brand">
-            {logo_html}
-            <div class="login-subtitle">Acesse o dashboard de pós-venda e pedigree</div>
-        </div>
-        """,
+        f'<div class="login-brand">{logo_html}<div class="login-subtitle">Acesse o dashboard de pós-venda e pedigree</div></div>',
         unsafe_allow_html=True
     )
 
@@ -330,7 +329,6 @@ SHEET_CSV_URL = (
     "/gviz/tq?tqx=out:csv&gid=1396326144"
 )
 
-# trava aqui: se não logar, não roda mais nada do dashboard
 if not ensure_login():
     st.stop()
 
@@ -679,14 +677,8 @@ with g2:
     if len(vp) == 0:
         st.info("Sem registros para o filtro selecionado.")
     else:
-        fig = px.bar(
-            vp,
-            x=COL["unidade"],
-            y="Total",
-            text="Total",
-            color=COL["unidade"],
-            color_discrete_sequence=BAR_SEQ
-        )
+        fig = px.bar(vp, x=COL["unidade"], y="Total", text="Total",
+                     color=COL["unidade"], color_discrete_sequence=BAR_SEQ)
         fig.update_traces(textposition="outside", cliponaxis=False)
         fig.update_layout(showlegend=False)
         st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
@@ -697,22 +689,13 @@ with g3:
         '<div class="panel-card"><div class="panel-head"><div class="panel-title">🐶 Raças mais vendidas (mês)</div></div><div class="panel-body">',
         unsafe_allow_html=True
     )
-    vr = (
-        f.groupby(COL["raca"]).size().reset_index(name="Total")
-        .sort_values("Total", ascending=False)
-        .head(10)
-    )
+    vr = (f.groupby(COL["raca"]).size().reset_index(name="Total")
+          .sort_values("Total", ascending=False).head(10))
     if len(vr) == 0:
         st.info("Sem registros para o filtro selecionado.")
     else:
-        fig = px.bar(
-            vr,
-            x=COL["raca"],
-            y="Total",
-            text="Total",
-            color=COL["raca"],
-            color_discrete_sequence=BAR_SEQ
-        )
+        fig = px.bar(vr, x=COL["raca"], y="Total", text="Total",
+                     color=COL["raca"], color_discrete_sequence=BAR_SEQ)
         fig.update_traces(textposition="outside", cliponaxis=False)
         fig.update_layout(showlegend=False)
         st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
@@ -724,21 +707,13 @@ with g4:
         unsafe_allow_html=True
     )
     if COL_VENDEDOR:
-        vv = (
-            f.groupby(COL_VENDEDOR).size().reset_index(name="Total")
-            .sort_values("Total", ascending=False)
-        )
+        vv = (f.groupby(COL_VENDEDOR).size().reset_index(name="Total")
+              .sort_values("Total", ascending=False))
         if len(vv) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = px.bar(
-                vv,
-                x=COL_VENDEDOR,
-                y="Total",
-                text="Total",
-                color=COL_VENDEDOR,
-                color_discrete_sequence=BAR_SEQ
-            )
+            fig = px.bar(vv, x=COL_VENDEDOR, y="Total", text="Total",
+                         color=COL_VENDEDOR, color_discrete_sequence=BAR_SEQ)
             fig.update_traces(textposition="outside", cliponaxis=False)
             fig.update_layout(showlegend=False)
             st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
