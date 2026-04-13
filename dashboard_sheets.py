@@ -83,16 +83,6 @@ def ensure_login() -> bool:
                 margin: 0 auto;
             }
 
-            .login-top-bar {
-                width: 100%;
-                height: 44px;
-                border-radius: 18px;
-                background: rgba(255,255,255,0.80);
-                border: 1px solid rgba(15,23,42,0.05);
-                box-shadow: inset 0 1px 0 rgba(255,255,255,0.70);
-                margin-bottom: 14px;
-            }
-
             .login-brand {
                 text-align: center;
                 margin-bottom: 12px;
@@ -255,7 +245,6 @@ def ensure_login() -> bool:
     )
 
     st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
-    st.markdown('<div class="login-top-bar"></div>', unsafe_allow_html=True)
 
     st.markdown(
         f'''
