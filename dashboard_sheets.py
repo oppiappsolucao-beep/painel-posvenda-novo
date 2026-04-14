@@ -218,10 +218,92 @@ def ensure_login() -> bool:
                 margin-top: 10px;
             }
 
-            /* menu hamburguer */
-            button[kind="secondary"] {
-                border-radius: 12px !important;
+            /* ===============================
+               MENU PREMIUM
+            =============================== */
+
+            div[data-testid="stPopover"] > button {
+                height: 46px !important;
+                width: 56px !important;
+                min-width: 56px !important;
+                border-radius: 14px !important;
+                border: 1px solid rgba(29,21,100,0.14) !important;
+                background: rgba(255,255,255,0.92) !important;
+                color: #1d1564 !important;
+                font-size: 24px !important;
+                font-weight: 900 !important;
+                box-shadow: 0 10px 24px rgba(15,23,42,0.10) !important;
+            }
+
+            div[data-testid="stPopover"] > button:hover {
+                background: #ffffff !important;
+                transform: translateY(-1px);
+            }
+
+            div[data-testid="stPopoverContent"] {
+                border-radius: 24px !important;
+                border: none !important;
+                overflow: hidden !important;
+                box-shadow: 0 18px 40px rgba(15,23,42,0.22) !important;
+            }
+
+            div[data-testid="stPopoverContent"] > div {
+                background: linear-gradient(135deg, #9d0139 0%, #1d1564 100%) !important;
+                color: #ffffff !important;
+                padding: 14px !important;
+            }
+
+            .menu-title {
+                font-size: 22px;
+                font-weight: 900;
+                color: #ffffff;
+                margin-bottom: 6px;
+                letter-spacing: 0.2px;
+            }
+
+            .menu-sub {
+                font-size: 12px;
+                color: rgba(255,255,255,0.82);
+                margin-bottom: 10px;
+            }
+
+            .menu-divider {
+                height: 1px;
+                background: rgba(255,255,255,0.18);
+                margin: 10px 0 12px 0;
+            }
+
+            .menu-help {
+                margin-top: 10px;
+                font-size: 11px;
+                color: rgba(255,255,255,0.78);
+                text-align: center;
+            }
+
+            /* botões dentro do popover */
+            div[data-testid="stPopoverContent"] .stButton > button {
+                width: 100% !important;
+                height: 46px !important;
+                margin-top: 8px !important;
+                border-radius: 14px !important;
+                border: 1px solid rgba(255,255,255,0.18) !important;
+                background: rgba(255,255,255,0.10) !important;
+                color: #ffffff !important;
+                font-size: 16px !important;
                 font-weight: 700 !important;
+                box-shadow: none !important;
+                backdrop-filter: blur(4px);
+            }
+
+            div[data-testid="stPopoverContent"] .stButton > button:hover {
+                background: rgba(255,255,255,0.18) !important;
+                border: 1px solid rgba(255,255,255,0.30) !important;
+                transform: translateY(-1px);
+            }
+
+            div[data-testid="stPopoverContent"] .stMarkdown p,
+            div[data-testid="stPopoverContent"] .stMarkdown div {
+                color: inherit !important;
             }
 
             @media (max-width: 640px) {
@@ -547,17 +629,20 @@ top_menu, top_l, top_mid, top_r = st.columns([1, 5, 2, 1])
 
 with top_menu:
     with st.popover("☰"):
-        st.markdown("### Menu")
-        st.markdown("---")
+        st.markdown('<div class="menu-title">Menu</div>', unsafe_allow_html=True)
+        st.markdown('<div class="menu-sub">Escolha uma área para acessar</div>', unsafe_allow_html=True)
+        st.markdown('<div class="menu-divider"></div>', unsafe_allow_html=True)
 
-        if st.button("📄 Novo Contrato", use_container_width=True, key="menu_novo_contrato"):
+        if st.button("📄  Novo Contrato", use_container_width=True, key="menu_novo_contrato"):
             st.info("Abrir fluxo de Novo Contrato")
 
-        if st.button("⚙️ Operação", use_container_width=True, key="menu_operacao"):
+        if st.button("⚙️  Operação", use_container_width=True, key="menu_operacao"):
             st.info("Abrir Operação")
 
-        if st.button("💰 Financeiro", use_container_width=True, key="menu_financeiro"):
+        if st.button("💰  Financeiro", use_container_width=True, key="menu_financeiro"):
             st.info("Abrir Financeiro")
+
+        st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
 
 with top_l:
     st.markdown("## 📊 Painel de Pós-Venda")
