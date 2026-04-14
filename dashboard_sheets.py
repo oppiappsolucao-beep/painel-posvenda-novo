@@ -122,7 +122,6 @@ def ensure_login() -> bool:
                 text-align: center;
             }
 
-            /* CARD MENOR */
             .login-card {
                 background: rgba(255,255,255,0.95);
                 border: 1px solid rgba(15,23,42,0.06);
@@ -217,6 +216,12 @@ def ensure_login() -> bool:
                 color: #94a3b8;
                 font-size: 12px;
                 margin-top: 10px;
+            }
+
+            /* menu hamburguer */
+            button[kind="secondary"] {
+                border-radius: 12px !important;
+                font-weight: 700 !important;
             }
 
             @media (max-width: 640px) {
@@ -536,16 +541,33 @@ for key in ["c1", "c2", "c3"]:
         df[colname] = parse_date_series(df[colname])
 
 # ===============================
-# HEADER + BOTÕES
+# HEADER + MENU + BOTÕES
 # ===============================
-top_l, top_mid, top_r = st.columns([6, 2, 1])
+top_menu, top_l, top_mid, top_r = st.columns([1, 5, 2, 1])
+
+with top_menu:
+    with st.popover("☰"):
+        st.markdown("### Menu")
+        st.markdown("---")
+
+        if st.button("📄 Novo Contrato", use_container_width=True, key="menu_novo_contrato"):
+            st.info("Abrir fluxo de Novo Contrato")
+
+        if st.button("⚙️ Operação", use_container_width=True, key="menu_operacao"):
+            st.info("Abrir Operação")
+
+        if st.button("💰 Financeiro", use_container_width=True, key="menu_financeiro"):
+            st.info("Abrir Financeiro")
+
 with top_l:
     st.markdown("## 📊 Painel de Pós-Venda")
     st.caption(f"Total de registros: **{len(df)}**")
+
 with top_mid:
     if st.button("🔄 Atualizar agora", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
+
 with top_r:
     if st.button("Sair", use_container_width=True):
         st.session_state.logged_in = False
