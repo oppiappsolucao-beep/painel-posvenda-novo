@@ -9,21 +9,48 @@ import base64
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-# ===============================
+# =========================================================
 # CONFIG DA PÁGINA
-# ===============================
+# =========================================================
 st.set_page_config(
     page_title="Painel Pós-Venda",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ===============================
-# LOGIN
-# ===============================
+# =========================================================
+# CREDENCIAIS
+# =========================================================
 APP_USER = "operacao"
 APP_PASS = "100316"
 
+OPER_USER = "skoob"
+OPER_PASS = "skoob123"
+
+SHEET_CSV_URL = (
+    "https://docs.google.com/spreadsheets/d/"
+    "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
+    "/gviz/tq?tqx=out:csv&gid=1396326144"
+)
+
+TZ = ZoneInfo("America/Sao_Paulo")
+hoje = pd.Timestamp(datetime.datetime.now(TZ).date())
+
+# =========================================================
+# ESTADO INICIAL
+# =========================================================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "oper_logged_in" not in st.session_state:
+    st.session_state.oper_logged_in = False
+
+if "page" not in st.session_state:
+    st.session_state.page = "main"
+
+# =========================================================
+# HELPERS VISUAIS
+# =========================================================
 def img_to_base64(path: str):
     try:
         file_path = Path(path)
@@ -33,21 +60,13 @@ def img_to_base64(path: str):
         pass
     return None
 
-def render_login_logo():
+def render_logo_html():
     logo_b64 = img_to_base64("skoobpet.png")
     if logo_b64:
         return f'<img src="data:image/png;base64,{logo_b64}" class="login-logo" alt="SkoobPet">'
     return '<div class="login-logo-fallback">🐾</div>'
 
-def ensure_login() -> bool:
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-
-    if st.session_state.logged_in:
-        return True
-
-    logo_html = render_login_logo()
-
+def inject_global_css():
     st.markdown(
         """
         <style>
@@ -218,9 +237,7 @@ def ensure_login() -> bool:
                 margin-top: 10px;
             }
 
-            /* ===============================
-               MENU MAIS PROFISSIONAL
-            =============================== */
+            /* MENU */
             div[data-testid="stPopover"] > button {
                 height: 46px !important;
                 width: 56px !important;
@@ -302,7 +319,33 @@ def ensure_login() -> bool:
                 color: #ffffff !important;
                 border: 1px solid transparent !important;
                 transform: translateY(-1px);
-                text-decoration: none !important;
+            }
+
+            .panel-card{
+                background:#ffffff;
+                border-radius:18px;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+                border: 1px solid rgba(15,23,42,0.06);
+                overflow: hidden;
+            }
+
+            .panel-head{
+                padding: 14px 16px 0px 16px;
+                background:#ffffff;
+            }
+
+            .panel-title{
+                font-weight: 900;
+                color:#0f172a;
+                font-size: 18px;
+                display:flex;
+                align-items:center;
+                gap:8px;
+            }
+
+            .panel-body{
+                padding: 8px 10px 12px 10px;
+                background:#ffffff;
             }
 
             @media (max-width: 640px) {
@@ -338,136 +381,14 @@ def ensure_login() -> bool:
         unsafe_allow_html=True
     )
 
-    st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
+def money_br(v):
+    try:
+        v = float(v)
+    except Exception:
+        v = 0.0
+    s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {s}"
 
-    st.markdown(
-        f'''
-        <div class="login-brand">
-            <div class="logo-center">{logo_html}</div>
-            <div class="login-subtitle">Acesse o dashboard de pós-venda e pedigree</div>
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        """
-        <div class="login-card">
-            <div class="login-mini-title">Acesso ao Painel</div>
-            <div class="login-mini-sub">Digite seu usuário e senha para continuar</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    user = st.text_input("Usuário", placeholder="Digite seu usuário")
-    pwd = st.text_input("Senha", type="password", placeholder="Digite sua senha")
-
-    entrar = st.button("Entrar", use_container_width=True)
-
-    if entrar:
-        u = (user or "").strip()
-        p = (pwd or "").strip()
-
-        if u == APP_USER and p == APP_PASS:
-            st.session_state.logged_in = True
-            st.rerun()
-        else:
-            st.error("Usuário ou senha inválidos.")
-
-    st.markdown(
-        """
-        <div class="login-badges">
-            <span class="login-badge">🔒 Acesso restrito</span>
-            <span class="login-badge">🐾 Operação interna SkoobPet</span>
-        </div>
-        <div class="login-footer">Painel interno • Uso autorizado apenas para a equipe</div>
-        </div></div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    return False
-
-
-# ===============================
-# CONFIG
-# ===============================
-SHEET_CSV_URL = (
-    "https://docs.google.com/spreadsheets/d/"
-    "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
-    "/gviz/tq?tqx=out:csv&gid=1396326144"
-)
-
-if not ensure_login():
-    st.stop()
-
-# ===============================
-# AUTO-REFRESH
-# ===============================
-components.html("<script>setTimeout(() => window.location.reload(), 10000);</script>", height=0)
-
-# ===============================
-# CSS DASHBOARD
-# ===============================
-st.markdown(
-    """
-    <style>
-        .stApp { background-color: #D4D4D4; }
-
-        .block-container {
-            padding-top: 2.4rem !important;
-            padding-bottom: 1.6rem !important;
-        }
-
-        h1, h2, h3, h4 { margin-top: 0 !important; padding-top: 0 !important; }
-
-        div[data-baseweb="select"] { margin-top: 10px; }
-
-        .panel-card{
-            background:#ffffff;
-            border-radius:18px;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-            border: 1px solid rgba(15,23,42,0.06);
-            overflow: hidden;
-        }
-
-        .panel-head{
-            padding: 14px 16px 0px 16px;
-            background:#ffffff;
-        }
-
-        .panel-title{
-            font-weight: 900;
-            color:#0f172a;
-            font-size: 18px;
-            display:flex;
-            align-items:center;
-            gap:8px;
-        }
-
-        .panel-body{
-            padding: 8px 10px 12px 10px;
-            background:#ffffff;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# ===============================
-# PALETA
-# ===============================
-NAVY = "#1B1D6D"
-WINE = "#9B0033"
-NAVY_2 = "#2E3192"
-WINE_2 = "#C00040"
-GRAY = "#64748b"
-BAR_SEQ = [NAVY, WINE, NAVY_2, WINE_2, "#334155", "#94a3b8"]
-
-# ===============================
-# HELPERS
-# ===============================
 def pick_first_existing(df, candidates):
     cols = {str(c).replace("\u00a0", " ").strip(): c for c in df.columns}
     for c in candidates:
@@ -478,13 +399,6 @@ def pick_first_existing(df, candidates):
 
 def norm(x):
     return str(x).strip().lower() if pd.notna(x) else ""
-
-def is_done(status):
-    return norm(status) in [
-        "feito", "concluido", "concluído", "ok",
-        "realizado", "finalizado", "concluida", "concluída",
-        "enviado", "enviada"
-    ]
 
 def is_error(status):
     s = norm(status)
@@ -521,14 +435,6 @@ def brl_to_float(v):
     except Exception:
         return 0.0
 
-def money_br(v):
-    try:
-        v = float(v)
-    except Exception:
-        v = 0.0
-    s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    return f"R$ {s}"
-
 def kpi_card(title, value, subtitle, accent, value_color="#0f172a", value_size=38):
     html = f"""
     <div style="
@@ -544,7 +450,7 @@ def kpi_card(title, value, subtitle, accent, value_color="#0f172a", value_size=3
         <div style="font-size:{value_size}px;font-weight:900;color:{value_color};line-height:1.05;margin-top:6px;">
             {value}
         </div>
-        <div style="font-size:12px;color:{GRAY};margin-top:6px;">{subtitle}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:6px;">{subtitle}</div>
     </div>
     """
     components.html(html, height=130)
@@ -561,9 +467,6 @@ def tune_plotly(fig, height=360):
     fig.update_yaxes(showgrid=True, gridcolor="rgba(15,23,42,0.06)", zeroline=False)
     return fig
 
-# ===============================
-# LOAD DATA
-# ===============================
 def sheet_url_busted(base_url: str) -> str:
     sep = "&" if "?" in base_url else "?"
     return f"{base_url}{sep}_ts={int(time.time()*1000)}"
@@ -573,9 +476,6 @@ def load_sheet(csv_url: str) -> pd.DataFrame:
     d = pd.read_csv(csv_url)
     d.columns = [str(c).replace("\u00a0", " ").strip() for c in d.columns]
     return d
-
-TZ = ZoneInfo("America/Sao_Paulo")
-hoje = pd.Timestamp(datetime.datetime.now(TZ).date())
 
 def parse_date_series(s: pd.Series) -> pd.Series:
     if s is None:
@@ -596,243 +496,490 @@ def parse_date_series(s: pd.Series) -> pd.Series:
 
     return out
 
-df = load_sheet(sheet_url_busted(SHEET_CSV_URL))
+def render_main_login():
+    inject_global_css()
+    logo_html = render_logo_html()
 
-# ===============================
-# COLUNAS
-# ===============================
-COL = {
-    "mes": "Mês",
-    "raca": "Raça",
-    "unidade": "Unidade",
-    "c1": "1º contato",
-    "s1": "Status 1º contato",
-    "c2": "2º contato",
-    "s2": "Status 2º contato",
-    "c3": "3º contato",
-    "s3": "Status 3º contato",
-}
+    st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
 
-COL_VALOR = pick_first_existing(df, ["Valor Filhote", "Valor de filhote", "Valor Filhote ", "Valor"])
-COL_VENDEDOR = pick_first_existing(df, ["Vendedor", "Vendedora", "Atendente"])
+    st.markdown(
+        f'''
+        <div class="login-brand">
+            <div class="logo-center">{logo_html}</div>
+            <div class="login-subtitle">Acesse o dashboard de pós-venda e pedigree</div>
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
 
-for key in ["c1", "c2", "c3"]:
-    colname = COL.get(key)
-    if colname and colname in df.columns:
-        df[colname] = parse_date_series(df[colname])
+    st.markdown(
+        """
+        <div class="login-card">
+            <div class="login-mini-title">Acesso ao Painel</div>
+            <div class="login-mini-sub">Digite seu usuário e senha para continuar</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-# ===============================
-# HEADER + MENU + BOTÕES
-# ===============================
-top_menu, top_l, top_mid, top_r = st.columns([1, 5, 2, 1])
+    user = st.text_input("Usuário", placeholder="Digite seu usuário", key="main_login_user")
+    pwd = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="main_login_pass")
 
-with top_menu:
-    with st.popover("☰"):
-        st.markdown('<div class="menu-title">Menu</div>', unsafe_allow_html=True)
-        st.markdown('<div class="menu-sub">Escolha uma área para acessar</div>', unsafe_allow_html=True)
-        st.markdown('<div class="menu-divider"></div>', unsafe_allow_html=True)
+    entrar = st.button("Entrar", use_container_width=True, key="btn_main_login")
 
-        st.link_button(
-            "📄  Novo Contrato",
-            "https://n8n.oppitech.com.br/form/55a2bd76-25c9-4ea2-82ad-f5c0ae75e19c",
-            use_container_width=True
-        )
+    if entrar:
+        if (user or "").strip() == APP_USER and (pwd or "").strip() == APP_PASS:
+            st.session_state.logged_in = True
+            st.session_state.page = "main"
+            st.rerun()
+        else:
+            st.error("Usuário ou senha inválidos.")
 
-        if st.button("⚙️  Operação", use_container_width=True, key="menu_operacao"):
-            st.info("Abrir Operação")
+    st.markdown(
+        """
+        <div class="login-badges">
+            <span class="login-badge">🔒 Acesso restrito</span>
+            <span class="login-badge">🐾 Operação interna SkoobPet</span>
+        </div>
+        <div class="login-footer">Painel interno • Uso autorizado apenas para a equipe</div>
+        </div></div>
+        """,
+        unsafe_allow_html=True
+    )
 
-        if st.button("💰  Financeiro", use_container_width=True, key="menu_financeiro"):
-            st.info("Abrir Financeiro")
+def render_oper_login():
+    inject_global_css()
+    logo_html = render_logo_html()
 
-        st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
+    st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
 
-with top_l:
-    st.markdown("## 📊 Painel de Pós-Venda")
-    st.caption(f"Total de registros: **{len(df)}**")
+    st.markdown(
+        f'''
+        <div class="login-brand">
+            <div class="logo-center">{logo_html}</div>
+            <div class="login-subtitle">Área da operação • Acesso restrito</div>
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
 
-with top_mid:
-    if st.button("🔄 Atualizar agora", use_container_width=True):
-        st.cache_data.clear()
+    st.markdown(
+        """
+        <div class="login-card">
+            <div class="login-mini-title">Login da Operação</div>
+            <div class="login-mini-sub">Digite o usuário e senha da equipe operacional</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    user = st.text_input("Usuário", placeholder="Digite seu usuário", key="oper_login_user")
+    pwd = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="oper_login_pass")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        entrar = st.button("Entrar na Operação", use_container_width=True, key="btn_oper_login")
+    with c2:
+        voltar = st.button("Voltar ao Painel", use_container_width=True, key="btn_oper_back")
+
+    if entrar:
+        if (user or "").strip() == OPER_USER and (pwd or "").strip() == OPER_PASS:
+            st.session_state.oper_logged_in = True
+            st.session_state.page = "operacao_dashboard"
+            st.rerun()
+        else:
+            st.error("Usuário ou senha da operação inválidos.")
+
+    if voltar:
+        st.session_state.page = "main"
         st.rerun()
 
-with top_r:
-    if st.button("Sair", use_container_width=True):
-        st.session_state.logged_in = False
-        st.rerun()
+    st.markdown(
+        """
+        <div class="login-footer">Acesso interno da operação • SkoobPet</div>
+        </div></div>
+        """,
+        unsafe_allow_html=True
+    )
 
-# ===============================
-# FILTROS
-# ===============================
-f1, f2, f3 = st.columns(3)
-with f1:
-    setor = st.selectbox("Setor", ["Pós-Venda", "Pedigree"])
-with f2:
-    meses = sorted(df[COL["mes"]].dropna().astype(str).unique())
-    mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0)
-with f3:
-    unidades = ["Todas"] + sorted(df[COL["unidade"]].dropna().unique().tolist())
-    unidade = st.selectbox("Unidade", unidades)
-
-f = df[df[COL["mes"]].astype(str) == str(mes)].copy()
-if unidade != "Todas":
-    f = f[f[COL["unidade"]] == unidade]
-
-# ===============================
-# CONTATOS HOJE
-# ===============================
 def count_today_all(df_base, date_col):
     if date_col not in df_base.columns:
         return 0
     sub = df_base[df_base[date_col].dt.date == hoje.date()]
     return int(len(sub))
 
-f_all = df.copy()
-if unidade != "Todas":
-    f_all = f_all[f_all[COL["unidade"]] == unidade]
+def count_month_all(df_base, date_col, selected_month_key):
+    if date_col not in df_base.columns:
+        return 0
+    d = df_base.copy()
+    series = d[date_col]
+    valid = series.notna()
+    if not valid.any():
+        return 0
+    month_key = series.dt.strftime("%m/%Y")
+    return int((month_key == str(selected_month_key)).sum())
 
-records_today = []
-c1 = c2 = c3 = 0
-if setor == "Pós-Venda":
-    c1 = count_today_all(f_all, COL["c1"])
-    c2 = count_today_all(f_all, COL["c2"])
-    c3 = count_today_all(f_all, COL["c3"])
+def render_main_dashboard(df: pd.DataFrame):
+    COL = {
+        "mes": "Mês",
+        "raca": "Raça",
+        "unidade": "Unidade",
+        "c1": "1º contato",
+        "s1": "Status 1º contato",
+        "c2": "2º contato",
+        "s2": "Status 2º contato",
+        "c3": "3º contato",
+        "s3": "Status 3º contato",
+    }
 
-    for _, r in f_all.iterrows():
-        for dc, sc in [(COL["c1"], COL["s1"]), (COL["c2"], COL["s2"]), (COL["c3"], COL["s3"])]:
-            dval = r.get(dc)
-            if pd.notna(dval) and pd.to_datetime(dval).date() == hoje.date():
-                records_today.append(status_bucket_today(r.get(sc)))
+    COL_VALOR = pick_first_existing(df, ["Valor Filhote", "Valor de filhote", "Valor Filhote ", "Valor"])
+    COL_VENDEDOR = pick_first_existing(df, ["Vendedor", "Vendedora", "Atendente"])
 
-erro_hoje = records_today.count("Erro")
+    for key in ["c1", "c2", "c3"]:
+        colname = COL.get(key)
+        if colname and colname in df.columns:
+            df[colname] = parse_date_series(df[colname])
 
-# ===============================
-# VENDAS NO MÊS + FATURAMENTO
-# ===============================
-vendas_mes = int(len(f))
+    top_menu, top_l, top_mid, top_r = st.columns([1, 5, 2, 1])
 
-if COL_VALOR and (COL_VALOR in f.columns):
-    faturamento = float(f[COL_VALOR].apply(brl_to_float).fillna(0).sum())
-else:
-    faturamento = 0.0
+    with top_menu:
+        with st.popover("☰"):
+            st.markdown('<div class="menu-title">Menu</div>', unsafe_allow_html=True)
+            st.markdown('<div class="menu-sub">Escolha uma área para acessar</div>', unsafe_allow_html=True)
+            st.markdown('<div class="menu-divider"></div>', unsafe_allow_html=True)
 
-# ===============================
-# KPIs
-# ===============================
-st.markdown("---")
-k1, k2, k3, k4, k5, k6 = st.columns(6)
-with k1:
-    kpi_card("💬 1º contato hoje", c1, "registros de hoje", NAVY)
-with k2:
-    kpi_card("💬 2º contato hoje", c2, "registros de hoje", NAVY_2)
-with k3:
-    kpi_card("💬 3º contato hoje", c3, "registros de hoje", WINE_2)
-with k4:
-    kpi_card("⚠️ Status com erro", erro_hoje, "atenção", WINE, value_color="#ef4444" if erro_hoje else "#0f172a")
-with k5:
-    kpi_card("🛍️ Vendas no mês", vendas_mes, str(mes), "#F59E0B")
-with k6:
-    kpi_card("💰 Faturamento", money_br(faturamento), "valor do filhote", NAVY, value_size=28)
+            st.link_button(
+                "📄  Novo Contrato",
+                "https://n8n.oppitech.com.br/form/55a2bd76-25c9-4ea2-82ad-f5c0ae75e19c",
+                use_container_width=True
+            )
 
-# ===============================
-# GRÁFICOS
-# ===============================
-st.markdown("---")
-g1, g2 = st.columns(2)
-g3, g4 = st.columns(2)
+            if st.button("⚙️  Operação", use_container_width=True, key="menu_operacao"):
+                st.session_state.page = "operacao_login"
+                st.rerun()
 
-with g1:
-    st.markdown(
-        '<div class="panel-card"><div class="panel-head"><div class="panel-title">📌 Contatos por Status (hoje)</div></div><div class="panel-body">',
-        unsafe_allow_html=True
-    )
-    counts = {"Aguardando": 0, "Enviado": 0, "Erro": 0}
-    for r in records_today:
-        counts[r] = counts.get(r, 0) + 1
-    df_status = pd.DataFrame({"Status": list(counts.keys()), "Total": list(counts.values())})
-    fig = px.pie(
-        df_status,
-        names="Status",
-        values="Total",
-        hole=0.55,
-        color="Status",
-        color_discrete_map={"Aguardando": NAVY, "Enviado": WINE, "Erro": "#ef4444"},
-    )
-    fig.update_traces(textinfo="label+value", textposition="inside")
-    st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-    st.markdown("</div></div>", unsafe_allow_html=True)
+            if st.button("💰  Financeiro", use_container_width=True, key="menu_financeiro"):
+                st.info("Área Financeiro em construção.")
 
-with g2:
-    st.markdown(
-        '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏬 Vendas por loja (Unidade)</div></div><div class="panel-body">',
-        unsafe_allow_html=True
-    )
-    vp = f.groupby(COL["unidade"]).size().reset_index(name="Total")
-    if len(vp) == 0:
-        st.info("Sem registros para o filtro selecionado.")
+            st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
+
+    with top_l:
+        st.markdown("## 📊 Painel de Pós-Venda")
+        st.caption(f"Total de registros: **{len(df)}**")
+
+    with top_mid:
+        if st.button("🔄 Atualizar agora", use_container_width=True, key="btn_refresh_main"):
+            st.cache_data.clear()
+            st.rerun()
+
+    with top_r:
+        if st.button("Sair", use_container_width=True, key="btn_logout_main"):
+            st.session_state.logged_in = False
+            st.session_state.oper_logged_in = False
+            st.session_state.page = "main"
+            st.rerun()
+
+    f1, f2, f3 = st.columns(3)
+    with f1:
+        setor = st.selectbox("Setor", ["Pós-Venda", "Pedigree"], key="main_setor")
+    with f2:
+        meses = sorted(df[COL["mes"]].dropna().astype(str).unique())
+        mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0, key="main_mes")
+    with f3:
+        unidades = ["Todas"] + sorted(df[COL["unidade"]].dropna().astype(str).unique().tolist())
+        unidade = st.selectbox("Unidade", unidades, key="main_unidade")
+
+    f = df[df[COL["mes"]].astype(str) == str(mes)].copy()
+    if unidade != "Todas":
+        f = f[f[COL["unidade"]].astype(str) == str(unidade)]
+
+    f_all = df.copy()
+    if unidade != "Todas":
+        f_all = f_all[f_all[COL["unidade"]].astype(str) == str(unidade)]
+
+    records_today = []
+    c1 = c2 = c3 = 0
+    if setor == "Pós-Venda":
+        c1 = count_today_all(f_all, COL["c1"])
+        c2 = count_today_all(f_all, COL["c2"])
+        c3 = count_today_all(f_all, COL["c3"])
+
+        for _, r in f_all.iterrows():
+            for dc, sc in [(COL["c1"], COL["s1"]), (COL["c2"], COL["s2"]), (COL["c3"], COL["s3"])]:
+                dval = r.get(dc)
+                if pd.notna(dval) and pd.to_datetime(dval).date() == hoje.date():
+                    records_today.append(status_bucket_today(r.get(sc)))
+
+    erro_hoje = records_today.count("Erro")
+
+    vendas_mes = int(len(f))
+
+    if COL_VALOR and (COL_VALOR in f.columns):
+        faturamento = float(f[COL_VALOR].apply(brl_to_float).fillna(0).sum())
     else:
+        faturamento = 0.0
+
+    st.markdown("---")
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
+    with k1:
+        kpi_card("💬 1º contato hoje", c1, "registros de hoje", "#1B1D6D")
+    with k2:
+        kpi_card("💬 2º contato hoje", c2, "registros de hoje", "#2E3192")
+    with k3:
+        kpi_card("💬 3º contato hoje", c3, "registros de hoje", "#C00040")
+    with k4:
+        kpi_card("⚠️ Status com erro", erro_hoje, "atenção", "#9B0033", value_color="#ef4444" if erro_hoje else "#0f172a")
+    with k5:
+        kpi_card("🛍️ Vendas no mês", vendas_mes, str(mes), "#F59E0B")
+    with k6:
+        kpi_card("💰 Faturamento", money_br(faturamento), "valor do filhote", "#1B1D6D", value_size=28)
+
+    st.markdown("---")
+    g1, g2 = st.columns(2)
+    g3, g4 = st.columns(2)
+
+    with g1:
+        st.markdown(
+            '<div class="panel-card"><div class="panel-head"><div class="panel-title">📌 Contatos por Status (hoje)</div></div><div class="panel-body">',
+            unsafe_allow_html=True
+        )
+        counts = {"Aguardando": 0, "Enviado": 0, "Erro": 0}
+        for r in records_today:
+            counts[r] = counts.get(r, 0) + 1
+        df_status = pd.DataFrame({"Status": list(counts.keys()), "Total": list(counts.values())})
+        fig = px.pie(
+            df_status,
+            names="Status",
+            values="Total",
+            hole=0.55,
+            color="Status",
+            color_discrete_map={"Aguardando": "#1B1D6D", "Enviado": "#9B0033", "Erro": "#ef4444"},
+        )
+        fig.update_traces(textinfo="label+value", textposition="inside")
+        st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+    with g2:
+        st.markdown(
+            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏬 Vendas por loja (Unidade)</div></div><div class="panel-body">',
+            unsafe_allow_html=True
+        )
+        vp = f.groupby(COL["unidade"]).size().reset_index(name="Total")
+        if len(vp) == 0:
+            st.info("Sem registros para o filtro selecionado.")
+        else:
+            fig = px.bar(vp, x=COL["unidade"], y="Total", text="Total",
+                         color=COL["unidade"], color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"])
+            fig.update_traces(textposition="outside", cliponaxis=False)
+            fig.update_layout(showlegend=False)
+            st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+    with g3:
+        st.markdown(
+            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🐶 Raças mais vendidas (mês)</div></div><div class="panel-body">',
+            unsafe_allow_html=True
+        )
+        vr = (
+            f.groupby(COL["raca"]).size().reset_index(name="Total")
+            .sort_values("Total", ascending=False)
+            .head(10)
+        )
+        if len(vr) == 0:
+            st.info("Sem registros para o filtro selecionado.")
+        else:
+            fig = px.bar(vr, x=COL["raca"], y="Total", text="Total",
+                         color=COL["raca"], color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"])
+            fig.update_traces(textposition="outside", cliponaxis=False)
+            fig.update_layout(showlegend=False)
+            st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+    with g4:
+        st.markdown(
+            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏆 Vendas por vendedora (mês)</div></div><div class="panel-body">',
+            unsafe_allow_html=True
+        )
+        if COL_VENDEDOR:
+            vv = (
+                f.groupby(COL_VENDEDOR).size().reset_index(name="Total")
+                .sort_values("Total", ascending=False)
+            )
+            if len(vv) == 0:
+                st.info("Sem registros para o filtro selecionado.")
+            else:
+                fig = px.bar(vv, x=COL_VENDEDOR, y="Total", text="Total",
+                             color=COL_VENDEDOR, color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"])
+                fig.update_traces(textposition="outside", cliponaxis=False)
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
+        else:
+            st.info("Coluna de vendedor não encontrada")
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+def render_oper_dashboard(df: pd.DataFrame):
+    COL = {
+        "mes": "Mês",
+        "unidade": "Unidade",
+        "c1": "1º contato",
+        "c2": "2º contato",
+        "c3": "3º contato",
+    }
+
+    for key in ["c1", "c2", "c3"]:
+        colname = COL.get(key)
+        if colname and colname in df.columns:
+            df[colname] = parse_date_series(df[colname])
+
+    top_l, top_mid, top_r = st.columns([6, 2, 1])
+
+    with top_l:
+        st.markdown("## ⚙️ Operação")
+        st.caption(f"Total de registros: **{len(df)}**")
+
+    with top_mid:
+        if st.button("⬅️ Voltar ao Painel", use_container_width=True, key="btn_back_main"):
+            st.session_state.page = "main"
+            st.rerun()
+
+    with top_r:
+        if st.button("Sair", use_container_width=True, key="btn_logout_oper"):
+            st.session_state.oper_logged_in = False
+            st.session_state.page = "main"
+            st.rerun()
+
+    f1, f2 = st.columns(2)
+    with f1:
+        meses = sorted(df[COL["mes"]].dropna().astype(str).unique())
+        mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0, key="oper_mes")
+    with f2:
+        unidades = ["Todas"] + sorted(df[COL["unidade"]].dropna().astype(str).unique().tolist())
+        unidade = st.selectbox("Unidade", unidades, key="oper_unidade")
+
+    f_all = df.copy()
+    if unidade != "Todas":
+        f_all = f_all[f_all[COL["unidade"]].astype(str) == str(unidade)]
+
+    primeiro_hoje = count_today_all(f_all, COL["c1"])
+    segundo_hoje = count_today_all(f_all, COL["c2"])
+    terceiro_hoje = count_today_all(f_all, COL["c3"])
+
+    primeiro_mes = count_month_all(f_all, COL["c1"], mes)
+    segundo_mes = count_month_all(f_all, COL["c2"], mes)
+    terceiro_mes = count_month_all(f_all, COL["c3"], mes)
+
+    st.markdown("---")
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
+
+    with k1:
+        kpi_card("💬 1º contato hoje", primeiro_hoje, "registros de hoje", "#1B1D6D")
+    with k2:
+        kpi_card("💬 2º contato hoje", segundo_hoje, "registros de hoje", "#2E3192")
+    with k3:
+        kpi_card("💬 3º contato hoje", terceiro_hoje, "registros de hoje", "#C00040")
+    with k4:
+        kpi_card("📅 Primeiro Contato Mês", primeiro_mes, str(mes), "#1B1D6D", value_size=30)
+    with k5:
+        kpi_card("📅 Segundo Contato Mês", segundo_mes, str(mes), "#9B0033", value_size=30)
+    with k6:
+        kpi_card("📅 Terceiro Contato Mês", terceiro_mes, str(mes), "#C00040", value_size=30)
+
+    st.markdown("---")
+
+    g1, g2 = st.columns(2)
+
+    with g1:
+        st.markdown(
+            '<div class="panel-card"><div class="panel-head"><div class="panel-title">📞 Contatos por mês</div></div><div class="panel-body">',
+            unsafe_allow_html=True
+        )
+        df_contatos = pd.DataFrame({
+            "Contato": ["1º contato", "2º contato", "3º contato"],
+            "Total": [primeiro_mes, segundo_mes, terceiro_mes]
+        })
         fig = px.bar(
-            vp,
-            x=COL["unidade"],
+            df_contatos,
+            x="Contato",
             y="Total",
             text="Total",
-            color=COL["unidade"],
-            color_discrete_sequence=BAR_SEQ
+            color="Contato",
+            color_discrete_sequence=["#1B1D6D", "#9B0033", "#C00040"]
         )
         fig.update_traces(textposition="outside", cliponaxis=False)
         fig.update_layout(showlegend=False)
         st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-    st.markdown("</div></div>", unsafe_allow_html=True)
+        st.markdown("</div></div>", unsafe_allow_html=True)
 
-with g3:
-    st.markdown(
-        '<div class="panel-card"><div class="panel-head"><div class="panel-title">🐶 Raças mais vendidas (mês)</div></div><div class="panel-body">',
-        unsafe_allow_html=True
-    )
-    vr = (
-        f.groupby(COL["raca"]).size().reset_index(name="Total")
-        .sort_values("Total", ascending=False)
-        .head(10)
-    )
-    if len(vr) == 0:
-        st.info("Sem registros para o filtro selecionado.")
-    else:
-        fig = px.bar(
-            vr,
-            x=COL["raca"],
-            y="Total",
-            text="Total",
-            color=COL["raca"],
-            color_discrete_sequence=BAR_SEQ
+    with g2:
+        st.markdown(
+            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏬 Contatos por unidade no mês</div></div><div class="panel-body">',
+            unsafe_allow_html=True
         )
-        fig.update_traces(textposition="outside", cliponaxis=False)
-        fig.update_layout(showlegend=False)
-        st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-    st.markdown("</div></div>", unsafe_allow_html=True)
 
-with g4:
-    st.markdown(
-        '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏆 Vendas por vendedora (mês)</div></div><div class="panel-body">',
-        unsafe_allow_html=True
-    )
-    if COL_VENDEDOR:
-        vv = (
-            f.groupby(COL_VENDEDOR).size().reset_index(name="Total")
+        temp = df.copy()
+        for key in ["c1", "c2", "c3"]:
+            temp[COL[key]] = parse_date_series(temp[COL[key]])
+
+        if unidade != "Todas":
+            temp = temp[temp[COL["unidade"]].astype(str) == str(unidade)]
+
+        # Conta linhas que tiveram qualquer contato no mês selecionado
+        month_counts = []
+        for _, row in temp.iterrows():
+            hit = False
+            for dc in [COL["c1"], COL["c2"], COL["c3"]]:
+                dval = row.get(dc)
+                if pd.notna(dval) and pd.to_datetime(dval).strftime("%m/%Y") == str(mes):
+                    hit = True
+                    break
+            month_counts.append(hit)
+
+        temp = temp.copy()
+        temp["_tem_contato_mes"] = month_counts
+        vu = (
+            temp[temp["_tem_contato_mes"]]
+            .groupby(COL["unidade"])
+            .size()
+            .reset_index(name="Total")
             .sort_values("Total", ascending=False)
         )
-        if len(vv) == 0:
+
+        if len(vu) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
             fig = px.bar(
-                vv,
-                x=COL_VENDEDOR,
+                vu,
+                x=COL["unidade"],
                 y="Total",
                 text="Total",
-                color=COL_VENDEDOR,
-                color_discrete_sequence=BAR_SEQ
+                color=COL["unidade"],
+                color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
             )
             fig.update_traces(textposition="outside", cliponaxis=False)
             fig.update_layout(showlegend=False)
             st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
+
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+# =========================================================
+# FLUXO PRINCIPAL
+# =========================================================
+inject_global_css()
+
+if not st.session_state.logged_in:
+    render_main_login()
+    st.stop()
+
+components.html("<script>setTimeout(() => window.location.reload(), 10000);</script>", height=0)
+
+df = load_sheet(sheet_url_busted(SHEET_CSV_URL))
+
+if st.session_state.page == "operacao_login":
+    render_oper_login()
+elif st.session_state.page == "operacao_dashboard":
+    if not st.session_state.oper_logged_in:
+        render_oper_login()
     else:
-        st.info("Coluna de vendedor não encontrada")
-    st.markdown("</div></div>", unsafe_allow_html=True)
+        render_oper_dashboard(df)
+else:
+    render_main_dashboard(df)
