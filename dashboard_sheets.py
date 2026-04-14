@@ -711,7 +711,6 @@ def render_main_dashboard(df: pd.DataFrame):
                     records_today.append(status_bucket_today(r.get(sc)))
 
     erro_hoje = records_today.count("Erro")
-
     vendas_mes = int(len(f))
 
     if COL_VALOR and (COL_VALOR in f.columns):
@@ -824,6 +823,9 @@ def render_oper_dashboard(df: pd.DataFrame):
         "c1": "1º contato",
         "c2": "2º contato",
         "c3": "3º contato",
+        "s1": "Status 1º contato",
+        "s2": "Status 2º contato",
+        "s3": "Status 3º contato",
     }
 
     for key in ["c1", "c2", "c3"]:
@@ -860,6 +862,10 @@ def render_oper_dashboard(df: pd.DataFrame):
     if unidade != "Todas":
         f_all = f_all[f_all[COL["unidade"]].astype(str) == str(unidade)]
 
+    f_mes = df[df[COL["mes"]].astype(str) == str(mes)].copy()
+    if unidade != "Todas":
+        f_mes = f_mes[f_mes[COL["unidade"]].astype(str) == str(unidade)]
+
     primeiro_hoje = count_today_all(f_all, COL["c1"])
     segundo_hoje = count_today_all(f_all, COL["c2"])
     terceiro_hoje = count_today_all(f_all, COL["c3"])
@@ -867,6 +873,14 @@ def render_oper_dashboard(df: pd.DataFrame):
     primeiro_mes = count_month_all(f_all, COL["c1"], mes)
     segundo_mes = count_month_all(f_all, COL["c2"], mes)
     terceiro_mes = count_month_all(f_all, COL["c3"], mes)
+
+    vendas_mes_oper = int(len(f_mes))
+
+    erro_mes_oper = 0
+    for _, row in f_mes.iterrows():
+        for sc in [COL["s1"], COL["s2"], COL["s3"]]:
+            if sc in f_mes.columns and is_error(row.get(sc)):
+                erro_mes_oper += 1
 
     st.markdown("---")
     k1, k2, k3, k4, k5, k6 = st.columns(6)
@@ -885,7 +899,39 @@ def render_oper_dashboard(df: pd.DataFrame):
         kpi_card("📅 Terceiro Contato Mês", terceiro_mes, str(mes), "#C00040", value_size=30)
 
     st.markdown("---")
+    st.markdown(
+        """
+        <div style="
+            background:#ffffff;
+            border-radius:18px;
+            padding:16px 16px 4px 16px;
+            border:1px solid rgba(15,23,42,0.06);
+            box-shadow:0 10px 24px rgba(15,23,42,0.08);
+            margin-bottom:16px;
+        ">
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
+    b1, b2, b3, b4 = st.columns([1, 1, 2, 2])
+    with b1:
+        kpi_card(
+            "⚠️ Status com erro",
+            erro_mes_oper,
+            f"{mes}",
+            "#9B0033",
+            value_color="#ef4444" if erro_mes_oper else "#0f172a"
+        )
+    with b2:
+        kpi_card(
+            "🛍️ Vendas no mês",
+            vendas_mes_oper,
+            f"{mes}",
+            "#F59E0B"
+        )
+
+    st.markdown("---")
     g1, g2 = st.columns(2)
 
     with g1:
@@ -923,7 +969,6 @@ def render_oper_dashboard(df: pd.DataFrame):
         if unidade != "Todas":
             temp = temp[temp[COL["unidade"]].astype(str) == str(unidade)]
 
-        # Conta linhas que tiveram qualquer contato no mês selecionado
         month_counts = []
         for _, row in temp.iterrows():
             hit = False
