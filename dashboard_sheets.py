@@ -80,7 +80,7 @@ def inject_global_css():
 
             .block-container {
                 padding-top: 0.35rem !important;
-                padding-bottom: 1.5rem !important;
+                padding-bottom: 1.6rem !important;
                 padding-left: 1rem !important;
                 padding-right: 1rem !important;
                 max-width: 1180px !important;
@@ -323,29 +323,43 @@ def inject_global_css():
 
             .panel-card{
                 background:#ffffff;
-                border-radius:20px;
-                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+                border-radius:22px;
+                box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
                 border: 1px solid rgba(15,23,42,0.06);
                 overflow: hidden;
             }
 
             .panel-head{
-                padding: 16px 18px 4px 18px;
+                padding: 18px 20px 6px 20px;
                 background:#ffffff;
             }
 
             .panel-title{
                 font-weight: 900;
                 color:#0f172a;
-                font-size: 18px;
+                font-size: 16px;
                 display:flex;
                 align-items:center;
                 gap:8px;
+                letter-spacing: .1px;
+            }
+
+            .panel-subtitle{
+                font-size:12px;
+                color:#64748b;
+                margin-top:4px;
             }
 
             .panel-body{
-                padding: 8px 12px 14px 12px;
+                padding: 8px 14px 18px 14px;
                 background:#ffffff;
+            }
+
+            .section-label{
+                font-size: 13px;
+                color:#64748b;
+                font-weight:700;
+                margin-bottom: 8px;
             }
 
             @media (max-width: 640px) {
@@ -439,7 +453,7 @@ def kpi_card(title, value, subtitle, accent, value_color="#0f172a", value_size=3
     html = f"""
     <div style="
         background:#ffffff;
-        border-radius:16px;
+        border-radius:18px;
         padding:16px;
         border-left:8px solid {accent};
         box-shadow:0 8px 20px rgba(15,23,42,.06);
@@ -459,11 +473,11 @@ def summary_card(title, value, subtitle, accent, value_color="#0f172a"):
     html = f"""
     <div style="
         background:#ffffff;
-        border-radius:18px;
-        padding:18px 18px 16px 18px;
+        border-radius:20px;
+        padding:20px 20px 18px 20px;
         border:1px solid rgba(15,23,42,0.08);
         box-shadow:0 10px 24px rgba(15,23,42,0.08);
-        min-height:116px;
+        min-height:120px;
         position:relative;
         font-family:Inter,Arial,sans-serif;
         width:100%;
@@ -484,7 +498,7 @@ def summary_card(title, value, subtitle, accent, value_color="#0f172a"):
                 font-weight:900;
                 color:#0f172a;
                 line-height:1.2;
-                margin-bottom:10px;
+                margin-bottom:12px;
             ">
                 {title}
             </div>
@@ -509,18 +523,31 @@ def summary_card(title, value, subtitle, accent, value_color="#0f172a"):
         </div>
     </div>
     """
-    components.html(html, height=150)
+    components.html(html, height=155)
 
 def tune_plotly(fig, height=360):
     fig.update_layout(
         height=height,
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
-        margin=dict(t=10, b=20, l=10, r=10),
+        margin=dict(t=12, b=24, l=8, r=8),
         font=dict(color="#0f172a"),
+        showlegend=False,
+        xaxis_title=None,
+        yaxis_title=None,
+        bargap=0.18,
     )
-    fig.update_xaxes(showgrid=False, zeroline=False)
-    fig.update_yaxes(showgrid=True, gridcolor="rgba(15,23,42,0.06)", zeroline=False)
+    fig.update_xaxes(
+        showgrid=False,
+        zeroline=False,
+        tickfont=dict(size=11, color="#64748b")
+    )
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor="rgba(15,23,42,0.07)",
+        zeroline=False,
+        tickfont=dict(size=11, color="#64748b")
+    )
     return fig
 
 def sheet_url_busted(base_url: str) -> str:
@@ -675,6 +702,23 @@ def count_month_all(df_base, date_col, selected_month_key):
     month_key = series.dt.strftime("%m/%Y")
     return int((month_key == str(selected_month_key)).sum())
 
+def render_panel_card_open(title, emoji="📊", subtitle=None):
+    subtitle_html = f'<div class="panel-subtitle">{subtitle}</div>' if subtitle else ""
+    st.markdown(
+        f'''
+        <div class="panel-card">
+            <div class="panel-head">
+                <div class="panel-title">{emoji} {title}</div>
+                {subtitle_html}
+            </div>
+            <div class="panel-body">
+        ''',
+        unsafe_allow_html=True
+    )
+
+def render_panel_card_close():
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
 def render_main_dashboard(df: pd.DataFrame):
     COL = {
         "mes": "Mês",
@@ -794,10 +838,7 @@ def render_main_dashboard(df: pd.DataFrame):
     g3, g4 = st.columns(2)
 
     with g1:
-        st.markdown(
-            '<div class="panel-card"><div class="panel-head"><div class="panel-title">📌 Contatos por Status (hoje)</div></div><div class="panel-body">',
-            unsafe_allow_html=True
-        )
+        render_panel_card_open("Contatos por Status (hoje)", "📌")
         counts = {"Aguardando": 0, "Enviado": 0, "Erro": 0}
         for r in records_today:
             counts[r] = counts.get(r, 0) + 1
@@ -806,19 +847,16 @@ def render_main_dashboard(df: pd.DataFrame):
             df_status,
             names="Status",
             values="Total",
-            hole=0.55,
+            hole=0.58,
             color="Status",
             color_discrete_map={"Aguardando": "#1B1D6D", "Enviado": "#9B0033", "Erro": "#ef4444"},
         )
         fig.update_traces(textinfo="label+value", textposition="inside")
         st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        render_panel_card_close()
 
     with g2:
-        st.markdown(
-            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏬 Vendas por loja (Unidade)</div></div><div class="panel-body">',
-            unsafe_allow_html=True
-        )
+        render_panel_card_open("Vendas por loja (Unidade)", "🏬")
         vp = f.groupby(COL["unidade"]).size().reset_index(name="Total")
         if len(vp) == 0:
             st.info("Sem registros para o filtro selecionado.")
@@ -832,15 +870,11 @@ def render_main_dashboard(df: pd.DataFrame):
                 color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
             )
             fig.update_traces(textposition="outside", cliponaxis=False)
-            fig.update_layout(showlegend=False)
             st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        render_panel_card_close()
 
     with g3:
-        st.markdown(
-            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🐶 Raças mais vendidas (mês)</div></div><div class="panel-body">',
-            unsafe_allow_html=True
-        )
+        render_panel_card_open("Raças mais vendidas (mês)", "🐶")
         vr = (
             f.groupby(COL["raca"]).size().reset_index(name="Total")
             .sort_values("Total", ascending=False)
@@ -858,15 +892,12 @@ def render_main_dashboard(df: pd.DataFrame):
                 color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
             )
             fig.update_traces(textposition="outside", cliponaxis=False)
-            fig.update_layout(showlegend=False)
+            fig.update_xaxes(tickangle=25)
             st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        render_panel_card_close()
 
     with g4:
-        st.markdown(
-            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏆 Vendas por vendedora (mês)</div></div><div class="panel-body">',
-            unsafe_allow_html=True
-        )
+        render_panel_card_open("Vendas por vendedora (mês)", "🏆")
         if COL_VENDEDOR:
             vv = (
                 f.groupby(COL_VENDEDOR).size().reset_index(name="Total")
@@ -884,11 +915,11 @@ def render_main_dashboard(df: pd.DataFrame):
                     color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
                 )
                 fig.update_traces(textposition="outside", cliponaxis=False)
-                fig.update_layout(showlegend=False)
+                fig.update_xaxes(tickangle=25)
                 st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
         else:
             st.info("Coluna de vendedor não encontrada")
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        render_panel_card_close()
 
 def render_oper_dashboard(df: pd.DataFrame):
     COL = {
@@ -978,7 +1009,6 @@ def render_oper_dashboard(df: pd.DataFrame):
     st.markdown("---")
 
     c_res1, c_res2 = st.columns(2)
-
     with c_res1:
         summary_card(
             "Status com erro",
@@ -987,7 +1017,6 @@ def render_oper_dashboard(df: pd.DataFrame):
             "#ef4444",
             value_color="#ef4444" if erro_mes_oper else "#0f172a"
         )
-
     with c_res2:
         summary_card(
             "Vendas registradas no mês",
@@ -1001,10 +1030,7 @@ def render_oper_dashboard(df: pd.DataFrame):
     g3, g4 = st.columns(2)
 
     with g1:
-        st.markdown(
-            '<div class="panel-card"><div class="panel-head"><div class="panel-title">📞 Contatos por mês</div></div><div class="panel-body">',
-            unsafe_allow_html=True
-        )
+        render_panel_card_open("Contatos por mês", "📞", "Distribuição mensal dos 3 contatos")
         df_contatos = pd.DataFrame({
             "Contato": ["1º contato", "2º contato", "3º contato"],
             "Total": [primeiro_mes, segundo_mes, terceiro_mes]
@@ -1017,16 +1043,16 @@ def render_oper_dashboard(df: pd.DataFrame):
             color="Contato",
             color_discrete_sequence=["#1B1D6D", "#9B0033", "#C00040"]
         )
-        fig.update_traces(textposition="outside", cliponaxis=False)
-        fig.update_layout(showlegend=False)
+        fig.update_traces(
+            textposition="outside",
+            cliponaxis=False,
+            hovertemplate="<b>%{x}</b><br>Total: %{y}<extra></extra>"
+        )
         st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        render_panel_card_close()
 
     with g2:
-        st.markdown(
-            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏬 Contatos por unidade no mês</div></div><div class="panel-body">',
-            unsafe_allow_html=True
-        )
+        render_panel_card_open("Contatos por unidade no mês", "🏬", "Linhas com pelo menos um contato no mês selecionado")
 
         temp = df.copy()
         for key in ["c1", "c2", "c3"]:
@@ -1066,17 +1092,17 @@ def render_oper_dashboard(df: pd.DataFrame):
                 color=COL["unidade"],
                 color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
             )
-            fig.update_traces(textposition="outside", cliponaxis=False)
-            fig.update_layout(showlegend=False)
+            fig.update_traces(
+                textposition="outside",
+                cliponaxis=False,
+                hovertemplate="<b>%{x}</b><br>Total: %{y}<extra></extra>"
+            )
             st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
 
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        render_panel_card_close()
 
     with g3:
-        st.markdown(
-            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🐶 Raças mais vendidas (mês)</div></div><div class="panel-body">',
-            unsafe_allow_html=True
-        )
+        render_panel_card_open("Raças mais vendidas (mês)", "🐶", "Top 10 raças do mês filtrado")
 
         vr = (
             f_mes.groupby(COL["raca"])
@@ -1097,18 +1123,18 @@ def render_oper_dashboard(df: pd.DataFrame):
                 color=COL["raca"],
                 color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
             )
-            fig.update_traces(textposition="outside", cliponaxis=False)
-            fig.update_layout(showlegend=False)
+            fig.update_traces(
+                textposition="outside",
+                cliponaxis=False,
+                hovertemplate="<b>%{x}</b><br>Total: %{y}<extra></extra>"
+            )
             fig.update_xaxes(tickangle=25)
             st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
 
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        render_panel_card_close()
 
     with g4:
-        st.markdown(
-            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏆 Vendas por vendedora (mês)</div></div><div class="panel-body">',
-            unsafe_allow_html=True
-        )
+        render_panel_card_open("Vendas por vendedora (mês)", "🏆", "Top 12 vendedoras do mês filtrado")
 
         if COL_VENDEDOR and COL_VENDEDOR in f_mes.columns:
             vv = (
@@ -1130,14 +1156,17 @@ def render_oper_dashboard(df: pd.DataFrame):
                     color=COL_VENDEDOR,
                     color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
                 )
-                fig.update_traces(textposition="outside", cliponaxis=False)
-                fig.update_layout(showlegend=False)
+                fig.update_traces(
+                    textposition="outside",
+                    cliponaxis=False,
+                    hovertemplate="<b>%{x}</b><br>Total: %{y}<extra></extra>"
+                )
                 fig.update_xaxes(tickangle=25)
                 st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
 
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        render_panel_card_close()
 
 # =========================================================
 # FLUXO PRINCIPAL
