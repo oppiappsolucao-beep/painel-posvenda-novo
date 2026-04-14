@@ -19,6 +19,16 @@ st.set_page_config(
 )
 
 # =========================================================
+# PALETA
+# =========================================================
+NAVY = "#1B1D6D"
+NAVY_2 = "#2E3192"
+WINE = "#9B0033"
+WINE_2 = "#C00040"
+GRAY_TEXT = "#64748b"
+GRID = "rgba(15,23,42,0.07)"
+
+# =========================================================
 # CREDENCIAIS
 # =========================================================
 APP_USER = "operacao"
@@ -60,11 +70,13 @@ def img_to_base64(path: str):
         pass
     return None
 
+
 def render_logo_html():
     logo_b64 = img_to_base64("skoobpet.png")
     if logo_b64:
         return f'<img src="data:image/png;base64,{logo_b64}" class="login-logo" alt="SkoobPet">'
     return '<div class="login-logo-fallback">🐾</div>'
+
 
 def inject_global_css():
     st.markdown(
@@ -330,7 +342,7 @@ def inject_global_css():
             }
 
             .panel-head{
-                padding: 14px 18px 2px 18px;
+                padding: 14px 18px 4px 18px;
                 background:#ffffff;
             }
 
@@ -387,6 +399,7 @@ def inject_global_css():
         unsafe_allow_html=True
     )
 
+
 def money_br(v):
     try:
         v = float(v)
@@ -394,6 +407,7 @@ def money_br(v):
         v = 0.0
     s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return f"R$ {s}"
+
 
 def pick_first_existing(df, candidates):
     cols = {str(c).replace("\u00a0", " ").strip(): c for c in df.columns}
@@ -403,16 +417,20 @@ def pick_first_existing(df, candidates):
             return cols[key]
     return None
 
+
 def norm(x):
     return str(x).strip().lower() if pd.notna(x) else ""
+
 
 def is_error(status):
     s = norm(status)
     return ("erro" in s) or ("atras" in s) or ("pendenc" in s)
 
+
 def is_sent(status):
     s = norm(status)
     return ("enviado" in s) or ("enviada" in s)
+
 
 def status_bucket_today(status):
     if is_error(status):
@@ -420,6 +438,7 @@ def status_bucket_today(status):
     if is_sent(status):
         return "Enviado"
     return "Aguardando"
+
 
 def brl_to_float(v):
     if v is None or (isinstance(v, float) and pd.isna(v)):
@@ -441,6 +460,7 @@ def brl_to_float(v):
     except Exception:
         return 0.0
 
+
 def kpi_card(title, value, subtitle, accent, value_color="#0f172a", value_size=38):
     html = f"""
     <div style="
@@ -460,6 +480,7 @@ def kpi_card(title, value, subtitle, accent, value_color="#0f172a", value_size=3
     </div>
     """
     components.html(html, height=130)
+
 
 def summary_card(title, value, subtitle, accent, value_color="#0f172a"):
     html = f"""
@@ -517,51 +538,67 @@ def summary_card(title, value, subtitle, accent, value_color="#0f172a"):
     """
     components.html(html, height=150)
 
+
 def tune_plotly(fig, height=320):
     fig.update_layout(
         height=height,
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
-        margin=dict(t=6, b=28, l=6, r=6),
+        margin=dict(t=8, b=30, l=8, r=8),
         font=dict(color="#0f172a"),
         showlegend=False,
         xaxis_title=None,
         yaxis_title=None,
-        bargap=0.22,
+        bargap=0.20,
     )
     fig.update_xaxes(
         showgrid=False,
         zeroline=False,
-        tickfont=dict(size=10, color="#64748b")
+        tickfont=dict(size=10, color=GRAY_TEXT)
     )
     fig.update_yaxes(
         showgrid=True,
-        gridcolor="rgba(15,23,42,0.06)",
+        gridcolor=GRID,
         zeroline=False,
-        tickfont=dict(size=10, color="#64748b")
+        tickfont=dict(size=10, color=GRAY_TEXT)
     )
     return fig
 
-def build_simple_bar(df_plot, x_col, y_col, height=320, tickangle=28):
-    fig = px.bar(df_plot, x=x_col, y=y_col, text=y_col)
+
+def short_label(val: str, max_len: int = 13) -> str:
+    s = str(val)
+    return s if len(s) <= max_len else s[:max_len - 1] + "…"
+
+
+def build_named_bar(df_plot, x_col, y_col, bar_color=NAVY, height=320, tickangle=18):
+    d = df_plot.copy()
+    d["_label"] = d[x_col].astype(str).apply(short_label)
+    d["_text"] = d[x_col].astype(str) + "<br>" + d[y_col].astype(str)
+
+    fig = px.bar(d, x=x_col, y=y_col, text="_text")
     fig.update_traces(
-        marker_color="#f59e0b",
+        marker_color=bar_color,
         textposition="outside",
         cliponaxis=False,
+        textfont=dict(size=10, color="#334155"),
         hovertemplate="<b>%{x}</b><br>Quantidade: %{y}<extra></extra>"
     )
+    fig.update_traces(texttemplate="%{text}")
     fig.update_xaxes(tickangle=tickangle)
     return tune_plotly(fig, height=height)
+
 
 def sheet_url_busted(base_url: str) -> str:
     sep = "&" if "?" in base_url else "?"
     return f"{base_url}{sep}_ts={int(time.time()*1000)}"
+
 
 @st.cache_data(ttl=2, show_spinner=False)
 def load_sheet(csv_url: str) -> pd.DataFrame:
     d = pd.read_csv(csv_url)
     d.columns = [str(c).replace("\u00a0", " ").strip() for c in d.columns]
     return d
+
 
 def parse_date_series(s: pd.Series) -> pd.Series:
     if s is None:
@@ -581,6 +618,7 @@ def parse_date_series(s: pd.Series) -> pd.Series:
         out.loc[mask_other] = pd.to_datetime(x.loc[mask_other], errors="coerce")
 
     return out
+
 
 def render_main_login():
     inject_global_css()
@@ -632,6 +670,7 @@ def render_main_login():
         """,
         unsafe_allow_html=True
     )
+
 
 def render_oper_login():
     inject_global_css()
@@ -688,11 +727,13 @@ def render_oper_login():
         unsafe_allow_html=True
     )
 
+
 def count_today_all(df_base, date_col):
     if date_col not in df_base.columns:
         return 0
     sub = df_base[df_base[date_col].dt.date == hoje.date()]
     return int(len(sub))
+
 
 def count_month_all(df_base, date_col, selected_month_key):
     if date_col not in df_base.columns:
@@ -704,6 +745,7 @@ def count_month_all(df_base, date_col, selected_month_key):
         return 0
     month_key = series.dt.strftime("%m/%Y")
     return int((month_key == str(selected_month_key)).sum())
+
 
 def render_panel_card_open(title, emoji="📊", subtitle=None):
     subtitle_html = f'<div class="panel-subtitle">{subtitle}</div>' if subtitle else ""
@@ -719,8 +761,10 @@ def render_panel_card_open(title, emoji="📊", subtitle=None):
         unsafe_allow_html=True
     )
 
+
 def render_panel_card_close():
     st.markdown("</div></div>", unsafe_allow_html=True)
+
 
 def render_main_dashboard(df: pd.DataFrame):
     COL = {
@@ -824,17 +868,17 @@ def render_main_dashboard(df: pd.DataFrame):
     st.markdown("---")
     k1, k2, k3, k4, k5, k6 = st.columns(6)
     with k1:
-        kpi_card("💬 1º contato hoje", c1, "registros de hoje", "#1B1D6D")
+        kpi_card("💬 1º contato hoje", c1, "registros de hoje", NAVY)
     with k2:
-        kpi_card("💬 2º contato hoje", c2, "registros de hoje", "#2E3192")
+        kpi_card("💬 2º contato hoje", c2, "registros de hoje", NAVY_2)
     with k3:
-        kpi_card("💬 3º contato hoje", c3, "registros de hoje", "#C00040")
+        kpi_card("💬 3º contato hoje", c3, "registros de hoje", WINE_2)
     with k4:
-        kpi_card("⚠️ Status com erro", erro_hoje, "atenção", "#9B0033", value_color="#ef4444" if erro_hoje else "#0f172a")
+        kpi_card("⚠️ Status com erro", erro_hoje, "atenção", WINE, value_color="#ef4444" if erro_hoje else "#0f172a")
     with k5:
         kpi_card("🛍️ Vendas no mês", vendas_mes, str(mes), "#F59E0B")
     with k6:
-        kpi_card("💰 Faturamento", money_br(faturamento), "valor do filhote", "#1B1D6D", value_size=28)
+        kpi_card("💰 Faturamento", money_br(faturamento), "valor do filhote", NAVY, value_size=28)
 
     st.markdown("---")
     g1, g2 = st.columns(2)
@@ -852,7 +896,7 @@ def render_main_dashboard(df: pd.DataFrame):
             values="Total",
             hole=0.58,
             color="Status",
-            color_discrete_map={"Aguardando": "#1B1D6D", "Enviado": "#9B0033", "Erro": "#ef4444"},
+            color_discrete_map={"Aguardando": NAVY, "Enviado": WINE, "Erro": "#ef4444"},
         )
         fig.update_traces(textinfo="label+value", textposition="inside")
         st.plotly_chart(tune_plotly(fig, height=320), use_container_width=True)
@@ -864,7 +908,7 @@ def render_main_dashboard(df: pd.DataFrame):
         if len(vp) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_simple_bar(vp, COL["unidade"], "Total", height=320, tickangle=20)
+            fig = build_named_bar(vp, COL["unidade"], "Total", bar_color=NAVY, height=320, tickangle=18)
             st.plotly_chart(fig, use_container_width=True)
         render_panel_card_close()
 
@@ -878,7 +922,7 @@ def render_main_dashboard(df: pd.DataFrame):
         if len(vr) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_simple_bar(vr, COL["raca"], "Total", height=320, tickangle=25)
+            fig = build_named_bar(vr, COL["raca"], "Total", bar_color=NAVY, height=320, tickangle=20)
             st.plotly_chart(fig, use_container_width=True)
         render_panel_card_close()
 
@@ -892,11 +936,12 @@ def render_main_dashboard(df: pd.DataFrame):
             if len(vv) == 0:
                 st.info("Sem registros para o filtro selecionado.")
             else:
-                fig = build_simple_bar(vv.head(12), COL_VENDEDOR, "Total", height=320, tickangle=25)
+                fig = build_named_bar(vv.head(12), COL_VENDEDOR, "Total", bar_color=WINE, height=320, tickangle=20)
                 st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Coluna de vendedor não encontrada")
         render_panel_card_close()
+
 
 def render_oper_dashboard(df: pd.DataFrame):
     COL = {
@@ -971,17 +1016,17 @@ def render_oper_dashboard(df: pd.DataFrame):
     k1, k2, k3, k4, k5, k6 = st.columns(6)
 
     with k1:
-        kpi_card("💬 1º contato hoje", primeiro_hoje, "registros de hoje", "#1B1D6D")
+        kpi_card("💬 1º contato hoje", primeiro_hoje, "registros de hoje", NAVY)
     with k2:
-        kpi_card("💬 2º contato hoje", segundo_hoje, "registros de hoje", "#2E3192")
+        kpi_card("💬 2º contato hoje", segundo_hoje, "registros de hoje", NAVY_2)
     with k3:
-        kpi_card("💬 3º contato hoje", terceiro_hoje, "registros de hoje", "#C00040")
+        kpi_card("💬 3º contato hoje", terceiro_hoje, "registros de hoje", WINE_2)
     with k4:
-        kpi_card("🧾 Primeiro Contato Mês", primeiro_mes, str(mes), "#1B1D6D", value_size=30)
+        kpi_card("🧾 Primeiro Contato Mês", primeiro_mes, str(mes), NAVY, value_size=30)
     with k5:
-        kpi_card("🧾 Segundo Contato Mês", segundo_mes, str(mes), "#9B0033", value_size=30)
+        kpi_card("🧾 Segundo Contato Mês", segundo_mes, str(mes), WINE, value_size=30)
     with k6:
-        kpi_card("🧾 Terceiro Contato Mês", terceiro_mes, str(mes), "#C00040", value_size=30)
+        kpi_card("🧾 Terceiro Contato Mês", terceiro_mes, str(mes), WINE_2, value_size=30)
 
     st.markdown("---")
 
@@ -999,7 +1044,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             "Vendas registradas no mês",
             vendas_mes_oper,
             f"Mês Venda: {mes}",
-            "#9B0033"
+            WINE
         )
 
     st.markdown("---")
@@ -1012,7 +1057,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             "Contato": ["1º contato", "2º contato", "3º contato"],
             "Total": [primeiro_mes, segundo_mes, terceiro_mes]
         })
-        fig = build_simple_bar(df_contatos, "Contato", "Total", height=320, tickangle=0)
+        fig = build_named_bar(df_contatos, "Contato", "Total", bar_color=NAVY, height=320, tickangle=0)
         st.plotly_chart(fig, use_container_width=True)
         render_panel_card_close()
 
@@ -1049,7 +1094,7 @@ def render_oper_dashboard(df: pd.DataFrame):
         if len(vu) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_simple_bar(vu, COL["unidade"], "Total", height=320, tickangle=20)
+            fig = build_named_bar(vu, COL["unidade"], "Total", bar_color=NAVY, height=320, tickangle=16)
             st.plotly_chart(fig, use_container_width=True)
 
         render_panel_card_close()
@@ -1068,7 +1113,7 @@ def render_oper_dashboard(df: pd.DataFrame):
         if len(vr) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_simple_bar(vr, COL["raca"], "Total", height=320, tickangle=25)
+            fig = build_named_bar(vr, COL["raca"], "Total", bar_color=NAVY, height=320, tickangle=18)
             st.plotly_chart(fig, use_container_width=True)
 
         render_panel_card_close()
@@ -1088,7 +1133,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             if len(vv) == 0:
                 st.info("Sem registros para o filtro selecionado.")
             else:
-                fig = build_simple_bar(vv, COL_VENDEDOR, "Total", height=320, tickangle=25)
+                fig = build_named_bar(vv, COL_VENDEDOR, "Total", bar_color=WINE, height=320, tickangle=18)
                 st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
