@@ -466,6 +466,7 @@ def summary_card(title, value, subtitle, accent, value_color="#0f172a"):
         min-height:116px;
         position:relative;
         font-family:Inter,Arial,sans-serif;
+        width:100%;
     ">
         <div style="
             position:absolute;
@@ -955,7 +956,7 @@ def render_oper_dashboard(df: pd.DataFrame):
 
     st.markdown("---")
 
-    c_res1, c_res2, c_space = st.columns([1, 1, 1.1])
+    c_res1, c_res2 = st.columns(2)
 
     with c_res1:
         summary_card(
@@ -971,7 +972,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             "Vendas registradas no mês",
             vendas_mes_oper,
             f"Mês Venda: {mes}",
-            "#f59e0b"
+            "#9B0033"
         )
 
     st.markdown("---")
