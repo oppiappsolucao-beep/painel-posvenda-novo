@@ -79,11 +79,11 @@ def inject_global_css():
             }
 
             .block-container {
-                padding-top: 0rem !important;
-                padding-bottom: 0rem !important;
+                padding-top: 0.35rem !important;
+                padding-bottom: 1.5rem !important;
                 padding-left: 1rem !important;
                 padding-right: 1rem !important;
-                max-width: 1100px !important;
+                max-width: 1180px !important;
             }
 
             .login-page-wrap {
@@ -142,7 +142,7 @@ def inject_global_css():
             }
 
             .login-card {
-                background: rgba(255,255,255,0.95);
+                background: rgba(255,255,255,0.96);
                 border: 1px solid rgba(15,23,42,0.06);
                 border-radius: 22px;
                 padding: 12px 20px 10px 20px;
@@ -323,14 +323,14 @@ def inject_global_css():
 
             .panel-card{
                 background:#ffffff;
-                border-radius:18px;
+                border-radius:20px;
                 box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
                 border: 1px solid rgba(15,23,42,0.06);
                 overflow: hidden;
             }
 
             .panel-head{
-                padding: 14px 16px 0px 16px;
+                padding: 16px 18px 4px 18px;
                 background:#ffffff;
             }
 
@@ -344,7 +344,7 @@ def inject_global_css():
             }
 
             .panel-body{
-                padding: 8px 10px 12px 10px;
+                padding: 8px 12px 14px 12px;
                 background:#ffffff;
             }
 
@@ -516,7 +516,7 @@ def tune_plotly(fig, height=360):
         height=height,
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
-        margin=dict(t=6, b=6, l=6, r=6),
+        margin=dict(t=10, b=20, l=10, r=10),
         font=dict(color="#0f172a"),
     )
     fig.update_xaxes(showgrid=False, zeroline=False)
@@ -823,8 +823,14 @@ def render_main_dashboard(df: pd.DataFrame):
         if len(vp) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = px.bar(vp, x=COL["unidade"], y="Total", text="Total",
-                         color=COL["unidade"], color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"])
+            fig = px.bar(
+                vp,
+                x=COL["unidade"],
+                y="Total",
+                text="Total",
+                color=COL["unidade"],
+                color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
+            )
             fig.update_traces(textposition="outside", cliponaxis=False)
             fig.update_layout(showlegend=False)
             st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
@@ -843,8 +849,14 @@ def render_main_dashboard(df: pd.DataFrame):
         if len(vr) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = px.bar(vr, x=COL["raca"], y="Total", text="Total",
-                         color=COL["raca"], color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"])
+            fig = px.bar(
+                vr,
+                x=COL["raca"],
+                y="Total",
+                text="Total",
+                color=COL["raca"],
+                color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
+            )
             fig.update_traces(textposition="outside", cliponaxis=False)
             fig.update_layout(showlegend=False)
             st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
@@ -863,8 +875,14 @@ def render_main_dashboard(df: pd.DataFrame):
             if len(vv) == 0:
                 st.info("Sem registros para o filtro selecionado.")
             else:
-                fig = px.bar(vv, x=COL_VENDEDOR, y="Total", text="Total",
-                             color=COL_VENDEDOR, color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"])
+                fig = px.bar(
+                    vv,
+                    x=COL_VENDEDOR,
+                    y="Total",
+                    text="Total",
+                    color=COL_VENDEDOR,
+                    color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
+                )
                 fig.update_traces(textposition="outside", cliponaxis=False)
                 fig.update_layout(showlegend=False)
                 st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
@@ -876,6 +894,7 @@ def render_oper_dashboard(df: pd.DataFrame):
     COL = {
         "mes": "Mês",
         "unidade": "Unidade",
+        "raca": "Raça",
         "c1": "1º contato",
         "c2": "2º contato",
         "c3": "3º contato",
@@ -883,6 +902,8 @@ def render_oper_dashboard(df: pd.DataFrame):
         "s2": "Status 2º contato",
         "s3": "Status 3º contato",
     }
+
+    COL_VENDEDOR = pick_first_existing(df, ["Vendedora", "Vendedor", "Atendente"])
 
     for key in ["c1", "c2", "c3"]:
         colname = COL.get(key)
@@ -948,11 +969,11 @@ def render_oper_dashboard(df: pd.DataFrame):
     with k3:
         kpi_card("💬 3º contato hoje", terceiro_hoje, "registros de hoje", "#C00040")
     with k4:
-        kpi_card("📅 Primeiro Contato Mês", primeiro_mes, str(mes), "#1B1D6D", value_size=30)
+        kpi_card("🧾 Primeiro Contato Mês", primeiro_mes, str(mes), "#1B1D6D", value_size=30)
     with k5:
-        kpi_card("📅 Segundo Contato Mês", segundo_mes, str(mes), "#9B0033", value_size=30)
+        kpi_card("🧾 Segundo Contato Mês", segundo_mes, str(mes), "#9B0033", value_size=30)
     with k6:
-        kpi_card("📅 Terceiro Contato Mês", terceiro_mes, str(mes), "#C00040", value_size=30)
+        kpi_card("🧾 Terceiro Contato Mês", terceiro_mes, str(mes), "#C00040", value_size=30)
 
     st.markdown("---")
 
@@ -977,6 +998,7 @@ def render_oper_dashboard(df: pd.DataFrame):
 
     st.markdown("---")
     g1, g2 = st.columns(2)
+    g3, g4 = st.columns(2)
 
     with g1:
         st.markdown(
@@ -1047,6 +1069,73 @@ def render_oper_dashboard(df: pd.DataFrame):
             fig.update_traces(textposition="outside", cliponaxis=False)
             fig.update_layout(showlegend=False)
             st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
+
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+    with g3:
+        st.markdown(
+            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🐶 Raças mais vendidas (mês)</div></div><div class="panel-body">',
+            unsafe_allow_html=True
+        )
+
+        vr = (
+            f_mes.groupby(COL["raca"])
+            .size()
+            .reset_index(name="Total")
+            .sort_values("Total", ascending=False)
+            .head(10)
+        )
+
+        if len(vr) == 0:
+            st.info("Sem registros para o filtro selecionado.")
+        else:
+            fig = px.bar(
+                vr,
+                x=COL["raca"],
+                y="Total",
+                text="Total",
+                color=COL["raca"],
+                color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
+            )
+            fig.update_traces(textposition="outside", cliponaxis=False)
+            fig.update_layout(showlegend=False)
+            fig.update_xaxes(tickangle=25)
+            st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
+
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+    with g4:
+        st.markdown(
+            '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏆 Vendas por vendedora (mês)</div></div><div class="panel-body">',
+            unsafe_allow_html=True
+        )
+
+        if COL_VENDEDOR and COL_VENDEDOR in f_mes.columns:
+            vv = (
+                f_mes.groupby(COL_VENDEDOR)
+                .size()
+                .reset_index(name="Total")
+                .sort_values("Total", ascending=False)
+                .head(12)
+            )
+
+            if len(vv) == 0:
+                st.info("Sem registros para o filtro selecionado.")
+            else:
+                fig = px.bar(
+                    vv,
+                    x=COL_VENDEDOR,
+                    y="Total",
+                    text="Total",
+                    color=COL_VENDEDOR,
+                    color_discrete_sequence=["#1B1D6D", "#9B0033", "#2E3192", "#C00040", "#334155", "#94a3b8"]
+                )
+                fig.update_traces(textposition="outside", cliponaxis=False)
+                fig.update_layout(showlegend=False)
+                fig.update_xaxes(tickangle=25)
+                st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
+        else:
+            st.info("Coluna de vendedor/vendedora não encontrada.")
 
         st.markdown("</div></div>", unsafe_allow_html=True)
 
