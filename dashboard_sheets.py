@@ -278,7 +278,8 @@ def ensure_login() -> bool:
                 text-align: center;
             }
 
-            div[data-testid="stPopoverContent"] .stButton > button {
+            div[data-testid="stPopoverContent"] .stButton > button,
+            div[data-testid="stPopoverContent"] .stLinkButton > a {
                 width: 100% !important;
                 height: 44px !important;
                 margin-top: 8px !important;
@@ -289,13 +290,19 @@ def ensure_login() -> bool:
                 font-size: 15px !important;
                 font-weight: 700 !important;
                 box-shadow: none !important;
+                text-decoration: none !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
             }
 
-            div[data-testid="stPopoverContent"] .stButton > button:hover {
+            div[data-testid="stPopoverContent"] .stButton > button:hover,
+            div[data-testid="stPopoverContent"] .stLinkButton > a:hover {
                 background: linear-gradient(90deg, #1d1564 0%, #9d0139 100%) !important;
                 color: #ffffff !important;
                 border: 1px solid transparent !important;
                 transform: translateY(-1px);
+                text-decoration: none !important;
             }
 
             @media (max-width: 640px) {
@@ -625,8 +632,11 @@ with top_menu:
         st.markdown('<div class="menu-sub">Escolha uma área para acessar</div>', unsafe_allow_html=True)
         st.markdown('<div class="menu-divider"></div>', unsafe_allow_html=True)
 
-        if st.button("📄  Novo Contrato", use_container_width=True, key="menu_novo_contrato"):
-            st.info("Abrir fluxo de Novo Contrato")
+        st.link_button(
+            "📄  Novo Contrato",
+            "https://n8n.oppitech.com.br/form/55a2bd76-25c9-4ea2-82ad-f5c0ae75e19c",
+            use_container_width=True
+        )
 
         if st.button("⚙️  Operação", use_container_width=True, key="menu_operacao"):
             st.info("Abrir Operação")
