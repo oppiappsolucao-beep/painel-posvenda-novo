@@ -342,27 +342,29 @@ def inject_global_css():
             }
 
             .panel-head{
-                padding: 14px 18px 4px 18px;
+                padding: 10px 16px 0px 16px;
                 background:#ffffff;
             }
 
             .panel-title{
                 font-weight: 800;
                 color:#0f172a;
-                font-size: 16px;
+                font-size: 15px;
                 display:flex;
                 align-items:center;
                 gap:8px;
+                line-height: 1.15;
             }
 
             .panel-subtitle{
-                font-size:12px;
+                font-size:11px;
                 color:#64748b;
-                margin-top:4px;
+                margin-top:2px;
+                line-height:1.1;
             }
 
             .panel-body{
-                padding: 4px 10px 10px 10px;
+                padding: 2px 8px 8px 8px;
                 background:#ffffff;
             }
 
@@ -539,12 +541,12 @@ def summary_card(title, value, subtitle, accent, value_color="#0f172a"):
     components.html(html, height=150)
 
 
-def tune_plotly(fig, height=320):
+def tune_plotly(fig, height=285):
     fig.update_layout(
         height=height,
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
-        margin=dict(t=8, b=30, l=8, r=8),
+        margin=dict(t=4, b=28, l=6, r=6),
         font=dict(color="#0f172a"),
         showlegend=False,
         xaxis_title=None,
@@ -565,14 +567,8 @@ def tune_plotly(fig, height=320):
     return fig
 
 
-def short_label(val: str, max_len: int = 13) -> str:
-    s = str(val)
-    return s if len(s) <= max_len else s[:max_len - 1] + "…"
-
-
-def build_named_bar(df_plot, x_col, y_col, bar_color=NAVY, height=320, tickangle=18):
+def build_named_bar(df_plot, x_col, y_col, bar_color=NAVY, height=285, tickangle=18):
     d = df_plot.copy()
-    d["_label"] = d[x_col].astype(str).apply(short_label)
     d["_text"] = d[x_col].astype(str) + "<br>" + d[y_col].astype(str)
 
     fig = px.bar(d, x=x_col, y=y_col, text="_text")
@@ -580,7 +576,7 @@ def build_named_bar(df_plot, x_col, y_col, bar_color=NAVY, height=320, tickangle
         marker_color=bar_color,
         textposition="outside",
         cliponaxis=False,
-        textfont=dict(size=10, color="#334155"),
+        textfont=dict(size=9, color="#334155"),
         hovertemplate="<b>%{x}</b><br>Quantidade: %{y}<extra></extra>"
     )
     fig.update_traces(texttemplate="%{text}")
@@ -899,7 +895,7 @@ def render_main_dashboard(df: pd.DataFrame):
             color_discrete_map={"Aguardando": NAVY, "Enviado": WINE, "Erro": "#ef4444"},
         )
         fig.update_traces(textinfo="label+value", textposition="inside")
-        st.plotly_chart(tune_plotly(fig, height=320), use_container_width=True)
+        st.plotly_chart(tune_plotly(fig, height=300), use_container_width=True)
         render_panel_card_close()
 
     with g2:
@@ -908,7 +904,7 @@ def render_main_dashboard(df: pd.DataFrame):
         if len(vp) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_named_bar(vp, COL["unidade"], "Total", bar_color=NAVY, height=320, tickangle=18)
+            fig = build_named_bar(vp, COL["unidade"], "Total", bar_color=NAVY, height=285, tickangle=18)
             st.plotly_chart(fig, use_container_width=True)
         render_panel_card_close()
 
@@ -922,7 +918,7 @@ def render_main_dashboard(df: pd.DataFrame):
         if len(vr) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_named_bar(vr, COL["raca"], "Total", bar_color=NAVY, height=320, tickangle=20)
+            fig = build_named_bar(vr, COL["raca"], "Total", bar_color=NAVY, height=285, tickangle=18)
             st.plotly_chart(fig, use_container_width=True)
         render_panel_card_close()
 
@@ -936,7 +932,7 @@ def render_main_dashboard(df: pd.DataFrame):
             if len(vv) == 0:
                 st.info("Sem registros para o filtro selecionado.")
             else:
-                fig = build_named_bar(vv.head(12), COL_VENDEDOR, "Total", bar_color=WINE, height=320, tickangle=20)
+                fig = build_named_bar(vv.head(12), COL_VENDEDOR, "Total", bar_color=WINE, height=285, tickangle=18)
                 st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Coluna de vendedor não encontrada")
@@ -1057,7 +1053,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             "Contato": ["1º contato", "2º contato", "3º contato"],
             "Total": [primeiro_mes, segundo_mes, terceiro_mes]
         })
-        fig = build_named_bar(df_contatos, "Contato", "Total", bar_color=NAVY, height=320, tickangle=0)
+        fig = build_named_bar(df_contatos, "Contato", "Total", bar_color=NAVY, height=285, tickangle=0)
         st.plotly_chart(fig, use_container_width=True)
         render_panel_card_close()
 
@@ -1094,7 +1090,7 @@ def render_oper_dashboard(df: pd.DataFrame):
         if len(vu) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_named_bar(vu, COL["unidade"], "Total", bar_color=NAVY, height=320, tickangle=16)
+            fig = build_named_bar(vu, COL["unidade"], "Total", bar_color=NAVY, height=285, tickangle=16)
             st.plotly_chart(fig, use_container_width=True)
 
         render_panel_card_close()
@@ -1113,7 +1109,7 @@ def render_oper_dashboard(df: pd.DataFrame):
         if len(vr) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_named_bar(vr, COL["raca"], "Total", bar_color=NAVY, height=320, tickangle=18)
+            fig = build_named_bar(vr, COL["raca"], "Total", bar_color=NAVY, height=285, tickangle=16)
             st.plotly_chart(fig, use_container_width=True)
 
         render_panel_card_close()
@@ -1133,7 +1129,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             if len(vv) == 0:
                 st.info("Sem registros para o filtro selecionado.")
             else:
-                fig = build_named_bar(vv, COL_VENDEDOR, "Total", bar_color=WINE, height=320, tickangle=18)
+                fig = build_named_bar(vv, COL_VENDEDOR, "Total", bar_color=WINE, height=285, tickangle=16)
                 st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
