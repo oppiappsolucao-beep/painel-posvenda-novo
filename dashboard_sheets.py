@@ -5,12 +5,27 @@ import datetime
 import plotly.express as px
 import re
 import time
+import base64
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
-# ===============================
-# CONFIG
-# ===============================
-st.set_page_config(page_title="Painel Pós-Venda", layout="wide")
+# =========================================================
+# CONFIG DA PÁGINA
+# =========================================================
+st.set_page_config(
+    page_title="Painel Pós-Venda",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# =========================================================
+# CREDENCIAIS
+# =========================================================
+APP_USER = "operacao"
+APP_PASS = "100316"
+
+OPER_USER = "skoob"
+OPER_PASS = "skoob123"
 
 SHEET_CSV_URL = (
     "https://docs.google.com/spreadsheets/d/"
@@ -18,239 +33,459 @@ SHEET_CSV_URL = (
     "/gviz/tq?tqx=out:csv&gid=1396326144"
 )
 
-# ===============================
-# LOGIN PRINCIPAL
-# ===============================
-APP_USER = "operacao"
-APP_PASS = "100316"
+TZ = ZoneInfo("America/Sao_Paulo")
+hoje = pd.Timestamp(datetime.datetime.now(TZ).date())
 
-def ensure_login():
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
+# =========================================================
+# ESTADO INICIAL
+# =========================================================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-    if st.session_state.logged_in:
-        return True
+if "oper_logged_in" not in st.session_state:
+    st.session_state.oper_logged_in = False
 
-    st.markdown("""
-    <style>
-    .stApp { background-color: #D4D4D4; }
-    .login-box {
-        background: white;
-        padding: 30px;
-        border-radius: 18px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        max-width: 420px;
-        margin: auto;
-        margin-top: 8vh;
-        text-align: center;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="login-box">', unsafe_allow_html=True)
-
-    st.image("skoobpet.png", width=90)
-    st.markdown("### Acesso ao Painel")
-
-    user = st.text_input("Usuário")
-    pwd = st.text_input("Senha", type="password")
-
-    if st.button("Entrar", use_container_width=True):
-        if user == APP_USER and pwd == APP_PASS:
-            st.session_state.logged_in = True
-            st.rerun()
-        else:
-            st.error("Login inválido")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    return False
-
-
-# ===============================
-# LOGIN OPERAÇÃO
-# ===============================
-def ensure_oper_login():
-    if "oper_logged" not in st.session_state:
-        st.session_state.oper_logged = False
-
-    if st.session_state.oper_logged:
-        return True
-
-    st.markdown("## 🔐 Login Operação")
-
-    user = st.text_input("Usuário", key="op_user")
-    pwd = st.text_input("Senha", type="password", key="op_pwd")
-
-    if st.button("Entrar Operação"):
-        if user == "skoob" and pwd == "skoob123":
-            st.session_state.oper_logged = True
-            st.rerun()
-        else:
-            st.error("Senha incorreta")
-
-    return False
-
-
-# ===============================
-# LOAD DATA
-# ===============================
-@st.cache_data(ttl=2)
-def load_data():
-    df = pd.read_csv(SHEET_CSV_URL)
-    return df
-
-df = load_data()
-
-# ===============================
-# MENU LATERAL
-# ===============================
-def render_menu():
-    if "menu_open" not in st.session_state:
-        st.session_state.menu_open = False
-
-    col1, col2 = st.columns([1, 10])
-
-    with col1:
-        if st.button("☰"):
-            st.session_state.menu_open = not st.session_state.menu_open
-
-    if st.session_state.menu_open:
-        st.markdown("""
-        <style>
-        .menu-box {
-            background: linear-gradient(135deg, #9d0139, #1d1564);
-            padding: 20px;
-            border-radius: 16px;
-            color: white;
-            width: 260px;
-            position: absolute;
-            z-index: 999;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        st.markdown('<div class="menu-box">', unsafe_allow_html=True)
-
-        if st.button("📄 Novo Contrato"):
-            components.html(
-                "<script>window.open('https://n8n.oppitech.com.br/form/55a2bd76-25c9-4ea2-82ad-f5c0ae75e19c', '_blank')</script>",
-                height=0,
-            )
-
-        if st.button("⚙️ Operação"):
-            st.session_state.page = "operacao"
-
-        if st.button("💰 Financeiro"):
-            st.info("Em construção")
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-
-# ===============================
-# HELPERS
-# ===============================
-def parse_date_series(s):
-    return pd.to_datetime(s, errors="coerce", dayfirst=True)
-
-def count_today(df, col):
-    today = datetime.date.today()
-    return df[df[col].dt.date == today].shape[0]
-
-def count_month(df, col, mes):
-    return df[df[col].dt.strftime("%m/%Y") == mes].shape[0]
-
-def is_error(val):
-    if pd.isna(val): return False
-    return "erro" in str(val).lower()
-
-# ===============================
-# MAIN DASHBOARD
-# ===============================
-def render_main():
-    render_menu()
-
-    st.title("📊 Painel de Pós-Venda")
-
-    meses = sorted(df["Mês"].dropna().astype(str).unique())
-    mes = st.selectbox("Mês", meses)
-
-    # KPIs
-    c1 = count_today(df, "1º contato")
-    c2 = count_today(df, "2º contato")
-    c3 = count_today(df, "3º contato")
-
-    m1 = count_month(df, "1º contato", mes)
-    m2 = count_month(df, "2º contato", mes)
-    m3 = count_month(df, "3º contato", mes)
-
-    erro = df[df["Status 1º contato"].apply(is_error)].shape[0]
-    vendas = df[df["Mês"] == mes].shape[0]
-
-    st.markdown("### KPIs")
-
-    cols = st.columns(6)
-    cols[0].metric("1º hoje", c1)
-    cols[1].metric("2º hoje", c2)
-    cols[2].metric("3º hoje", c3)
-    cols[3].metric("1º mês", m1)
-    cols[4].metric("2º mês", m2)
-    cols[5].metric("3º mês", m3)
-
-    st.markdown("---")
-
-    # CARDS DE BAIXO (ESTILO CERTO)
-    c_res1, c_res2 = st.columns(2)
-
-    with c_res1:
-        st.markdown(f"""
-        <div style="background:white;padding:20px;border-radius:16px;border-left:8px solid red">
-        <b>Status com erro</b>
-        <h1>{erro}</h1>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c_res2:
-        st.markdown(f"""
-        <div style="background:white;padding:20px;border-radius:16px;border-left:8px solid orange">
-        <b>Vendas no mês</b>
-        <h1>{vendas}</h1>
-        </div>
-        """, unsafe_allow_html=True)
-
-
-# ===============================
-# OPERAÇÃO DASHBOARD
-# ===============================
-def render_oper():
-    if not ensure_oper_login():
-        return
-
-    st.title("⚙️ Painel de Operação")
-
-    meses = sorted(df["Mês"].dropna().astype(str).unique())
-    mes = st.selectbox("Mês", meses, key="op_mes")
-
-    m1 = count_month(df, "1º contato", mes)
-    m2 = count_month(df, "2º contato", mes)
-    m3 = count_month(df, "3º contato", mes)
-
-    cols = st.columns(3)
-    cols[0].metric("Primeiro Contato Mês", m1)
-    cols[1].metric("Segundo Contato Mês", m2)
-    cols[2].metric("Terceiro Contato Mês", m3)
-
-
-# ===============================
-# ROUTER
-# ===============================
 if "page" not in st.session_state:
     st.session_state.page = "main"
 
-if not ensure_login():
-    st.stop()
+# =========================================================
+# HELPERS VISUAIS
+# =========================================================
+def img_to_base64(path: str):
+    try:
+        file_path = Path(path)
+        if file_path.exists():
+            return base64.b64encode(file_path.read_bytes()).decode()
+    except Exception:
+        pass
+    return None
 
-if st.session_state.page == "main":
-    render_main()
+def render_logo_html():
+    logo_b64 = img_to_base64("skoobpet.png")
+    if logo_b64:
+        return f'<img src="data:image/png;base64,{logo_b64}" class="login-logo" alt="SkoobPet">'
+    return '<div class="login-logo-fallback">🐾</div>'
 
-elif st.session_state.page == "operacao":
-    render_oper()
+def inject_global_css():
+    st.markdown(
+        """
+        <style>
+            .stApp {
+                background: #D4D4D4;
+            }
+
+            header[data-testid="stHeader"] {
+                background: transparent !important;
+            }
+
+            .block-container {
+                padding-top: 0rem !important;
+                padding-bottom: 0rem !important;
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+                max-width: 1100px !important;
+            }
+
+            .login-page-wrap {
+                width: 100%;
+                display: flex;
+                align-items: flex-start;
+                justify-content: center;
+                padding-top: 18px;
+                padding-bottom: 24px;
+                font-family: Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+            }
+
+            .login-shell {
+                width: 100%;
+                max-width: 820px;
+                margin: 0 auto;
+            }
+
+            .login-brand {
+                text-align: center;
+                margin-bottom: 10px;
+            }
+
+            .logo-center {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+
+            .login-logo {
+                width: 90px;
+                height: 90px;
+                object-fit: cover;
+                border-radius: 50%;
+                display: inline-block;
+            }
+
+            .login-logo-fallback {
+                width: 90px;
+                height: 90px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #1B1D6D 0%, #9B0033 100%);
+                color: white;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 40px;
+            }
+
+            .login-subtitle {
+                margin-top: 10px;
+                font-size: 16px;
+                color: #334155;
+                font-weight: 500;
+                text-align: center;
+            }
+
+            .login-card {
+                background: rgba(255,255,255,0.95);
+                border: 1px solid rgba(15,23,42,0.06);
+                border-radius: 22px;
+                padding: 12px 20px 10px 20px;
+                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10);
+                margin-bottom: 2px;
+            }
+
+            .login-mini-title {
+                font-size: 20px;
+                font-weight: 900;
+                text-align: center;
+                color: #0f172a;
+                margin-bottom: 2px;
+                line-height: 1.1;
+            }
+
+            .login-mini-sub {
+                text-align: center;
+                font-size: 12px;
+                color: #64748b;
+                margin-bottom: 0;
+                line-height: 1.2;
+            }
+
+            div[data-testid="stTextInput"] label p {
+                font-size: 15px !important;
+                font-weight: 800 !important;
+                color: #0f172a !important;
+            }
+
+            div[data-testid="stTextInput"] input {
+                background: #F8FAFC !important;
+                border: 1px solid rgba(15,23,42,0.10) !important;
+                border-radius: 14px !important;
+                height: 48px !important;
+                padding-left: 14px !important;
+                color: #0f172a !important;
+                font-size: 15px !important;
+                box-shadow: none !important;
+            }
+
+            div[data-testid="stTextInput"] input:focus {
+                border: 1px solid #1B1D6D !important;
+                box-shadow: 0 0 0 3px rgba(27,29,109,0.08) !important;
+            }
+
+            div.stButton > button {
+                width: 100%;
+                height: 50px;
+                margin-top: 8px;
+                border: none !important;
+                border-radius: 14px !important;
+                background: linear-gradient(90deg, #1B1D6D 0%, #111827 100%) !important;
+                color: #ffffff !important;
+                font-size: 18px !important;
+                font-weight: 900 !important;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18) !important;
+            }
+
+            div.stButton > button:hover {
+                transform: translateY(-1px);
+                background: linear-gradient(90deg, #16185c 0%, #0f172a 100%) !important;
+            }
+
+            div.stButton > button:focus,
+            div.stButton > button:active {
+                outline: none !important;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18) !important;
+            }
+
+            .login-badges {
+                text-align: center;
+                margin-top: 12px;
+            }
+
+            .login-badge {
+                display: inline-block;
+                margin: 4px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                font-size: 11px;
+                background: #F1F5F9;
+                color: #475569;
+                border: 1px solid rgba(15,23,42,0.06);
+                font-weight: 700;
+            }
+
+            .login-footer {
+                text-align: center;
+                color: #94a3b8;
+                font-size: 12px;
+                margin-top: 10px;
+            }
+
+            /* MENU */
+            div[data-testid="stPopover"] > button {
+                height: 46px !important;
+                width: 56px !important;
+                min-width: 56px !important;
+                border-radius: 14px !important;
+                border: 1px solid rgba(15,23,42,0.08) !important;
+                background: #ffffff !important;
+                color: #1d1564 !important;
+                font-size: 22px !important;
+                font-weight: 900 !important;
+                box-shadow: 0 8px 20px rgba(15,23,42,0.10) !important;
+            }
+
+            div[data-testid="stPopover"] > button:hover {
+                background: #f8fafc !important;
+                transform: translateY(-1px);
+            }
+
+            div[data-testid="stPopoverContent"] {
+                border-radius: 18px !important;
+                border: 1px solid rgba(15,23,42,0.08) !important;
+                overflow: hidden !important;
+                box-shadow: 0 20px 40px rgba(15,23,42,0.16) !important;
+                background: #ffffff !important;
+            }
+
+            div[data-testid="stPopoverContent"] > div {
+                background: #ffffff !important;
+                padding: 16px !important;
+            }
+
+            .menu-title {
+                font-size: 20px;
+                font-weight: 900;
+                color: #0f172a;
+                margin-bottom: 2px;
+            }
+
+            .menu-sub {
+                font-size: 13px;
+                color: #64748b;
+                margin-bottom: 12px;
+            }
+
+            .menu-divider {
+                height: 1px;
+                background: #e5e7eb;
+                margin: 10px 0 12px 0;
+            }
+
+            .menu-help {
+                margin-top: 12px;
+                font-size: 11px;
+                color: #94a3b8;
+                text-align: center;
+            }
+
+            div[data-testid="stPopoverContent"] .stButton > button,
+            div[data-testid="stPopoverContent"] .stLinkButton > a {
+                width: 100% !important;
+                height: 44px !important;
+                margin-top: 8px !important;
+                border-radius: 12px !important;
+                border: 1px solid #e5e7eb !important;
+                background: #f8fafc !important;
+                color: #0f172a !important;
+                font-size: 15px !important;
+                font-weight: 700 !important;
+                box-shadow: none !important;
+                text-decoration: none !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            div[data-testid="stPopoverContent"] .stButton > button:hover,
+            div[data-testid="stPopoverContent"] .stLinkButton > a:hover {
+                background: linear-gradient(90deg, #1d1564 0%, #9d0139 100%) !important;
+                color: #ffffff !important;
+                border: 1px solid transparent !important;
+                transform: translateY(-1px);
+            }
+
+            .panel-card{
+                background:#ffffff;
+                border-radius:18px;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+                border: 1px solid rgba(15,23,42,0.06);
+                overflow: hidden;
+            }
+
+            .panel-head{
+                padding: 14px 16px 0px 16px;
+                background:#ffffff;
+            }
+
+            .panel-title{
+                font-weight: 900;
+                color:#0f172a;
+                font-size: 18px;
+                display:flex;
+                align-items:center;
+                gap:8px;
+            }
+
+            .panel-body{
+                padding: 8px 10px 12px 10px;
+                background:#ffffff;
+            }
+
+            @media (max-width: 640px) {
+                .login-logo {
+                    width: 70px;
+                    height: 70px;
+                }
+
+                .login-logo-fallback {
+                    width: 70px;
+                    height: 70px;
+                    font-size: 30px;
+                }
+
+                .login-page-wrap {
+                    padding-top: 12px;
+                }
+
+                .login-card {
+                    padding: 10px 14px 8px 14px;
+                }
+
+                .login-subtitle {
+                    font-size: 14px;
+                }
+
+                .login-mini-title {
+                    font-size: 18px;
+                }
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+def money_br(v):
+    try:
+        v = float(v)
+    except Exception:
+        v = 0.0
+    s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {s}"
+
+def pick_first_existing(df, candidates):
+    cols = {str(c).replace("\u00a0", " ").strip(): c for c in df.columns}
+    for c in candidates:
+        key = str(c).replace("\u00a0", " ").strip()
+        if key in cols:
+            return cols[key]
+    return None
+
+def norm(x):
+    return str(x).strip().lower() if pd.notna(x) else ""
+
+def is_error(status):
+    s = norm(status)
+    return ("erro" in s) or ("atras" in s) or ("pendenc" in s)
+
+def is_sent(status):
+    s = norm(status)
+    return ("enviado" in s) or ("enviada" in s)
+
+def status_bucket_today(status):
+    if is_error(status):
+        return "Erro"
+    if is_sent(status):
+        return "Enviado"
+    return "Aguardando"
+
+def brl_to_float(v):
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return 0.0
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        try:
+            return float(v)
+        except Exception:
+            return 0.0
+    s = str(v).replace("\u00a0", " ").strip()
+    if s == "" or s.lower() in {"nan", "none", "-"}:
+        return 0.0
+    s = s.replace("R$", "").strip()
+    s = re.sub(r"[^0-9,\.\-]", "", s)
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
+def kpi_card(title, value, subtitle, accent, value_color="#0f172a", value_size=38):
+    html = f"""
+    <div style="
+        background:#ffffff;
+        border-radius:16px;
+        padding:16px;
+        border-left:8px solid {accent};
+        box-shadow:0 8px 20px rgba(15,23,42,.06);
+        height:120px;
+        font-family:Inter,Arial,sans-serif;
+    ">
+        <div style="font-size:14px;font-weight:900;color:#334155;">{title}</div>
+        <div style="font-size:{value_size}px;font-weight:900;color:{value_color};line-height:1.05;margin-top:6px;">
+            {value}
+        </div>
+        <div style="font-size:12px;color:#64748b;margin-top:6px;">{subtitle}</div>
+    </div>
+    """
+    components.html(html, height=130)
+
+def tune_plotly(fig, height=360):
+    fig.update_layout(
+        height=height,
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        margin=dict(t=6, b=6, l=6, r=6),
+        font=dict(color="#0f172a"),
+    )
+    fig.update_xaxes(showgrid=False, zeroline=False)
+    fig.update_yaxes(showgrid=True, gridcolor="rgba(15,23,42,0.06)", zeroline=False)
+    return fig
+
+def sheet_url_busted(base_url: str) -> str:
+    sep = "&" if "?" in base_url else "?"
+    return f"{base_url}{sep}_ts={int(time.time()*1000)}"
+
+@st.cache_data(ttl=2, show_spinner=False)
+def load_sheet(csv_url: str) -> pd.DataFrame:
+    d = pd.read_csv(csv_url)
+    d.columns = [str(c).replace("\u00a0", " ").strip() for c in d.columns]
+    return d
+
+def parse_date_series(s: pd.Series) -> pd.Series:
+    if s is None:
+        return pd.to_datetime(pd.Series([], dtype="object"), errors="coerce")
+
+    x = s.astype(str).str.replace("\u00a0", " ").str.strip()
+    x = x.replace({"": None, "nan": None, "None": None})
+
+    out = pd.Series(pd.NaT, index=x.index, dtype="datetime64[ns]")
+
+    mask_br = x.notna() & x.str.contains("/", regex=False)
+    if mask_br.any():
+        out.loc[mask_br]
