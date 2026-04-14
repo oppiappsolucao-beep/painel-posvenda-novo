@@ -240,17 +240,29 @@ def ensure_login() -> bool:
                 transform: translateY(-1px);
             }
 
+            /* CAIXA EXTERNA */
             div[data-testid="stPopoverContent"] {
                 border-radius: 24px !important;
                 border: none !important;
                 overflow: hidden !important;
                 box-shadow: 0 18px 40px rgba(15,23,42,0.22) !important;
+                background: linear-gradient(135deg, #9d0139 0%, #1d1564 100%) !important;
             }
 
-            div[data-testid="stPopoverContent"] > div {
+            /* CAMADA INTERNA DA CAIXA */
+            div[data-testid="stPopoverContent"] > div,
+            div[data-testid="stPopoverContent"] > div > div,
+            div[data-testid="stPopoverContent"] section,
+            div[data-testid="stPopoverContent"] [data-testid="stVerticalBlock"] {
                 background: linear-gradient(135deg, #9d0139 0%, #1d1564 100%) !important;
                 color: #ffffff !important;
-                padding: 14px !important;
+            }
+
+            /* remove fundo branco interno de containers */
+            div[data-testid="stPopoverContent"] .element-container,
+            div[data-testid="stPopoverContent"] .stMarkdown,
+            div[data-testid="stPopoverContent"] .stButton {
+                background: transparent !important;
             }
 
             .menu-title {
@@ -280,14 +292,14 @@ def ensure_login() -> bool:
                 text-align: center;
             }
 
-            /* botões dentro do popover */
+            /* BOTÕES DO MENU */
             div[data-testid="stPopoverContent"] .stButton > button {
                 width: 100% !important;
                 height: 46px !important;
                 margin-top: 8px !important;
                 border-radius: 14px !important;
                 border: 1px solid rgba(255,255,255,0.18) !important;
-                background: rgba(255,255,255,0.10) !important;
+                background: rgba(255,255,255,0.12) !important;
                 color: #ffffff !important;
                 font-size: 16px !important;
                 font-weight: 700 !important;
@@ -296,13 +308,15 @@ def ensure_login() -> bool:
             }
 
             div[data-testid="stPopoverContent"] .stButton > button:hover {
-                background: rgba(255,255,255,0.18) !important;
-                border: 1px solid rgba(255,255,255,0.30) !important;
+                background: rgba(255,255,255,0.22) !important;
+                border: 1px solid rgba(255,255,255,0.32) !important;
                 transform: translateY(-1px);
             }
 
-            div[data-testid="stPopoverContent"] .stMarkdown p,
-            div[data-testid="stPopoverContent"] .stMarkdown div {
+            div[data-testid="stPopoverContent"] p,
+            div[data-testid="stPopoverContent"] div,
+            div[data-testid="stPopoverContent"] span,
+            div[data-testid="stPopoverContent"] label {
                 color: inherit !important;
             }
 
