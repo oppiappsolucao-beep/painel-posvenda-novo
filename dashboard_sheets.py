@@ -219,105 +219,83 @@ def ensure_login() -> bool:
             }
 
             /* ===============================
-               MENU PREMIUM
+               MENU MAIS PROFISSIONAL
             =============================== */
-
             div[data-testid="stPopover"] > button {
                 height: 46px !important;
                 width: 56px !important;
                 min-width: 56px !important;
                 border-radius: 14px !important;
-                border: 1px solid rgba(29,21,100,0.14) !important;
-                background: rgba(255,255,255,0.92) !important;
+                border: 1px solid rgba(15,23,42,0.08) !important;
+                background: #ffffff !important;
                 color: #1d1564 !important;
-                font-size: 24px !important;
+                font-size: 22px !important;
                 font-weight: 900 !important;
-                box-shadow: 0 10px 24px rgba(15,23,42,0.10) !important;
+                box-shadow: 0 8px 20px rgba(15,23,42,0.10) !important;
             }
 
             div[data-testid="stPopover"] > button:hover {
-                background: #ffffff !important;
+                background: #f8fafc !important;
                 transform: translateY(-1px);
             }
 
-            /* CAIXA EXTERNA */
             div[data-testid="stPopoverContent"] {
-                border-radius: 24px !important;
-                border: none !important;
+                border-radius: 18px !important;
+                border: 1px solid rgba(15,23,42,0.08) !important;
                 overflow: hidden !important;
-                box-shadow: 0 18px 40px rgba(15,23,42,0.22) !important;
-                background: linear-gradient(135deg, #9d0139 0%, #1d1564 100%) !important;
+                box-shadow: 0 20px 40px rgba(15,23,42,0.16) !important;
+                background: #ffffff !important;
             }
 
-            /* CAMADA INTERNA DA CAIXA */
-            div[data-testid="stPopoverContent"] > div,
-            div[data-testid="stPopoverContent"] > div > div,
-            div[data-testid="stPopoverContent"] section,
-            div[data-testid="stPopoverContent"] [data-testid="stVerticalBlock"] {
-                background: linear-gradient(135deg, #9d0139 0%, #1d1564 100%) !important;
-                color: #ffffff !important;
-            }
-
-            /* remove fundo branco interno de containers */
-            div[data-testid="stPopoverContent"] .element-container,
-            div[data-testid="stPopoverContent"] .stMarkdown,
-            div[data-testid="stPopoverContent"] .stButton {
-                background: transparent !important;
+            div[data-testid="stPopoverContent"] > div {
+                background: #ffffff !important;
+                padding: 16px !important;
             }
 
             .menu-title {
-                font-size: 22px;
+                font-size: 20px;
                 font-weight: 900;
-                color: #ffffff;
-                margin-bottom: 6px;
-                letter-spacing: 0.2px;
+                color: #0f172a;
+                margin-bottom: 2px;
             }
 
             .menu-sub {
-                font-size: 12px;
-                color: rgba(255,255,255,0.82);
-                margin-bottom: 10px;
+                font-size: 13px;
+                color: #64748b;
+                margin-bottom: 12px;
             }
 
             .menu-divider {
                 height: 1px;
-                background: rgba(255,255,255,0.18);
+                background: #e5e7eb;
                 margin: 10px 0 12px 0;
             }
 
             .menu-help {
-                margin-top: 10px;
+                margin-top: 12px;
                 font-size: 11px;
-                color: rgba(255,255,255,0.78);
+                color: #94a3b8;
                 text-align: center;
             }
 
-            /* BOTÕES DO MENU */
             div[data-testid="stPopoverContent"] .stButton > button {
                 width: 100% !important;
-                height: 46px !important;
+                height: 44px !important;
                 margin-top: 8px !important;
-                border-radius: 14px !important;
-                border: 1px solid rgba(255,255,255,0.18) !important;
-                background: rgba(255,255,255,0.12) !important;
-                color: #ffffff !important;
-                font-size: 16px !important;
+                border-radius: 12px !important;
+                border: 1px solid #e5e7eb !important;
+                background: #f8fafc !important;
+                color: #0f172a !important;
+                font-size: 15px !important;
                 font-weight: 700 !important;
                 box-shadow: none !important;
-                backdrop-filter: blur(4px);
             }
 
             div[data-testid="stPopoverContent"] .stButton > button:hover {
-                background: rgba(255,255,255,0.22) !important;
-                border: 1px solid rgba(255,255,255,0.32) !important;
+                background: linear-gradient(90deg, #1d1564 0%, #9d0139 100%) !important;
+                color: #ffffff !important;
+                border: 1px solid transparent !important;
                 transform: translateY(-1px);
-            }
-
-            div[data-testid="stPopoverContent"] p,
-            div[data-testid="stPopoverContent"] div,
-            div[data-testid="stPopoverContent"] span,
-            div[data-testid="stPopoverContent"] label {
-                color: inherit !important;
             }
 
             @media (max-width: 640px) {
@@ -573,260 +551,4 @@ def tune_plotly(fig, height=360):
         font=dict(color="#0f172a"),
     )
     fig.update_xaxes(showgrid=False, zeroline=False)
-    fig.update_yaxes(showgrid=True, gridcolor="rgba(15,23,42,0.06)", zeroline=False)
-    return fig
-
-# ===============================
-# LOAD DATA
-# ===============================
-def sheet_url_busted(base_url: str) -> str:
-    sep = "&" if "?" in base_url else "?"
-    return f"{base_url}{sep}_ts={int(time.time()*1000)}"
-
-@st.cache_data(ttl=2, show_spinner=False)
-def load_sheet(csv_url: str) -> pd.DataFrame:
-    d = pd.read_csv(csv_url)
-    d.columns = [str(c).replace("\u00a0", " ").strip() for c in d.columns]
-    return d
-
-TZ = ZoneInfo("America/Sao_Paulo")
-hoje = pd.Timestamp(datetime.datetime.now(TZ).date())
-
-def parse_date_series(s: pd.Series) -> pd.Series:
-    if s is None:
-        return pd.to_datetime(pd.Series([], dtype="object"), errors="coerce")
-
-    x = s.astype(str).str.replace("\u00a0", " ").str.strip()
-    x = x.replace({"": None, "nan": None, "None": None})
-
-    out = pd.Series(pd.NaT, index=x.index, dtype="datetime64[ns]")
-
-    mask_br = x.notna() & x.str.contains("/", regex=False)
-    if mask_br.any():
-        out.loc[mask_br] = pd.to_datetime(x.loc[mask_br], errors="coerce", dayfirst=True)
-
-    mask_other = x.notna() & ~mask_br
-    if mask_other.any():
-        out.loc[mask_other] = pd.to_datetime(x.loc[mask_other], errors="coerce")
-
-    return out
-
-df = load_sheet(sheet_url_busted(SHEET_CSV_URL))
-
-# ===============================
-# COLUNAS
-# ===============================
-COL = {
-    "mes": "Mês",
-    "raca": "Raça",
-    "unidade": "Unidade",
-    "c1": "1º contato",
-    "s1": "Status 1º contato",
-    "c2": "2º contato",
-    "s2": "Status 2º contato",
-    "c3": "3º contato",
-    "s3": "Status 3º contato",
-}
-
-COL_VALOR = pick_first_existing(df, ["Valor Filhote", "Valor de filhote", "Valor Filhote ", "Valor"])
-COL_VENDEDOR = pick_first_existing(df, ["Vendedor", "Vendedora", "Atendente"])
-
-for key in ["c1", "c2", "c3"]:
-    colname = COL.get(key)
-    if colname and colname in df.columns:
-        df[colname] = parse_date_series(df[colname])
-
-# ===============================
-# HEADER + MENU + BOTÕES
-# ===============================
-top_menu, top_l, top_mid, top_r = st.columns([1, 5, 2, 1])
-
-with top_menu:
-    with st.popover("☰"):
-        st.markdown('<div class="menu-title">Menu</div>', unsafe_allow_html=True)
-        st.markdown('<div class="menu-sub">Escolha uma área para acessar</div>', unsafe_allow_html=True)
-        st.markdown('<div class="menu-divider"></div>', unsafe_allow_html=True)
-
-        if st.button("📄  Novo Contrato", use_container_width=True, key="menu_novo_contrato"):
-            st.info("Abrir fluxo de Novo Contrato")
-
-        if st.button("⚙️  Operação", use_container_width=True, key="menu_operacao"):
-            st.info("Abrir Operação")
-
-        if st.button("💰  Financeiro", use_container_width=True, key="menu_financeiro"):
-            st.info("Abrir Financeiro")
-
-        st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
-
-with top_l:
-    st.markdown("## 📊 Painel de Pós-Venda")
-    st.caption(f"Total de registros: **{len(df)}**")
-
-with top_mid:
-    if st.button("🔄 Atualizar agora", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-
-with top_r:
-    if st.button("Sair", use_container_width=True):
-        st.session_state.logged_in = False
-        st.rerun()
-
-# ===============================
-# FILTROS
-# ===============================
-f1, f2, f3 = st.columns(3)
-with f1:
-    setor = st.selectbox("Setor", ["Pós-Venda", "Pedigree"])
-with f2:
-    meses = sorted(df[COL["mes"]].dropna().astype(str).unique())
-    mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0)
-with f3:
-    unidades = ["Todas"] + sorted(df[COL["unidade"]].dropna().unique().tolist())
-    unidade = st.selectbox("Unidade", unidades)
-
-f = df[df[COL["mes"]].astype(str) == str(mes)].copy()
-if unidade != "Todas":
-    f = f[f[COL["unidade"]] == unidade]
-
-# ===============================
-# CONTATOS HOJE
-# ===============================
-def count_today_all(df_base, date_col):
-    if date_col not in df_base.columns:
-        return 0
-    sub = df_base[df_base[date_col].dt.date == hoje.date()]
-    return int(len(sub))
-
-f_all = df.copy()
-if unidade != "Todas":
-    f_all = f_all[f_all[COL["unidade"]] == unidade]
-
-records_today = []
-c1 = c2 = c3 = 0
-if setor == "Pós-Venda":
-    c1 = count_today_all(f_all, COL["c1"])
-    c2 = count_today_all(f_all, COL["c2"])
-    c3 = count_today_all(f_all, COL["c3"])
-
-    for _, r in f_all.iterrows():
-        for dc, sc in [(COL["c1"], COL["s1"]), (COL["c2"], COL["s2"]), (COL["c3"], COL["s3"])]:
-            dval = r.get(dc)
-            if pd.notna(dval) and pd.to_datetime(dval).date() == hoje.date():
-                records_today.append(status_bucket_today(r.get(sc)))
-
-erro_hoje = records_today.count("Erro")
-
-# ===============================
-# VENDAS NO MÊS + FATURAMENTO
-# ===============================
-vendas_mes = int(len(f))
-
-if COL_VALOR and (COL_VALOR in f.columns):
-    faturamento = float(f[COL_VALOR].apply(brl_to_float).fillna(0).sum())
-else:
-    faturamento = 0.0
-
-# ===============================
-# KPIs
-# ===============================
-st.markdown("---")
-k1, k2, k3, k4, k5, k6 = st.columns(6)
-with k1:
-    kpi_card("💬 1º contato hoje", c1, "registros de hoje", NAVY)
-with k2:
-    kpi_card("💬 2º contato hoje", c2, "registros de hoje", NAVY_2)
-with k3:
-    kpi_card("💬 3º contato hoje", c3, "registros de hoje", WINE_2)
-with k4:
-    kpi_card("⚠️ Status com erro", erro_hoje, "atenção", WINE, value_color="#ef4444" if erro_hoje else "#0f172a")
-with k5:
-    kpi_card("🛍️ Vendas no mês", vendas_mes, str(mes), "#F59E0B")
-with k6:
-    kpi_card("💰 Faturamento", money_br(faturamento), "valor do filhote", NAVY, value_size=28)
-
-# ===============================
-# GRÁFICOS
-# ===============================
-st.markdown("---")
-g1, g2 = st.columns(2)
-g3, g4 = st.columns(2)
-
-with g1:
-    st.markdown(
-        '<div class="panel-card"><div class="panel-head"><div class="panel-title">📌 Contatos por Status (hoje)</div></div><div class="panel-body">',
-        unsafe_allow_html=True
-    )
-    counts = {"Aguardando": 0, "Enviado": 0, "Erro": 0}
-    for r in records_today:
-        counts[r] = counts.get(r, 0) + 1
-    df_status = pd.DataFrame({"Status": list(counts.keys()), "Total": list(counts.values())})
-    fig = px.pie(
-        df_status,
-        names="Status",
-        values="Total",
-        hole=0.55,
-        color="Status",
-        color_discrete_map={"Aguardando": NAVY, "Enviado": WINE, "Erro": "#ef4444"},
-    )
-    fig.update_traces(textinfo="label+value", textposition="inside")
-    st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-with g2:
-    st.markdown(
-        '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏬 Vendas por loja (Unidade)</div></div><div class="panel-body">',
-        unsafe_allow_html=True
-    )
-    vp = f.groupby(COL["unidade"]).size().reset_index(name="Total")
-    if len(vp) == 0:
-        st.info("Sem registros para o filtro selecionado.")
-    else:
-        fig = px.bar(vp, x=COL["unidade"], y="Total", text="Total",
-                     color=COL["unidade"], color_discrete_sequence=BAR_SEQ)
-        fig.update_traces(textposition="outside", cliponaxis=False)
-        fig.update_layout(showlegend=False)
-        st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-with g3:
-    st.markdown(
-        '<div class="panel-card"><div class="panel-head"><div class="panel-title">🐶 Raças mais vendidas (mês)</div></div><div class="panel-body">',
-        unsafe_allow_html=True
-    )
-    vr = (
-        f.groupby(COL["raca"]).size().reset_index(name="Total")
-        .sort_values("Total", ascending=False)
-        .head(10)
-    )
-    if len(vr) == 0:
-        st.info("Sem registros para o filtro selecionado.")
-    else:
-        fig = px.bar(vr, x=COL["raca"], y="Total", text="Total",
-                     color=COL["raca"], color_discrete_sequence=BAR_SEQ)
-        fig.update_traces(textposition="outside", cliponaxis=False)
-        fig.update_layout(showlegend=False)
-        st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-with g4:
-    st.markdown(
-        '<div class="panel-card"><div class="panel-head"><div class="panel-title">🏆 Vendas por vendedora (mês)</div></div><div class="panel-body">',
-        unsafe_allow_html=True
-    )
-    if COL_VENDEDOR:
-        vv = (
-            f.groupby(COL_VENDEDOR).size().reset_index(name="Total")
-            .sort_values("Total", ascending=False)
-        )
-        if len(vv) == 0:
-            st.info("Sem registros para o filtro selecionado.")
-        else:
-            fig = px.bar(vv, x=COL_VENDEDOR, y="Total", text="Total",
-                         color=COL_VENDEDOR, color_discrete_sequence=BAR_SEQ)
-            fig.update_traces(textposition="outside", cliponaxis=False)
-            fig.update_layout(showlegend=False)
-            st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-    else:
-        st.info("Coluna de vendedor não encontrada")
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    fig.update_yaxes(showgrid=True, gridcolor="rgba(15,23,42,0.06)",
