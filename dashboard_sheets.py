@@ -617,6 +617,82 @@ def build_money_bar(df_plot, x_col, y_col, height=390, tickangle=28):
     return tune_plotly(fig, height=height)
 
 
+def extract_year_from_month_key(month_key: str):
+    s = str(month_key).strip()
+    m = re.search(r"(\d{4})$", s)
+    if m:
+        return m.group(1)
+    return None
+
+
+def extract_month_num_from_month_key(month_key: str):
+    s = str(month_key).strip()
+
+    m = re.match(r"^\s*(\d{1,2})\s*/\s*\d{4}\s*$", s)
+    if m:
+        mm = int(m.group(1))
+        if 1 <= mm <= 12:
+            return mm
+
+    meses_pt = {
+        "janeiro": 1,
+        "fevereiro": 2,
+        "marco": 3,
+        "março": 3,
+        "abril": 4,
+        "maio": 5,
+        "junho": 6,
+        "julho": 7,
+        "agosto": 8,
+        "setembro": 9,
+        "outubro": 10,
+        "novembro": 11,
+        "dezembro": 12,
+    }
+
+    s_low = s.lower()
+    for nome, num in meses_pt.items():
+        if nome in s_low:
+            return num
+
+    return None
+
+
+def month_label_pt(month_num: int):
+    labels = {
+        1: "Jan",
+        2: "Fev",
+        3: "Mar",
+        4: "Abr",
+        5: "Mai",
+        6: "Jun",
+        7: "Jul",
+        8: "Ago",
+        9: "Set",
+        10: "Out",
+        11: "Nov",
+        12: "Dez",
+    }
+    return labels.get(month_num, str(month_num))
+
+
+def build_money_line(df_plot, x_col, y_col, height=360):
+    d = df_plot.copy()
+
+    fig = px.line(d, x=x_col, y=y_col, markers=True)
+    fig.update_traces(
+        line=dict(color=NAVY_2, width=4),
+        marker=dict(size=9, color=WINE),
+        text=[money_br(v) for v in d[y_col]],
+        textposition="top center",
+        hovertemplate="<b>%{x}</b><br>Faturamento acumulado: %{text}<extra></extra>"
+    )
+
+    fig.update_yaxes(title_text="Faturamento acumulado")
+    fig.update_xaxes(title_text="Mês")
+    return tune_plotly(fig, height=height)
+
+
 def sheet_url_busted(base_url: str) -> str:
     sep = "&" if "?" in base_url else "?"
     return f"{base_url}{sep}_ts={int(time.time()*1000)}"
@@ -1264,15 +1340,54 @@ def render_fin_dashboard(df: pd.DataFrame):
     with k1:
         kpi_card("💰 Faturamento total", money_br(faturamento_total), str(mes), NAVY, value_size=28)
     with k2:
-        kpi_card("🛍️ Vendas no mês", total_vendas, str(mes), GOLD)
+        kpi_card("🛍️ Vendas no mês", total_vendas, str(mes), WINE_2)
     with k3:
         kpi_card("📊 Ticket médio", money_br(ticket_medio), "por venda", WINE, value_size=28)
     with k4:
         kpi_card("🐶 Raças vendidas", total_racas, "no mês", NAVY_2)
 
     st.markdown("---")
+    g0 = st.container()
     g1, g2 = st.columns(2)
     g3, g4 = st.columns(2)
+
+    with g0:
+        render_chart_header("Faturamento total do ano", "📈", "Acumulado mês a mês conforme crescimento da planilha")
+
+        ano_ref = extract_year_from_month_key(mes)
+
+        if ano_ref and COL_MES in df.columns and len(df) > 0:
+            f_ano = df[df[COL_MES].astype(str).str.contains(str(ano_ref), na=False)].copy()
+
+            if unidade != "Todas":
+                f_ano = f_ano[f_ano[COL_UNIDADE].astype(str) == str(unidade)]
+
+            if COL_VALOR and COL_VALOR in f_ano.columns:
+                f_ano["_valor_num"] = f_ano[COL_VALOR].apply(brl_to_float)
+            else:
+                f_ano["_valor_num"] = 0.0
+
+            f_ano["_mes_num"] = f_ano[COL_MES].astype(str).apply(extract_month_num_from_month_key)
+            f_ano = f_ano[f_ano["_mes_num"].notna()].copy()
+
+            if len(f_ano) == 0:
+                st.info("Sem dados suficientes para montar o acumulado anual.")
+            else:
+                df_ano = (
+                    f_ano.groupby("_mes_num")["_valor_num"]
+                    .sum()
+                    .reset_index(name="Faturamento")
+                    .sort_values("_mes_num")
+                )
+
+                df_ano["_mes_num"] = df_ano["_mes_num"].astype(int)
+                df_ano["Acumulado"] = df_ano["Faturamento"].cumsum()
+                df_ano["Mês"] = df_ano["_mes_num"].apply(month_label_pt)
+
+                fig = build_money_line(df_ano, "Mês", "Acumulado", height=360)
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Não foi possível identificar o ano do mês selecionado.")
 
     with g1:
         render_chart_header("Raças mais vendidas", "🐾", "Quantidade de vendas por raça no mês")
