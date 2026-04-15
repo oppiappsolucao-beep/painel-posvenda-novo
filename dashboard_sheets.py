@@ -676,23 +676,6 @@ def month_label_pt(month_num: int):
     return labels.get(month_num, str(month_num))
 
 
-def build_money_line(df_plot, x_col, y_col, height=360):
-    d = df_plot.copy()
-
-    fig = px.line(d, x=x_col, y=y_col, markers=True)
-    fig.update_traces(
-        line=dict(color=NAVY_2, width=4),
-        marker=dict(size=9, color=WINE),
-        text=[money_br(v) for v in d[y_col]],
-        textposition="top center",
-        hovertemplate="<b>%{x}</b><br>Faturamento acumulado: %{text}<extra></extra>"
-    )
-
-    fig.update_yaxes(title_text="Faturamento acumulado")
-    fig.update_xaxes(title_text="Mês")
-    return tune_plotly(fig, height=height)
-
-
 def build_monthly_and_cumulative_chart(df_plot, height=420):
     d = df_plot.copy()
 
@@ -1389,46 +1372,8 @@ def render_fin_dashboard(df: pd.DataFrame):
         kpi_card("🐶 Raças vendidas", total_racas, "no mês", NAVY_2)
 
     st.markdown("---")
-    g0 = st.container()
     g1, g2 = st.columns(2)
     g3, g4 = st.columns(2)
-
-    with g0:
-        render_chart_header("Faturamento total do ano", "📈", "Mensal conforme crescimento da planilha")
-
-        ano_ref = extract_year_from_month_key(mes)
-
-        if ano_ref and COL_MES in df.columns and len(df) > 0:
-            f_ano = df[df[COL_MES].astype(str).str.contains(str(ano_ref), na=False)].copy()
-
-            if unidade != "Todas":
-                f_ano = f_ano[f_ano[COL_UNIDADE].astype(str) == str(unidade)]
-
-            if COL_VALOR and COL_VALOR in f_ano.columns:
-                f_ano["_valor_num"] = f_ano[COL_VALOR].apply(brl_to_float)
-            else:
-                f_ano["_valor_num"] = 0.0
-
-            f_ano["_mes_num"] = f_ano[COL_MES].astype(str).apply(extract_month_num_from_month_key)
-            f_ano = f_ano[f_ano["_mes_num"].notna()].copy()
-
-            if len(f_ano) == 0:
-                st.info("Sem dados suficientes para montar o gráfico anual.")
-            else:
-                df_ano = (
-                    f_ano.groupby("_mes_num")["_valor_num"]
-                    .sum()
-                    .reset_index(name="Faturamento")
-                    .sort_values("_mes_num")
-                )
-
-                df_ano["_mes_num"] = df_ano["_mes_num"].astype(int)
-                df_ano["Mês"] = df_ano["_mes_num"].apply(month_label_pt)
-
-                fig = build_monthly_and_cumulative_chart(df_ano, height=420)
-                st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Não foi possível identificar o ano do mês selecionado.")
 
     with g1:
         render_chart_header("Raças mais vendidas", "🐾", "Quantidade de vendas por raça no mês")
@@ -1489,6 +1434,43 @@ def render_fin_dashboard(df: pd.DataFrame):
             st.dataframe(df_vend_tabela, use_container_width=True, hide_index=True)
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
+
+    st.markdown("---")
+    render_chart_header("Faturamento total do ano", "📈", "Mensal conforme crescimento da planilha")
+
+    ano_ref = extract_year_from_month_key(mes)
+
+    if ano_ref and COL_MES in df.columns and len(df) > 0:
+        f_ano = df[df[COL_MES].astype(str).str.contains(str(ano_ref), na=False)].copy()
+
+        if unidade != "Todas":
+            f_ano = f_ano[f_ano[COL_UNIDADE].astype(str) == str(unidade)]
+
+        if COL_VALOR and COL_VALOR in f_ano.columns:
+            f_ano["_valor_num"] = f_ano[COL_VALOR].apply(brl_to_float)
+        else:
+            f_ano["_valor_num"] = 0.0
+
+        f_ano["_mes_num"] = f_ano[COL_MES].astype(str).apply(extract_month_num_from_month_key)
+        f_ano = f_ano[f_ano["_mes_num"].notna()].copy()
+
+        if len(f_ano) == 0:
+            st.info("Sem dados suficientes para montar o gráfico anual.")
+        else:
+            df_ano = (
+                f_ano.groupby("_mes_num")["_valor_num"]
+                .sum()
+                .reset_index(name="Faturamento")
+                .sort_values("_mes_num")
+            )
+
+            df_ano["_mes_num"] = df_ano["_mes_num"].astype(int)
+            df_ano["Mês"] = df_ano["_mes_num"].apply(month_label_pt)
+
+            fig = build_monthly_and_cumulative_chart(df_ano, height=420)
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Não foi possível identificar o ano do mês selecionado.")
 
 
 # =========================================================
