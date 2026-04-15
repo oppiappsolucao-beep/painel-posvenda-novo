@@ -25,6 +25,7 @@ NAVY = "#1B1D6D"
 NAVY_2 = "#2E3192"
 WINE = "#9B0033"
 WINE_2 = "#C00040"
+GOLD = "#F59E0B"
 GRAY_TEXT = "#64748b"
 GRID = "rgba(15,23,42,0.07)"
 
@@ -36,6 +37,9 @@ APP_PASS = "100316"
 
 OPER_USER = "skoob"
 OPER_PASS = "skoob123"
+
+FIN_USER = "diretoria"
+FIN_PASS = "skoob1234"
 
 SHEET_CSV_URL = (
     "https://docs.google.com/spreadsheets/d/"
@@ -54,6 +58,9 @@ if "logged_in" not in st.session_state:
 
 if "oper_logged_in" not in st.session_state:
     st.session_state.oper_logged_in = False
+
+if "fin_logged_in" not in st.session_state:
+    st.session_state.fin_logged_in = False
 
 if "page" not in st.session_state:
     st.session_state.page = "main"
@@ -333,7 +340,6 @@ def inject_global_css():
                 transform: translateY(-1px);
             }
 
-            /* HEADER DOS GRÁFICOS */
             .chart-head {
                 background: #f5f5f5;
                 border-radius: 18px;
@@ -586,6 +592,31 @@ def build_named_bar(df_plot, x_col, y_col, bar_color=NAVY, height=390, tickangle
     return tune_plotly(fig, height=height)
 
 
+def build_money_bar(df_plot, x_col, y_col, height=390, tickangle=28):
+    d = df_plot.copy()
+    fig = px.bar(d, x=x_col, y=y_col)
+
+    palette = [
+        NAVY, WINE, NAVY_2, WINE_2, "#3B4A64", "#94A3B8",
+        "#23267F", "#B00045", "#3A3F9F", "#C00040",
+        "#42526E", "#A0AEC0"
+    ]
+
+    fig.update_traces(
+        marker_color=palette[:len(d)],
+        text=[money_br(v) for v in d[y_col]],
+        textposition="outside",
+        cliponaxis=False,
+        textfont=dict(size=11, color="#334155"),
+        hovertemplate="<b>%{x}</b><br>Faturamento: R$ %{y:,.2f}<extra></extra>"
+    )
+
+    fig.update_xaxes(tickangle=tickangle)
+    fig.update_yaxes(title_text="Faturamento")
+    fig.update_xaxes(title_text=x_col)
+    return tune_plotly(fig, height=height)
+
+
 def sheet_url_busted(base_url: str) -> str:
     sep = "&" if "?" in base_url else "?"
     return f"{base_url}{sep}_ts={int(time.time()*1000)}"
@@ -739,6 +770,62 @@ def render_oper_login():
     )
 
 
+def render_fin_login():
+    inject_global_css()
+    logo_html = render_logo_html()
+
+    st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
+
+    st.markdown(
+        f'''
+        <div class="login-brand">
+            <div class="logo-center">{logo_html}</div>
+            <div class="login-subtitle">Área financeira • Acesso restrito</div>
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        """
+        <div class="login-card">
+            <div class="login-mini-title">Login do Financeiro</div>
+            <div class="login-mini-sub">Digite o usuário e senha da diretoria</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    user = st.text_input("Usuário", placeholder="Digite seu usuário", key="fin_login_user")
+    pwd = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="fin_login_pass")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        entrar = st.button("Entrar no Financeiro", use_container_width=True, key="btn_fin_login")
+    with c2:
+        voltar = st.button("Voltar ao Painel", use_container_width=True, key="btn_fin_back")
+
+    if entrar:
+        if (user or "").strip() == FIN_USER and (pwd or "").strip() == FIN_PASS:
+            st.session_state.fin_logged_in = True
+            st.session_state.page = "financeiro_dashboard"
+            st.rerun()
+        else:
+            st.error("Usuário ou senha do financeiro inválidos.")
+
+    if voltar:
+        st.session_state.page = "main"
+        st.rerun()
+
+    st.markdown(
+        """
+        <div class="login-footer">Acesso interno da diretoria • SkoobPet</div>
+        </div></div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
 def count_today_all(df_base, date_col):
     if date_col not in df_base.columns:
         return 0
@@ -798,7 +885,8 @@ def render_main_dashboard(df: pd.DataFrame):
                 st.rerun()
 
             if st.button("💰  Financeiro", use_container_width=True, key="menu_financeiro"):
-                st.info("Área Financeiro em construção.")
+                st.session_state.page = "financeiro_login"
+                st.rerun()
 
             st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
 
@@ -815,6 +903,7 @@ def render_main_dashboard(df: pd.DataFrame):
         if st.button("Sair", use_container_width=True, key="btn_logout_main"):
             st.session_state.logged_in = False
             st.session_state.oper_logged_in = False
+            st.session_state.fin_logged_in = False
             st.session_state.page = "main"
             st.rerun()
 
@@ -1123,6 +1212,129 @@ def render_oper_dashboard(df: pd.DataFrame):
             st.info("Coluna de vendedor/vendedora não encontrada.")
 
 
+def render_fin_dashboard(df: pd.DataFrame):
+    COL_MES = "Mês"
+    COL_UNIDADE = "Unidade"
+    COL_RACA = "Raça"
+
+    COL_VALOR = pick_first_existing(df, ["Valor Filhote", "Valor de filhote", "Valor Filhote ", "Valor"])
+    COL_VENDEDOR = pick_first_existing(df, ["Vendedora", "Vendedor", "Atendente"])
+
+    top_l, top_mid, top_r = st.columns([6, 2, 1])
+
+    with top_l:
+        st.markdown("## 💰 Financeiro")
+        st.caption(f"Total de registros: **{len(df)}**")
+
+    with top_mid:
+        if st.button("⬅️ Voltar ao Painel", use_container_width=True, key="btn_back_fin_main"):
+            st.session_state.page = "main"
+            st.rerun()
+
+    with top_r:
+        if st.button("Sair", use_container_width=True, key="btn_logout_fin"):
+            st.session_state.fin_logged_in = False
+            st.session_state.page = "main"
+            st.rerun()
+
+    f1, f2 = st.columns(2)
+    with f1:
+        meses = sorted(df[COL_MES].dropna().astype(str).unique())
+        mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0, key="fin_mes")
+    with f2:
+        unidades = ["Todas"] + sorted(df[COL_UNIDADE].dropna().astype(str).unique().tolist())
+        unidade = st.selectbox("Unidade", unidades, key="fin_unidade")
+
+    f_mes = df[df[COL_MES].astype(str) == str(mes)].copy()
+    if unidade != "Todas":
+        f_mes = f_mes[f_mes[COL_UNIDADE].astype(str) == str(unidade)]
+
+    if COL_VALOR and COL_VALOR in f_mes.columns:
+        f_mes["_valor_num"] = f_mes[COL_VALOR].apply(brl_to_float)
+    else:
+        f_mes["_valor_num"] = 0.0
+
+    faturamento_total = float(f_mes["_valor_num"].sum())
+    total_vendas = int(len(f_mes))
+    ticket_medio = faturamento_total / total_vendas if total_vendas > 0 else 0.0
+    total_racas = int(f_mes[COL_RACA].astype(str).nunique()) if COL_RACA in f_mes.columns else 0
+
+    st.markdown("---")
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        kpi_card("💰 Faturamento total", money_br(faturamento_total), str(mes), NAVY, value_size=28)
+    with k2:
+        kpi_card("🛍️ Vendas no mês", total_vendas, str(mes), GOLD)
+    with k3:
+        kpi_card("📊 Ticket médio", money_br(ticket_medio), "por venda", WINE, value_size=28)
+    with k4:
+        kpi_card("🐶 Raças vendidas", total_racas, "no mês", NAVY_2)
+
+    st.markdown("---")
+    g1, g2 = st.columns(2)
+    g3, g4 = st.columns(2)
+
+    with g1:
+        render_chart_header("Raças mais vendidas", "🐾", "Quantidade de vendas por raça no mês")
+        if COL_RACA in f_mes.columns and len(f_mes) > 0:
+            df_racas_qtd = (
+                f_mes.groupby(COL_RACA)
+                .size()
+                .reset_index(name="Total")
+                .sort_values("Total", ascending=False)
+                .head(10)
+            )
+            fig = build_named_bar(df_racas_qtd, COL_RACA, "Total", bar_color=NAVY, height=390, tickangle=28)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Sem registros para o filtro selecionado.")
+
+    with g2:
+        render_chart_header("Valor por raça", "💵", "Faturamento somado por raça no mês")
+        if COL_RACA in f_mes.columns and len(f_mes) > 0:
+            df_racas_valor = (
+                f_mes.groupby(COL_RACA)["_valor_num"]
+                .sum()
+                .reset_index(name="Faturamento")
+                .sort_values("Faturamento", ascending=False)
+                .head(10)
+            )
+            fig = build_money_bar(df_racas_valor, COL_RACA, "Faturamento", height=390, tickangle=28)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Sem registros para o filtro selecionado.")
+
+    with g3:
+        render_chart_header("Vendedoras que mais faturaram", "🏆", "Ranking por faturamento no mês")
+        if COL_VENDEDOR and COL_VENDEDOR in f_mes.columns and len(f_mes) > 0:
+            df_vend_valor = (
+                f_mes.groupby(COL_VENDEDOR)["_valor_num"]
+                .sum()
+                .reset_index(name="Faturamento")
+                .sort_values("Faturamento", ascending=False)
+                .head(12)
+            )
+            fig = build_money_bar(df_vend_valor, COL_VENDEDOR, "Faturamento", height=390, tickangle=28)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Coluna de vendedor/vendedora não encontrada.")
+
+    with g4:
+        render_chart_header("Faturamento individual por vendedora", "🧾", "Valores individuais no mês selecionado")
+        if COL_VENDEDOR and COL_VENDEDOR in f_mes.columns and len(f_mes) > 0:
+            df_vend_tabela = (
+                f_mes.groupby(COL_VENDEDOR)["_valor_num"]
+                .sum()
+                .reset_index()
+                .rename(columns={COL_VENDEDOR: "Vendedora", "_valor_num": "Faturamento"})
+                .sort_values("Faturamento", ascending=False)
+            )
+            df_vend_tabela["Faturamento"] = df_vend_tabela["Faturamento"].apply(money_br)
+            st.dataframe(df_vend_tabela, use_container_width=True, hide_index=True)
+        else:
+            st.info("Coluna de vendedor/vendedora não encontrada.")
+
+
 # =========================================================
 # FLUXO PRINCIPAL
 # =========================================================
@@ -1138,10 +1350,21 @@ df = load_sheet(sheet_url_busted(SHEET_CSV_URL))
 
 if st.session_state.page == "operacao_login":
     render_oper_login()
+
 elif st.session_state.page == "operacao_dashboard":
     if not st.session_state.oper_logged_in:
         render_oper_login()
     else:
         render_oper_dashboard(df)
+
+elif st.session_state.page == "financeiro_login":
+    render_fin_login()
+
+elif st.session_state.page == "financeiro_dashboard":
+    if not st.session_state.fin_logged_in:
+        render_fin_login()
+    else:
+        render_fin_dashboard(df)
+
 else:
     render_main_dashboard(df)
