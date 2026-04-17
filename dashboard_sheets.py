@@ -315,29 +315,43 @@ def inject_global_css():
             }
 
             div[data-testid="stPopoverContent"] .stButton > button,
-            div[data-testid="stPopoverContent"] .stLinkButton > a {
+            div[data-testid="stPopoverContent"] div[data-testid="stLinkButton"] a,
+            div[data-testid="stPopoverContent"] .stLinkButton a {
                 width: 100% !important;
                 height: 44px !important;
                 margin-top: 8px !important;
                 border-radius: 12px !important;
-                border: 1px solid transparent !important;
-                background: linear-gradient(90deg, #1d1564 0%, #111827 100%) !important;
+                border: none !important;
+                background: linear-gradient(90deg, #1B1D6D 0%, #111827 100%) !important;
                 color: #ffffff !important;
                 font-size: 15px !important;
                 font-weight: 700 !important;
-                box-shadow: none !important;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18) !important;
                 text-decoration: none !important;
                 display: flex !important;
                 align-items: center !important;
                 justify-content: center !important;
+                padding: 0 14px !important;
             }
 
             div[data-testid="stPopoverContent"] .stButton > button:hover,
-            div[data-testid="stPopoverContent"] .stLinkButton > a:hover {
-                background: linear-gradient(90deg, #1d1564 0%, #111827 100%) !important;
+            div[data-testid="stPopoverContent"] div[data-testid="stLinkButton"] a:hover,
+            div[data-testid="stPopoverContent"] .stLinkButton a:hover {
+                background: linear-gradient(90deg, #16185c 0%, #0f172a 100%) !important;
                 color: #ffffff !important;
-                border: 1px solid transparent !important;
+                border: none !important;
                 transform: translateY(-1px);
+            }
+
+            div[data-testid="stPopoverContent"] div[data-testid="stLinkButton"] {
+                width: 100% !important;
+            }
+
+            div[data-testid="stPopoverContent"] div[data-testid="stLinkButton"] > a p,
+            div[data-testid="stPopoverContent"] .stLinkButton a p {
+                color: #ffffff !important;
+                font-weight: 700 !important;
+                margin: 0 !important;
             }
 
             .chart-head {
