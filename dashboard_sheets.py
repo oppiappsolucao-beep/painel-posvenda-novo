@@ -485,7 +485,37 @@ def brl_to_float(v):
         return 0.0
 
 
-def kpi_card(title, value, subtitle, accent, value_color="#0f172a", value_size=38):
+def kpi_card(
+    title,
+    value,
+    subtitle,
+    accent,
+    value_color="#0f172a",
+    value_size=38,
+    single_line_value=False
+):
+    value_style = f"""
+        font-size:{value_size}px;
+        font-weight:900;
+        color:{value_color};
+        line-height:1.05;
+        margin-top:6px;
+        max-width:100%;
+    """
+
+    if single_line_value:
+        value_style += """
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:clip;
+        """
+    else:
+        value_style += """
+            white-space:normal;
+            word-break:keep-all;
+            overflow-wrap:anywhere;
+        """
+
     html = f"""
     <div style="
         background:#ffffff;
@@ -499,17 +529,7 @@ def kpi_card(title, value, subtitle, accent, value_color="#0f172a", value_size=3
         overflow:hidden;
     ">
         <div style="font-size:14px;font-weight:900;color:#334155;">{title}</div>
-        <div style="
-            font-size:{value_size}px;
-            font-weight:900;
-            color:{value_color};
-            line-height:1.05;
-            margin-top:6px;
-            max-width:100%;
-            white-space:normal;
-            word-break:keep-all;
-            overflow-wrap:anywhere;
-        ">
+        <div style="{value_style}">
             {value}
         </div>
         <div style="font-size:12px;color:#64748b;margin-top:6px;">{subtitle}</div>
@@ -1101,7 +1121,14 @@ def render_main_dashboard(df: pd.DataFrame):
     with k5:
         kpi_card("🛍️ Vendas no mês", vendas_mes, str(mes), "#F59E0B")
     with k6:
-        kpi_card("💰 Faturamento", money_br(faturamento), "valor do filhote", NAVY, value_size=22)
+        kpi_card(
+            "💰 Faturamento",
+            money_br(faturamento),
+            "valor do filhote",
+            NAVY,
+            value_size=18,
+            single_line_value=True
+        )
 
     st.markdown("---")
     g1, g2 = st.columns(2)
@@ -1404,11 +1431,25 @@ def render_fin_dashboard(df: pd.DataFrame):
     st.markdown("---")
     k1, k2, k3, k4 = st.columns(4)
     with k1:
-        kpi_card("💰 Faturamento total", money_br(faturamento_total), str(mes), NAVY, value_size=22)
+        kpi_card(
+            "💰 Faturamento total",
+            money_br(faturamento_total),
+            str(mes),
+            NAVY,
+            value_size=18,
+            single_line_value=True
+        )
     with k2:
         kpi_card("🛍️ Vendas no mês", total_vendas, str(mes), WINE_2)
     with k3:
-        kpi_card("📊 Ticket médio", money_br(ticket_medio), "por venda", WINE, value_size=22)
+        kpi_card(
+            "📊 Ticket médio",
+            money_br(ticket_medio),
+            "por venda",
+            WINE,
+            value_size=18,
+            single_line_value=True
+        )
     with k4:
         kpi_card("🐶 Raças vendidas", total_racas, "no mês", NAVY_2)
 
