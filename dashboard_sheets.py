@@ -348,7 +348,7 @@ def inject_global_css():
                 background: linear-gradient(90deg, #1B1D6D 0%, #111827 100%);
                 color: #ffffff !important;
                 font-size: 15px;
-                font-weight: 700;
+                font-weight: 500;
                 box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
                 text-decoration: none !important;
                 display: flex;
