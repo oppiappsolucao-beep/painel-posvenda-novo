@@ -320,9 +320,9 @@ def inject_global_css():
                 height: 44px !important;
                 margin-top: 8px !important;
                 border-radius: 12px !important;
-                border: 1px solid #e5e7eb !important;
-                background: #f8fafc !important;
-                color: #0f172a !important;
+                border: 1px solid transparent !important;
+                background: linear-gradient(90deg, #1d1564 0%, #111827 100%) !important;
+                color: #ffffff !important;
                 font-size: 15px !important;
                 font-weight: 700 !important;
                 box-shadow: none !important;
@@ -334,7 +334,7 @@ def inject_global_css():
 
             div[data-testid="stPopoverContent"] .stButton > button:hover,
             div[data-testid="stPopoverContent"] .stLinkButton > a:hover {
-                background: linear-gradient(90deg, #1d1564 0%, #9d0139 100%) !important;
+                background: linear-gradient(90deg, #1d1564 0%, #111827 100%) !important;
                 color: #ffffff !important;
                 border: 1px solid transparent !important;
                 transform: translateY(-1px);
