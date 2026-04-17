@@ -494,23 +494,19 @@ def kpi_card(
     value_size=38,
     single_line_value=False
 ):
-    value_style = f"""
-        font-size:{value_size}px;
-        font-weight:900;
-        color:{value_color};
-        line-height:1.05;
-        margin-top:6px;
-        max-width:100%;
-    """
+    card_padding = "16px"
+    value_extra = ""
 
     if single_line_value:
-        value_style += """
+        card_padding = "16px 10px 16px 12px"
+        value_extra = """
             white-space:nowrap;
             overflow:hidden;
             text-overflow:clip;
+            letter-spacing:-0.6px;
         """
     else:
-        value_style += """
+        value_extra = """
             white-space:normal;
             word-break:keep-all;
             overflow-wrap:anywhere;
@@ -520,7 +516,7 @@ def kpi_card(
     <div style="
         background:#ffffff;
         border-radius:16px;
-        padding:16px;
+        padding:{card_padding};
         border-left:8px solid {accent};
         box-shadow:0 8px 20px rgba(15,23,42,.06);
         height:120px;
@@ -529,7 +525,15 @@ def kpi_card(
         overflow:hidden;
     ">
         <div style="font-size:14px;font-weight:900;color:#334155;">{title}</div>
-        <div style="{value_style}">
+        <div style="
+            font-size:{value_size}px;
+            font-weight:900;
+            color:{value_color};
+            line-height:1.05;
+            margin-top:6px;
+            max-width:100%;
+            {value_extra}
+        ">
             {value}
         </div>
         <div style="font-size:12px;color:#64748b;margin-top:6px;">{subtitle}</div>
@@ -1126,7 +1130,7 @@ def render_main_dashboard(df: pd.DataFrame):
             money_br(faturamento),
             "valor do filhote",
             NAVY,
-            value_size=18,
+            value_size=16,
             single_line_value=True
         )
 
@@ -1436,7 +1440,7 @@ def render_fin_dashboard(df: pd.DataFrame):
             money_br(faturamento_total),
             str(mes),
             NAVY,
-            value_size=18,
+            value_size=16,
             single_line_value=True
         )
     with k2:
@@ -1447,7 +1451,7 @@ def render_fin_dashboard(df: pd.DataFrame):
             money_br(ticket_medio),
             "por venda",
             WINE,
-            value_size=18,
+            value_size=16,
             single_line_value=True
         )
     with k4:
