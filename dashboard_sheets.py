@@ -235,7 +235,6 @@ def inject_global_css():
                 margin-top: 10px;
             }
 
-            /* MENU */
             div[data-testid="stPopover"] > button {
                 height: 46px !important;
                 width: 56px !important;
@@ -884,18 +883,43 @@ def render_oper_dashboard(df: pd.DataFrame):
                     display:flex;
                     justify-content:center;
                     align-items:center;
-                    margin-top:4px;
+                    margin-top:0;
+                    min-height:90px;
                 ">
                     <img src="data:image/png;base64,{logo_b64}"
                          style="
-                            width:88px;
-                            height:88px;
-                            object-fit:cover;
+                            width:86px;
+                            height:86px;
+                            object-fit:contain;
                             border-radius:50%;
                             background:#ffffff;
                             padding:8px;
                             box-shadow:0 10px 24px rgba(15,23,42,0.12);
                          ">
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                """
+                <div style="
+                    display:flex;
+                    justify-content:center;
+                    align-items:center;
+                    min-height:90px;
+                ">
+                    <div style="
+                        width:86px;
+                        height:86px;
+                        border-radius:50%;
+                        background:#ffffff;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        font-size:34px;
+                        box-shadow:0 10px 24px rgba(15,23,42,0.12);
+                    ">🐾</div>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -981,7 +1005,6 @@ def render_oper_dashboard(df: pd.DataFrame):
     st.markdown("---")
     g1, g2 = st.columns(2)
     g3, g4 = st.columns(2)
-    g5, g6 = st.columns(2)
 
     with g1:
         render_chart_header("Contatos por mês", "📞", "Distribuição mensal dos 3 contatos")
@@ -990,7 +1013,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             "Total": [primeiro_mes, segundo_mes, terceiro_mes]
         })
         fig = build_named_bar(df_contatos, "Contato", "Total", height=360, tickangle=0)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="oper_contatos_mes")
 
     with g2:
         render_chart_header("Contatos por unidade no mês", "🏬", "Linhas com pelo menos um contato no mês selecionado")
@@ -1025,7 +1048,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             st.info("Sem registros para o filtro selecionado.")
         else:
             fig = build_named_bar(vu, COL["unidade"], "Total", height=360, tickangle=18)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="oper_contatos_unidade")
 
     with g3:
         render_chart_header("Raças mais vendidas (mês)", "🐶", "Top 10 raças do mês filtrado")
@@ -1042,7 +1065,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             st.info("Sem registros para o filtro selecionado.")
         else:
             fig = build_named_bar(vr, COL["raca"], "Total", height=390, tickangle=28)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="oper_racas_vendidas")
 
     with g4:
         render_chart_header("Vendas por vendedora (mês)", "🏆", "Top 12 vendedoras do mês filtrado")
@@ -1060,38 +1083,9 @@ def render_oper_dashboard(df: pd.DataFrame):
                 st.info("Sem registros para o filtro selecionado.")
             else:
                 fig = build_named_bar(vv, COL_VENDEDOR, "Total", height=390, tickangle=28)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="oper_vendedoras")
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
-
-    with g5:
-        render_chart_header("Raças mais vendidas", "🐾", "Quantidade de vendas por raça no mês")
-
-        if COL["raca"] in f_mes.columns and len(f_mes) > 0:
-            df_racas_qtd = (
-                f_mes.groupby(COL["raca"])
-                .size()
-                .reset_index(name="Total")
-                .sort_values("Total", ascending=False)
-                .head(10)
-            )
-
-            if len(df_racas_qtd) == 0:
-                st.info("Sem registros para o filtro selecionado.")
-            else:
-                fig = build_named_bar(
-                    df_racas_qtd,
-                    COL["raca"],
-                    "Total",
-                    height=390,
-                    tickangle=28
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Sem registros para o filtro selecionado.")
-
-    with g6:
-        st.empty()
 
 # =========================================================
 # DASHBOARD FINANCEIRO
@@ -1177,7 +1171,7 @@ def render_fin_dashboard(df: pd.DataFrame):
                     height=390,
                     tickangle=18
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key="fin_faturamento_unidade")
         else:
             st.info("Sem registros para o filtro selecionado.")
 
@@ -1192,7 +1186,7 @@ def render_fin_dashboard(df: pd.DataFrame):
                 .head(10)
             )
             fig = build_money_bar(df_racas_valor, COL_RACA, "Faturamento", height=390, tickangle=28)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="fin_valor_raca")
         else:
             st.info("Sem registros para o filtro selecionado.")
 
@@ -1207,7 +1201,7 @@ def render_fin_dashboard(df: pd.DataFrame):
                 .head(12)
             )
             fig = build_money_bar(df_vend_valor, COL_VENDEDOR, "Faturamento", height=390, tickangle=28)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="fin_vendedoras")
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
 
@@ -1257,7 +1251,7 @@ def render_fin_dashboard(df: pd.DataFrame):
             df_ano["Mês"] = df_ano["_mes_num"].apply(month_label_pt)
 
             fig = build_monthly_and_cumulative_chart(df_ano, height=420)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="fin_ano")
     else:
         st.info("Não foi possível identificar o ano do mês selecionado.")
 
