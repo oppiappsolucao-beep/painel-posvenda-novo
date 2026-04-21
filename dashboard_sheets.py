@@ -845,7 +845,7 @@ def render_oper_dashboard(df: pd.DataFrame):
         if colname and colname in df.columns:
             df[colname] = parse_date_series(df[colname])
 
-    top_menu, top_left, top_logo, top_space, top_right = st.columns([1, 4, 2, 1, 1.2])
+    top_menu, top_left, top_space, top_right = st.columns([1, 5, 3, 1.2])
 
     with top_menu:
         with st.popover("☰"):
@@ -874,7 +874,24 @@ def render_oper_dashboard(df: pd.DataFrame):
         st.markdown("## ⚙️ Operação")
         st.caption(f"Total de registros: **{len(df)}**")
 
-    with top_logo:
+    with top_space:
+        st.empty()
+
+    with top_right:
+        if st.button("Sair", use_container_width=True, key="btn_logout_oper"):
+            st.session_state.oper_logged_in = False
+            st.session_state.fin_logged_in = False
+            st.session_state.page = "operacao_login"
+            st.rerun()
+
+    # LOGO ENTRE OS FILTROS
+    f1, f_logo, f2 = st.columns([6, 1.1, 6])
+
+    with f1:
+        meses = sorted(df[COL["mes"]].dropna().astype(str).unique())
+        mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0, key="oper_mes")
+
+    with f_logo:
         logo_b64 = img_to_base64("skoobpet.png")
         if logo_b64:
             st.markdown(
@@ -883,17 +900,17 @@ def render_oper_dashboard(df: pd.DataFrame):
                     display:flex;
                     justify-content:center;
                     align-items:center;
-                    margin-top:0;
-                    min-height:90px;
+                    margin-top:14px;
+                    min-height:68px;
                 ">
                     <img src="data:image/png;base64,{logo_b64}"
                          style="
-                            width:86px;
-                            height:86px;
+                            width:72px;
+                            height:72px;
                             object-fit:contain;
                             border-radius:50%;
                             background:#ffffff;
-                            padding:8px;
+                            padding:6px;
                             box-shadow:0 10px 24px rgba(15,23,42,0.12);
                          ">
                 </div>
@@ -907,17 +924,18 @@ def render_oper_dashboard(df: pd.DataFrame):
                     display:flex;
                     justify-content:center;
                     align-items:center;
-                    min-height:90px;
+                    margin-top:14px;
+                    min-height:68px;
                 ">
                     <div style="
-                        width:86px;
-                        height:86px;
+                        width:72px;
+                        height:72px;
                         border-radius:50%;
                         background:#ffffff;
                         display:flex;
                         align-items:center;
                         justify-content:center;
-                        font-size:34px;
+                        font-size:30px;
                         box-shadow:0 10px 24px rgba(15,23,42,0.12);
                     ">🐾</div>
                 </div>
@@ -925,20 +943,6 @@ def render_oper_dashboard(df: pd.DataFrame):
                 unsafe_allow_html=True
             )
 
-    with top_space:
-        st.empty()
-
-    with top_right:
-        if st.button("Sair", use_container_width=True, key="btn_logout_oper"):
-            st.session_state.oper_logged_in = False
-            st.session_state.fin_logged_in = False
-            st.session_state.page = "operacao_login"
-            st.rerun()
-
-    f1, f2 = st.columns(2)
-    with f1:
-        meses = sorted(df[COL["mes"]].dropna().astype(str).unique())
-        mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0, key="oper_mes")
     with f2:
         unidades = ["Todas"] + sorted(df[COL["unidade"]].dropna().astype(str).unique().tolist())
         unidade = st.selectbox("Unidade", unidades, key="oper_unidade")
