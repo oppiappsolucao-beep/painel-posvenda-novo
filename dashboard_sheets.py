@@ -699,6 +699,7 @@ def render_chart_header(title, emoji="📊", subtitle=None):
         unsafe_allow_html=True
     )
 
+
 def render_oper_login():
     inject_global_css()
     logo_html = render_logo_html()
@@ -854,6 +855,10 @@ def render_oper_dashboard(df: pd.DataFrame):
                 """,
                 unsafe_allow_html=True
             )
+
+            if st.button("⚙️  Operação", use_container_width=True, key="menu_operacao_from_oper"):
+                st.session_state.page = "operacao_dashboard"
+                st.rerun()
 
             if st.button("💰  Financeiro", use_container_width=True, key="menu_financeiro"):
                 st.session_state.page = "financeiro_login"
@@ -1090,7 +1095,30 @@ def render_fin_dashboard(df: pd.DataFrame):
     COL_VALOR = pick_first_existing(df, ["Valor Filhote", "Valor de filhote", "Valor Filhote ", "Valor"])
     COL_VENDEDOR = pick_first_existing(df, ["Vendedora", "Vendedor", "Atendente"])
 
-    top_l, top_mid, top_r = st.columns([6, 2, 1])
+    top_menu, top_l, top_mid, top_r = st.columns([1, 5, 2, 1])
+
+    with top_menu:
+        with st.popover("☰"):
+            st.markdown('<div class="menu-title">Menu</div>', unsafe_allow_html=True)
+            st.markdown('<div class="menu-sub">Escolha uma área para acessar</div>', unsafe_allow_html=True)
+            st.markdown('<div class="menu-divider"></div>', unsafe_allow_html=True)
+
+            st.markdown(
+                """
+                <a href="https://n8n.oppitech.com.br/form/55a2bd76-25c9-4ea2-82ad-f5c0ae75e19c"
+                   target="_blank"
+                   class="menu-link-btn">
+                    📄&nbsp;&nbsp;Novo Contrato
+                </a>
+                """,
+                unsafe_allow_html=True
+            )
+
+            if st.button("⚙️  Operação", use_container_width=True, key="menu_operacao_from_fin"):
+                st.session_state.page = "operacao_dashboard"
+                st.rerun()
+
+            st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
 
     with top_l:
         st.markdown("## 💰 Financeiro")
