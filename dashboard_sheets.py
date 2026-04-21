@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 # CONFIG DA PÁGINA
 # =========================================================
 st.set_page_config(
-    page_title="Painel Pós-Venda",
+    page_title="Operação SkoobPet",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -32,9 +32,6 @@ GRID = "rgba(15,23,42,0.07)"
 # =========================================================
 # CREDENCIAIS
 # =========================================================
-APP_USER = "operacao"
-APP_PASS = "100316"
-
 OPER_USER = "skoob"
 OPER_PASS = "skoob123"
 
@@ -53,9 +50,6 @@ hoje = pd.Timestamp(datetime.datetime.now(TZ).date())
 # =========================================================
 # ESTADO INICIAL
 # =========================================================
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
 if "oper_logged_in" not in st.session_state:
     st.session_state.oper_logged_in = False
 
@@ -63,7 +57,7 @@ if "fin_logged_in" not in st.session_state:
     st.session_state.fin_logged_in = False
 
 if "page" not in st.session_state:
-    st.session_state.page = "main"
+    st.session_state.page = "operacao_dashboard" if st.session_state.oper_logged_in else "operacao_login"
 
 # =========================================================
 # HELPERS VISUAIS
@@ -823,58 +817,9 @@ def render_chart_header(title, emoji="📊", subtitle=None):
     )
 
 
-def render_main_login():
-    inject_global_css()
-    logo_html = render_logo_html()
-
-    st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
-
-    st.markdown(
-        f'''
-        <div class="login-brand">
-            <div class="logo-center">{logo_html}</div>
-            <div class="login-subtitle">Acesse o dashboard de pós-venda e pedigree</div>
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        """
-        <div class="login-card">
-            <div class="login-mini-title">Acesso ao Painel</div>
-            <div class="login-mini-sub">Digite seu usuário e senha para continuar</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    user = st.text_input("Usuário", placeholder="Digite seu usuário", key="main_login_user")
-    pwd = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="main_login_pass")
-
-    entrar = st.button("Entrar", use_container_width=True, key="btn_main_login")
-
-    if entrar:
-        if (user or "").strip() == APP_USER and (pwd or "").strip() == APP_PASS:
-            st.session_state.logged_in = True
-            st.session_state.page = "main"
-            st.rerun()
-        else:
-            st.error("Usuário ou senha inválidos.")
-
-    st.markdown(
-        """
-        <div class="login-badges">
-            <span class="login-badge">🔒 Acesso restrito</span>
-            <span class="login-badge">🐾 Operação interna SkoobPet</span>
-        </div>
-        <div class="login-footer">Painel interno • Uso autorizado apenas para a equipe</div>
-        </div></div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
+# =========================================================
+# LOGIN OPERAÇÃO - AGORA É A PÁGINA INICIAL
+# =========================================================
 def render_oper_login():
     inject_global_css()
     logo_html = render_logo_html()
@@ -904,11 +849,7 @@ def render_oper_login():
     user = st.text_input("Usuário", placeholder="Digite seu usuário", key="oper_login_user")
     pwd = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="oper_login_pass")
 
-    c1, c2 = st.columns(2)
-    with c1:
-        entrar = st.button("Entrar na Operação", use_container_width=True, key="btn_oper_login")
-    with c2:
-        voltar = st.button("Voltar ao Painel", use_container_width=True, key="btn_oper_back")
+    entrar = st.button("Entrar na Operação", use_container_width=True, key="btn_oper_login")
 
     if entrar:
         if (user or "").strip() == OPER_USER and (pwd or "").strip() == OPER_PASS:
@@ -917,10 +858,6 @@ def render_oper_login():
             st.rerun()
         else:
             st.error("Usuário ou senha da operação inválidos.")
-
-    if voltar:
-        st.session_state.page = "main"
-        st.rerun()
 
     st.markdown(
         """
@@ -964,7 +901,7 @@ def render_fin_login():
     with c1:
         entrar = st.button("Entrar no Financeiro", use_container_width=True, key="btn_fin_login")
     with c2:
-        voltar = st.button("Voltar ao Painel", use_container_width=True, key="btn_fin_back")
+        voltar = st.button("Voltar à Operação", use_container_width=True, key="btn_fin_back")
 
     if entrar:
         if (user or "").strip() == FIN_USER and (pwd or "").strip() == FIN_PASS:
@@ -975,7 +912,7 @@ def render_fin_login():
             st.error("Usuário ou senha do financeiro inválidos.")
 
     if voltar:
-        st.session_state.page = "main"
+        st.session_state.page = "operacao_dashboard"
         st.rerun()
 
     st.markdown(
@@ -987,40 +924,23 @@ def render_fin_login():
     )
 
 
-def count_today_all(df_base, date_col):
-    if date_col not in df_base.columns:
-        return 0
-    sub = df_base[df_base[date_col].dt.date == hoje.date()]
-    return int(len(sub))
-
-
-def count_month_all(df_base, date_col, selected_month_key):
-    if date_col not in df_base.columns:
-        return 0
-    d = df_base.copy()
-    series = d[date_col]
-    valid = series.notna()
-    if not valid.any():
-        return 0
-    month_key = series.dt.strftime("%m/%Y")
-    return int((month_key == str(selected_month_key)).sum())
-
-
-def render_main_dashboard(df: pd.DataFrame):
+# =========================================================
+# DASHBOARD OPERAÇÃO - AGORA É O PRINCIPAL
+# =========================================================
+def render_oper_dashboard(df: pd.DataFrame):
     COL = {
         "mes": "Mês",
-        "raca": "Raça",
         "unidade": "Unidade",
+        "raca": "Raça",
         "c1": "1º contato",
-        "s1": "Status 1º contato",
         "c2": "2º contato",
-        "s2": "Status 2º contato",
         "c3": "3º contato",
+        "s1": "Status 1º contato",
+        "s2": "Status 2º contato",
         "s3": "Status 3º contato",
     }
 
-    COL_VALOR = pick_first_existing(df, ["Valor Filhote", "Valor de filhote", "Valor Filhote ", "Valor"])
-    COL_VENDEDOR = pick_first_existing(df, ["Vendedor", "Vendedora", "Atendente"])
+    COL_VENDEDOR = pick_first_existing(df, ["Vendedora", "Vendedor", "Atendente"])
 
     for key in ["c1", "c2", "c3"]:
         colname = COL.get(key)
@@ -1046,10 +966,6 @@ def render_main_dashboard(df: pd.DataFrame):
                 unsafe_allow_html=True
             )
 
-            if st.button("⚙️  Operação", use_container_width=True, key="menu_operacao"):
-                st.session_state.page = "operacao_login"
-                st.rerun()
-
             if st.button("💰  Financeiro", use_container_width=True, key="menu_financeiro"):
                 st.session_state.page = "financeiro_login"
                 st.rerun()
@@ -1057,178 +973,17 @@ def render_main_dashboard(df: pd.DataFrame):
             st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
 
     with top_l:
-        st.markdown("## 📊 Painel de Pós-Venda")
-        st.caption(f"Total de registros: **{len(df)}**")
-
-    with top_mid:
-        if st.button("🔄 Atualizar agora", use_container_width=True, key="btn_refresh_main"):
-            st.cache_data.clear()
-            st.rerun()
-
-    with top_r:
-        if st.button("Sair", use_container_width=True, key="btn_logout_main"):
-            st.session_state.logged_in = False
-            st.session_state.oper_logged_in = False
-            st.session_state.fin_logged_in = False
-            st.session_state.page = "main"
-            st.rerun()
-
-    f1, f2, f3 = st.columns(3)
-    with f1:
-        setor = st.selectbox("Setor", ["Pós-Venda", "Pedigree"], key="main_setor")
-    with f2:
-        meses = sorted(df[COL["mes"]].dropna().astype(str).unique())
-        mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0, key="main_mes")
-    with f3:
-        unidades = ["Todas"] + sorted(df[COL["unidade"]].dropna().astype(str).unique().tolist())
-        unidade = st.selectbox("Unidade", unidades, key="main_unidade")
-
-    f = df[df[COL["mes"]].astype(str) == str(mes)].copy()
-    if unidade != "Todas":
-        f = f[f[COL["unidade"]].astype(str) == str(unidade)]
-
-    f_all = df.copy()
-    if unidade != "Todas":
-        f_all = f_all[f_all[COL["unidade"]].astype(str) == str(unidade)]
-
-    records_today = []
-    c1 = c2 = c3 = 0
-    if setor == "Pós-Venda":
-        c1 = count_today_all(f_all, COL["c1"])
-        c2 = count_today_all(f_all, COL["c2"])
-        c3 = count_today_all(f_all, COL["c3"])
-
-        for _, r in f_all.iterrows():
-            for dc, sc in [(COL["c1"], COL["s1"]), (COL["c2"], COL["s2"]), (COL["c3"], COL["s3"])]:
-                dval = r.get(dc)
-                if pd.notna(dval) and pd.to_datetime(dval).date() == hoje.date():
-                    records_today.append(status_bucket_today(r.get(sc)))
-
-    erro_hoje = records_today.count("Erro")
-    vendas_mes = int(len(f))
-
-    if COL_VALOR and (COL_VALOR in f.columns):
-        faturamento = float(f[COL_VALOR].apply(brl_to_float).fillna(0).sum())
-    else:
-        faturamento = 0.0
-
-    st.markdown("---")
-    k1, k2, k3, k4, k5, k6 = st.columns(6)
-    with k1:
-        kpi_card("💬 1º contato hoje", c1, "registros de hoje", NAVY)
-    with k2:
-        kpi_card("💬 2º contato hoje", c2, "registros de hoje", NAVY_2)
-    with k3:
-        kpi_card("💬 3º contato hoje", c3, "registros de hoje", WINE_2)
-    with k4:
-        kpi_card("⚠️ Status com erro", erro_hoje, "atenção", WINE, value_color="#ef4444" if erro_hoje else "#0f172a")
-    with k5:
-        kpi_card("🛍️ Vendas no mês", vendas_mes, str(mes), "#F59E0B")
-    with k6:
-        kpi_card(
-            "💰 Faturamento",
-            money_br(faturamento),
-            "valor do filhote",
-            NAVY,
-            value_size=16,
-            single_line_value=True
-        )
-
-    st.markdown("---")
-    g1, g2 = st.columns(2)
-    g3, g4 = st.columns(2)
-
-    with g1:
-        render_chart_header("Contatos por Status (hoje)", "📌")
-        counts = {"Aguardando": 0, "Enviado": 0, "Erro": 0}
-        for r in records_today:
-            counts[r] = counts.get(r, 0) + 1
-        df_status = pd.DataFrame({"Status": list(counts.keys()), "Total": list(counts.values())})
-        fig = px.pie(
-            df_status,
-            names="Status",
-            values="Total",
-            hole=0.58,
-            color="Status",
-            color_discrete_map={"Aguardando": NAVY, "Enviado": WINE, "Erro": "#ef4444"},
-        )
-        fig.update_traces(textinfo="label+value", textposition="inside")
-        st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
-
-    with g2:
-        render_chart_header("Vendas por loja (Unidade)", "🏬")
-        vp = f.groupby(COL["unidade"]).size().reset_index(name="Total")
-        if len(vp) == 0:
-            st.info("Sem registros para o filtro selecionado.")
-        else:
-            fig = build_named_bar(vp, COL["unidade"], "Total", bar_color=NAVY, height=360, tickangle=18)
-            st.plotly_chart(fig, use_container_width=True)
-
-    with g3:
-        render_chart_header("Raças mais vendidas (mês)", "🐶", "Top 10 raças do mês filtrado")
-        vr = (
-            f.groupby(COL["raca"]).size().reset_index(name="Total")
-            .sort_values("Total", ascending=False)
-            .head(10)
-        )
-        if len(vr) == 0:
-            st.info("Sem registros para o filtro selecionado.")
-        else:
-            fig = build_named_bar(vr, COL["raca"], "Total", bar_color=NAVY, height=390, tickangle=28)
-            st.plotly_chart(fig, use_container_width=True)
-
-    with g4:
-        render_chart_header("Vendas por vendedora (mês)", "🏆", "Top 12 vendedoras do mês filtrado")
-        if COL_VENDEDOR:
-            vv = (
-                f.groupby(COL_VENDEDOR).size().reset_index(name="Total")
-                .sort_values("Total", ascending=False)
-                .head(12)
-            )
-            if len(vv) == 0:
-                st.info("Sem registros para o filtro selecionado.")
-            else:
-                fig = build_named_bar(vv, COL_VENDEDOR, "Total", bar_color=WINE, height=390, tickangle=28)
-                st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Coluna de vendedor não encontrada")
-
-
-def render_oper_dashboard(df: pd.DataFrame):
-    COL = {
-        "mes": "Mês",
-        "unidade": "Unidade",
-        "raca": "Raça",
-        "c1": "1º contato",
-        "c2": "2º contato",
-        "c3": "3º contato",
-        "s1": "Status 1º contato",
-        "s2": "Status 2º contato",
-        "s3": "Status 3º contato",
-    }
-
-    COL_VENDEDOR = pick_first_existing(df, ["Vendedora", "Vendedor", "Atendente"])
-
-    for key in ["c1", "c2", "c3"]:
-        colname = COL.get(key)
-        if colname and colname in df.columns:
-            df[colname] = parse_date_series(df[colname])
-
-    top_l, top_mid, top_r = st.columns([6, 2, 1])
-
-    with top_l:
         st.markdown("## ⚙️ Operação")
         st.caption(f"Total de registros: **{len(df)}**")
 
     with top_mid:
-        if st.button("⬅️ Voltar ao Painel", use_container_width=True, key="btn_back_main"):
-            st.session_state.page = "main"
-            st.rerun()
+        st.empty()
 
     with top_r:
         if st.button("Sair", use_container_width=True, key="btn_logout_oper"):
             st.session_state.oper_logged_in = False
-            st.session_state.page = "main"
+            st.session_state.fin_logged_in = False
+            st.session_state.page = "operacao_login"
             st.rerun()
 
     f1, f2 = st.columns(2)
@@ -1400,14 +1155,13 @@ def render_fin_dashboard(df: pd.DataFrame):
         st.caption(f"Total de registros: **{len(df)}**")
 
     with top_mid:
-        if st.button("⬅️ Voltar ao Painel", use_container_width=True, key="btn_back_fin_main"):
-            st.session_state.page = "main"
-            st.rerun()
+        st.empty()
 
     with top_r:
         if st.button("Sair", use_container_width=True, key="btn_logout_fin"):
+            st.session_state.oper_logged_in = False
             st.session_state.fin_logged_in = False
-            st.session_state.page = "main"
+            st.session_state.page = "operacao_login"
             st.rerun()
 
     f1, f2 = st.columns(2)
@@ -1564,24 +1318,20 @@ def render_fin_dashboard(df: pd.DataFrame):
 # =========================================================
 inject_global_css()
 
-if not st.session_state.logged_in:
-    render_main_login()
+if st.session_state.page == "operacao_login":
+    render_oper_login()
+    st.stop()
+
+if not st.session_state.oper_logged_in:
+    st.session_state.page = "operacao_login"
+    render_oper_login()
     st.stop()
 
 components.html("<script>setTimeout(() => window.location.reload(), 10000);</script>", height=0)
 
 df = load_sheet(sheet_url_busted(SHEET_CSV_URL))
 
-if st.session_state.page == "operacao_login":
-    render_oper_login()
-
-elif st.session_state.page == "operacao_dashboard":
-    if not st.session_state.oper_logged_in:
-        render_oper_login()
-    else:
-        render_oper_dashboard(df)
-
-elif st.session_state.page == "financeiro_login":
+if st.session_state.page == "financeiro_login":
     render_fin_login()
 
 elif st.session_state.page == "financeiro_dashboard":
@@ -1591,4 +1341,4 @@ elif st.session_state.page == "financeiro_dashboard":
         render_fin_dashboard(df)
 
 else:
-    render_main_dashboard(df)
+    render_oper_dashboard(df)
