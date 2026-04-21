@@ -875,7 +875,6 @@ def render_oper_dashboard(df: pd.DataFrame):
             st.session_state.page = "operacao_login"
             st.rerun()
 
-    # LOGO MAIS ALTA ENTRE OS FILTROS
     f1, f_logo, f2 = st.columns([6, 1.1, 6])
 
     with f1:
@@ -1107,10 +1106,65 @@ def render_fin_dashboard(df: pd.DataFrame):
             st.session_state.page = "operacao_login"
             st.rerun()
 
-    f1, f2 = st.columns(2)
+    # LOGO IGUAL À OPERAÇÃO
+    f1, f_logo, f2 = st.columns([6, 1.1, 6])
+
     with f1:
         meses = sorted(df[COL_MES].dropna().astype(str).unique())
         mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0, key="fin_mes")
+
+    with f_logo:
+        logo_b64 = img_to_base64("skoobpet.png")
+        if logo_b64:
+            st.markdown(
+                f"""
+                <div style="
+                    display:flex;
+                    justify-content:center;
+                    align-items:center;
+                    margin-top:-58px;
+                    min-height:68px;
+                ">
+                    <img src="data:image/png;base64,{logo_b64}"
+                         style="
+                            width:72px;
+                            height:72px;
+                            object-fit:contain;
+                            border-radius:50%;
+                            background:#ffffff;
+                            padding:6px;
+                            box-shadow:0 10px 24px rgba(15,23,42,0.12);
+                         ">
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                """
+                <div style="
+                    display:flex;
+                    justify-content:center;
+                    align-items:center;
+                    margin-top:-58px;
+                    min-height:68px;
+                ">
+                    <div style="
+                        width:72px;
+                        height:72px;
+                        border-radius:50%;
+                        background:#ffffff;
+                        display:flex;
+                        align-items:center;
+                        justify-content:center;
+                        font-size:30px;
+                        box-shadow:0 10px 24px rgba(15,23,42,0.12);
+                    ">🐾</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
     with f2:
         unidades = ["Todas"] + sorted(df[COL_UNIDADE].dropna().astype(str).unique().tolist())
         unidade = st.selectbox("Unidade", unidades, key="fin_unidade")
