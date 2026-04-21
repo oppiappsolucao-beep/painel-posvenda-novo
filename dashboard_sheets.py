@@ -945,7 +945,6 @@ def render_oper_dashboard(df: pd.DataFrame):
     st.markdown("---")
     g1, g2 = st.columns(2)
     g3, g4 = st.columns(2)
-    g5, g6 = st.columns(2)
 
     with g1:
         render_chart_header("Contatos por mês", "📞", "Distribuição mensal dos 3 contatos")
@@ -993,7 +992,6 @@ def render_oper_dashboard(df: pd.DataFrame):
 
     with g3:
         render_chart_header("Raças mais vendidas (mês)", "🐶", "Top 10 raças do mês filtrado")
-
         vr = (
             f_mes.groupby(COL["raca"])
             .size()
@@ -1001,7 +999,6 @@ def render_oper_dashboard(df: pd.DataFrame):
             .sort_values("Total", ascending=False)
             .head(10)
         )
-
         if len(vr) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
@@ -1010,7 +1007,6 @@ def render_oper_dashboard(df: pd.DataFrame):
 
     with g4:
         render_chart_header("Vendas por vendedora (mês)", "🏆", "Top 12 vendedoras do mês filtrado")
-
         if COL_VENDEDOR and COL_VENDEDOR in f_mes.columns:
             vv = (
                 f_mes.groupby(COL_VENDEDOR)
@@ -1019,7 +1015,6 @@ def render_oper_dashboard(df: pd.DataFrame):
                 .sort_values("Total", ascending=False)
                 .head(12)
             )
-
             if len(vv) == 0:
                 st.info("Sem registros para o filtro selecionado.")
             else:
@@ -1027,35 +1022,6 @@ def render_oper_dashboard(df: pd.DataFrame):
                 st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
-
-    with g5:
-        render_chart_header("Raças mais vendidas", "🐾", "Quantidade de vendas por raça no mês")
-
-        if COL["raca"] in f_mes.columns and len(f_mes) > 0:
-            df_racas_qtd = (
-                f_mes.groupby(COL["raca"])
-                .size()
-                .reset_index(name="Total")
-                .sort_values("Total", ascending=False)
-                .head(10)
-            )
-
-            if len(df_racas_qtd) == 0:
-                st.info("Sem registros para o filtro selecionado.")
-            else:
-                fig = build_named_bar(
-                    df_racas_qtd,
-                    COL["raca"],
-                    "Total",
-                    height=390,
-                    tickangle=28
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Sem registros para o filtro selecionado.")
-
-    with g6:
-        st.empty()
 
 
 def render_fin_dashboard(df: pd.DataFrame):
