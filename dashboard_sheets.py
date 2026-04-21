@@ -226,23 +226,6 @@ def inject_global_css():
                 box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18) !important;
             }
 
-            .login-badges {
-                text-align: center;
-                margin-top: 12px;
-            }
-
-            .login-badge {
-                display: inline-block;
-                margin: 4px;
-                padding: 6px 10px;
-                border-radius: 999px;
-                font-size: 11px;
-                background: #F1F5F9;
-                color: #475569;
-                border: 1px solid rgba(15,23,42,0.06);
-                font-weight: 700;
-            }
-
             .login-footer {
                 text-align: center;
                 color: #94a3b8;
@@ -383,35 +366,6 @@ def inject_global_css():
                 margin-top: 4px;
                 line-height: 1.2;
             }
-
-            @media (max-width: 640px) {
-                .login-logo {
-                    width: 70px;
-                    height: 70px;
-                }
-
-                .login-logo-fallback {
-                    width: 70px;
-                    height: 70px;
-                    font-size: 30px;
-                }
-
-                .login-page-wrap {
-                    padding-top: 12px;
-                }
-
-                .login-card {
-                    padding: 10px 14px 8px 14px;
-                }
-
-                .login-subtitle {
-                    font-size: 14px;
-                }
-
-                .login-mini-title {
-                    font-size: 18px;
-                }
-            }
         </style>
         """,
         unsafe_allow_html=True
@@ -445,19 +399,6 @@ def is_error(status):
     return ("erro" in s) or ("atras" in s) or ("pendenc" in s)
 
 
-def is_sent(status):
-    s = norm(status)
-    return ("enviado" in s) or ("enviada" in s)
-
-
-def status_bucket_today(status):
-    if is_error(status):
-        return "Erro"
-    if is_sent(status):
-        return "Enviado"
-    return "Aguardando"
-
-
 def brl_to_float(v):
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return 0.0
@@ -479,38 +420,12 @@ def brl_to_float(v):
         return 0.0
 
 
-def kpi_card(
-    title,
-    value,
-    subtitle,
-    accent,
-    value_color="#0f172a",
-    value_size=38,
-    single_line_value=False
-):
-    card_padding = "16px"
-    value_extra = ""
-
-    if single_line_value:
-        card_padding = "16px 10px 16px 12px"
-        value_extra = """
-            white-space:nowrap;
-            overflow:hidden;
-            text-overflow:clip;
-            letter-spacing:-0.6px;
-        """
-    else:
-        value_extra = """
-            white-space:normal;
-            word-break:keep-all;
-            overflow-wrap:anywhere;
-        """
-
+def kpi_card(title, value, subtitle, accent, value_color="#0f172a", value_size=38):
     html = f"""
     <div style="
         background:#ffffff;
         border-radius:16px;
-        padding:{card_padding};
+        padding:16px;
         border-left:8px solid {accent};
         box-shadow:0 8px 20px rgba(15,23,42,.06);
         height:120px;
@@ -526,7 +441,9 @@ def kpi_card(
             line-height:1.05;
             margin-top:6px;
             max-width:100%;
-            {value_extra}
+            white-space:normal;
+            word-break:keep-all;
+            overflow-wrap:anywhere;
         ">
             {value}
         </div>
@@ -621,7 +538,7 @@ def tune_plotly(fig, height=390):
     return fig
 
 
-def build_named_bar(df_plot, x_col, y_col, bar_color=NAVY, height=390, tickangle=28):
+def build_named_bar(df_plot, x_col, y_col, height=390, tickangle=28):
     d = df_plot.copy()
     fig = px.bar(d, x=x_col, y=y_col)
 
@@ -674,9 +591,7 @@ def build_money_bar(df_plot, x_col, y_col, height=390, tickangle=28):
 def extract_year_from_month_key(month_key: str):
     s = str(month_key).strip()
     m = re.search(r"(\d{4})$", s)
-    if m:
-        return m.group(1)
-    return None
+    return m.group(1) if m else None
 
 
 def extract_month_num_from_month_key(month_key: str):
@@ -689,50 +604,30 @@ def extract_month_num_from_month_key(month_key: str):
             return mm
 
     meses_pt = {
-        "janeiro": 1,
-        "fevereiro": 2,
-        "marco": 3,
-        "março": 3,
-        "abril": 4,
-        "maio": 5,
-        "junho": 6,
-        "julho": 7,
-        "agosto": 8,
-        "setembro": 9,
-        "outubro": 10,
-        "novembro": 11,
-        "dezembro": 12,
+        "janeiro": 1, "fevereiro": 2, "marco": 3, "março": 3,
+        "abril": 4, "maio": 5, "junho": 6, "julho": 7,
+        "agosto": 8, "setembro": 9, "outubro": 10,
+        "novembro": 11, "dezembro": 12,
     }
 
     s_low = s.lower()
     for nome, num in meses_pt.items():
         if nome in s_low:
             return num
-
     return None
 
 
 def month_label_pt(month_num: int):
     labels = {
-        1: "Jan",
-        2: "Fev",
-        3: "Mar",
-        4: "Abr",
-        5: "Mai",
-        6: "Jun",
-        7: "Jul",
-        8: "Ago",
-        9: "Set",
-        10: "Out",
-        11: "Nov",
-        12: "Dez",
+        1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr",
+        5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago",
+        9: "Set", 10: "Out", 11: "Nov", 12: "Dez",
     }
     return labels.get(month_num, str(month_num))
 
 
 def build_monthly_and_cumulative_chart(df_plot, height=420):
     d = df_plot.copy()
-
     fig = px.bar(d, x="Mês", y="Faturamento")
 
     fig.update_traces(
@@ -754,21 +649,8 @@ def build_monthly_and_cumulative_chart(df_plot, height=420):
         showlegend=False
     )
 
-    fig.update_xaxes(
-        title_text="Mês",
-        showgrid=False,
-        zeroline=False,
-        tickfont=dict(size=12, color=GRAY_TEXT)
-    )
-
-    fig.update_yaxes(
-        title_text="Valor",
-        showgrid=True,
-        gridcolor="rgba(100,116,139,0.12)",
-        zeroline=False,
-        tickfont=dict(size=12, color=GRAY_TEXT)
-    )
-
+    fig.update_xaxes(title_text="Mês", showgrid=False, zeroline=False, tickfont=dict(size=12, color=GRAY_TEXT))
+    fig.update_yaxes(title_text="Valor", showgrid=True, gridcolor="rgba(100,116,139,0.12)", zeroline=False, tickfont=dict(size=12, color=GRAY_TEXT))
     return fig
 
 
@@ -817,15 +699,11 @@ def render_chart_header(title, emoji="📊", subtitle=None):
     )
 
 
-# =========================================================
-# LOGIN OPERAÇÃO - AGORA É A PÁGINA INICIAL
-# =========================================================
 def render_oper_login():
     inject_global_css()
     logo_html = render_logo_html()
 
     st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
-
     st.markdown(
         f'''
         <div class="login-brand">
@@ -835,7 +713,6 @@ def render_oper_login():
         ''',
         unsafe_allow_html=True
     )
-
     st.markdown(
         """
         <div class="login-card">
@@ -848,7 +725,6 @@ def render_oper_login():
 
     user = st.text_input("Usuário", placeholder="Digite seu usuário", key="oper_login_user")
     pwd = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="oper_login_pass")
-
     entrar = st.button("Entrar na Operação", use_container_width=True, key="btn_oper_login")
 
     if entrar:
@@ -873,7 +749,6 @@ def render_fin_login():
     logo_html = render_logo_html()
 
     st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
-
     st.markdown(
         f'''
         <div class="login-brand">
@@ -883,7 +758,6 @@ def render_fin_login():
         ''',
         unsafe_allow_html=True
     )
-
     st.markdown(
         """
         <div class="login-card">
@@ -924,9 +798,24 @@ def render_fin_login():
     )
 
 
-# =========================================================
-# DASHBOARD OPERAÇÃO - AGORA É O PRINCIPAL
-# =========================================================
+def count_today_all(df_base, date_col):
+    if date_col not in df_base.columns:
+        return 0
+    sub = df_base[df_base[date_col].dt.date == hoje.date()]
+    return int(len(sub))
+
+
+def count_month_all(df_base, date_col, selected_month_key):
+    if date_col not in df_base.columns:
+        return 0
+    d = df_base.copy()
+    series = d[date_col]
+    if not series.notna().any():
+        return 0
+    month_key = series.dt.strftime("%m/%Y")
+    return int((month_key == str(selected_month_key)).sum())
+
+
 def render_oper_dashboard(df: pd.DataFrame):
     COL = {
         "mes": "Mês",
@@ -1063,7 +952,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             "Contato": ["1º contato", "2º contato", "3º contato"],
             "Total": [primeiro_mes, segundo_mes, terceiro_mes]
         })
-        fig = build_named_bar(df_contatos, "Contato", "Total", bar_color=NAVY, height=360, tickangle=0)
+        fig = build_named_bar(df_contatos, "Contato", "Total", height=360, tickangle=0)
         st.plotly_chart(fig, use_container_width=True)
 
     with g2:
@@ -1086,7 +975,6 @@ def render_oper_dashboard(df: pd.DataFrame):
                     break
             month_counts.append(hit)
 
-        temp = temp.copy()
         temp["_tem_contato_mes"] = month_counts
         vu = (
             temp[temp["_tem_contato_mes"]]
@@ -1099,12 +987,11 @@ def render_oper_dashboard(df: pd.DataFrame):
         if len(vu) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_named_bar(vu, COL["unidade"], "Total", bar_color=NAVY, height=360, tickangle=18)
+            fig = build_named_bar(vu, COL["unidade"], "Total", height=360, tickangle=18)
             st.plotly_chart(fig, use_container_width=True)
 
     with g3:
         render_chart_header("Raças mais vendidas (mês)", "🐶", "Top 10 raças do mês filtrado")
-
         vr = (
             f_mes.groupby(COL["raca"])
             .size()
@@ -1112,16 +999,14 @@ def render_oper_dashboard(df: pd.DataFrame):
             .sort_values("Total", ascending=False)
             .head(10)
         )
-
         if len(vr) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_named_bar(vr, COL["raca"], "Total", bar_color=NAVY, height=390, tickangle=28)
+            fig = build_named_bar(vr, COL["raca"], "Total", height=390, tickangle=28)
             st.plotly_chart(fig, use_container_width=True)
 
     with g4:
         render_chart_header("Vendas por vendedora (mês)", "🏆", "Top 12 vendedoras do mês filtrado")
-
         if COL_VENDEDOR and COL_VENDEDOR in f_mes.columns:
             vv = (
                 f_mes.groupby(COL_VENDEDOR)
@@ -1130,11 +1015,10 @@ def render_oper_dashboard(df: pd.DataFrame):
                 .sort_values("Total", ascending=False)
                 .head(12)
             )
-
             if len(vv) == 0:
                 st.info("Sem registros para o filtro selecionado.")
             else:
-                fig = build_named_bar(vv, COL_VENDEDOR, "Total", bar_color=WINE, height=390, tickangle=28)
+                fig = build_named_bar(vv, COL_VENDEDOR, "Total", height=390, tickangle=28)
                 st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
@@ -1189,25 +1073,11 @@ def render_fin_dashboard(df: pd.DataFrame):
     st.markdown("---")
     k1, k2, k3, k4 = st.columns(4)
     with k1:
-        kpi_card(
-            "💰 Faturamento total",
-            money_br(faturamento_total),
-            str(mes),
-            NAVY,
-            value_size=16,
-            single_line_value=True
-        )
+        kpi_card("💰 Faturamento total", money_br(faturamento_total), str(mes), NAVY, value_size=22)
     with k2:
         kpi_card("🛍️ Vendas no mês", total_vendas, str(mes), WINE_2)
     with k3:
-        kpi_card(
-            "📊 Ticket médio",
-            money_br(ticket_medio),
-            "por venda",
-            WINE,
-            value_size=16,
-            single_line_value=True
-        )
+        kpi_card("📊 Ticket médio", money_br(ticket_medio), "por venda", WINE, value_size=22)
     with k4:
         kpi_card("🐶 Raças vendidas", total_racas, "no mês", NAVY_2)
 
@@ -1225,7 +1095,7 @@ def render_fin_dashboard(df: pd.DataFrame):
                 .sort_values("Total", ascending=False)
                 .head(10)
             )
-            fig = build_named_bar(df_racas_qtd, COL_RACA, "Total", bar_color=NAVY, height=390, tickangle=28)
+            fig = build_named_bar(df_racas_qtd, COL_RACA, "Total", height=390, tickangle=28)
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Sem registros para o filtro selecionado.")
@@ -1282,7 +1152,6 @@ def render_fin_dashboard(df: pd.DataFrame):
 
     if ano_ref and COL_MES in df.columns and len(df) > 0:
         f_ano = df[df[COL_MES].astype(str).str.contains(str(ano_ref), na=False)].copy()
-
         if unidade != "Todas":
             f_ano = f_ano[f_ano[COL_UNIDADE].astype(str) == str(unidade)]
 
@@ -1303,7 +1172,6 @@ def render_fin_dashboard(df: pd.DataFrame):
                 .reset_index(name="Faturamento")
                 .sort_values("_mes_num")
             )
-
             df_ano["_mes_num"] = df_ano["_mes_num"].astype(int)
             df_ano["Mês"] = df_ano["_mes_num"].apply(month_label_pt)
 
@@ -1333,12 +1201,10 @@ df = load_sheet(sheet_url_busted(SHEET_CSV_URL))
 
 if st.session_state.page == "financeiro_login":
     render_fin_login()
-
 elif st.session_state.page == "financeiro_dashboard":
     if not st.session_state.fin_logged_in:
         render_fin_login()
     else:
         render_fin_dashboard(df)
-
 else:
     render_oper_dashboard(df)
