@@ -699,9 +699,6 @@ def render_chart_header(title, emoji="📊", subtitle=None):
         unsafe_allow_html=True
     )
 
-# =========================================================
-# LOGIN OPERAÇÃO
-# =========================================================
 def render_oper_login():
     inject_global_css()
     logo_html = render_logo_html()
@@ -746,9 +743,7 @@ def render_oper_login():
         unsafe_allow_html=True
     )
 
-# =========================================================
-# LOGIN FINANCEIRO
-# =========================================================
+
 def render_fin_login():
     inject_global_css()
     logo_html = render_logo_html()
@@ -802,9 +797,7 @@ def render_fin_login():
         unsafe_allow_html=True
     )
 
-# =========================================================
-# CONTADORES
-# =========================================================
+
 def count_today_all(df_base, date_col):
     if date_col not in df_base.columns:
         return 0
@@ -822,9 +815,7 @@ def count_month_all(df_base, date_col, selected_month_key):
     month_key = series.dt.strftime("%m/%Y")
     return int((month_key == str(selected_month_key)).sum())
 
-# =========================================================
-# DASHBOARD OPERAÇÃO
-# =========================================================
+
 def render_oper_dashboard(df: pd.DataFrame):
     COL = {
         "mes": "Mês",
@@ -884,7 +875,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             st.session_state.page = "operacao_login"
             st.rerun()
 
-    # LOGO ENTRE OS FILTROS
+    # LOGO MAIS ALTA ENTRE OS FILTROS
     f1, f_logo, f2 = st.columns([6, 1.1, 6])
 
     with f1:
@@ -900,7 +891,7 @@ def render_oper_dashboard(df: pd.DataFrame):
                     display:flex;
                     justify-content:center;
                     align-items:center;
-                    margin-top:14px;
+                    margin-top:-58px;
                     min-height:68px;
                 ">
                     <img src="data:image/png;base64,{logo_b64}"
@@ -924,7 +915,7 @@ def render_oper_dashboard(df: pd.DataFrame):
                     display:flex;
                     justify-content:center;
                     align-items:center;
-                    margin-top:14px;
+                    margin-top:-58px;
                     min-height:68px;
                 ">
                     <div style="
@@ -1091,9 +1082,7 @@ def render_oper_dashboard(df: pd.DataFrame):
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
 
-# =========================================================
-# DASHBOARD FINANCEIRO
-# =========================================================
+
 def render_fin_dashboard(df: pd.DataFrame):
     COL_MES = "Mês"
     COL_UNIDADE = "Unidade"
@@ -1258,6 +1247,7 @@ def render_fin_dashboard(df: pd.DataFrame):
             st.plotly_chart(fig, use_container_width=True, key="fin_ano")
     else:
         st.info("Não foi possível identificar o ano do mês selecionado.")
+
 
 # =========================================================
 # FLUXO PRINCIPAL
