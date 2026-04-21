@@ -27,7 +27,6 @@ WINE = "#9B0033"
 WINE_2 = "#C00040"
 GOLD = "#F59E0B"
 GRAY_TEXT = "#64748b"
-GRID = "rgba(15,23,42,0.07)"
 
 # =========================================================
 # CREDENCIAIS
@@ -38,6 +37,9 @@ OPER_PASS = "skoob123"
 FIN_USER = "diretoria"
 FIN_PASS = "skoob1234"
 
+# =========================================================
+# PLANILHA
+# =========================================================
 SHEET_CSV_URL = (
     "https://docs.google.com/spreadsheets/d/"
     "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
@@ -60,7 +62,7 @@ if "page" not in st.session_state:
     st.session_state.page = "operacao_dashboard" if st.session_state.oper_logged_in else "operacao_login"
 
 # =========================================================
-# HELPERS VISUAIS
+# HELPERS
 # =========================================================
 def img_to_base64(path: str):
     try:
@@ -96,7 +98,7 @@ def inject_global_css():
                 padding-bottom: 1.6rem !important;
                 padding-left: 1rem !important;
                 padding-right: 1rem !important;
-                max-width: 1180px !important;
+                max-width: 1240px !important;
             }
 
             .login-page-wrap {
@@ -698,7 +700,9 @@ def render_chart_header(title, emoji="📊", subtitle=None):
         unsafe_allow_html=True
     )
 
-
+# =========================================================
+# LOGIN OPERAÇÃO
+# =========================================================
 def render_oper_login():
     inject_global_css()
     logo_html = render_logo_html()
@@ -743,7 +747,9 @@ def render_oper_login():
         unsafe_allow_html=True
     )
 
-
+# =========================================================
+# LOGIN FINANCEIRO
+# =========================================================
 def render_fin_login():
     inject_global_css()
     logo_html = render_logo_html()
@@ -797,7 +803,9 @@ def render_fin_login():
         unsafe_allow_html=True
     )
 
-
+# =========================================================
+# CONTADORES
+# =========================================================
 def count_today_all(df_base, date_col):
     if date_col not in df_base.columns:
         return 0
@@ -815,7 +823,9 @@ def count_month_all(df_base, date_col, selected_month_key):
     month_key = series.dt.strftime("%m/%Y")
     return int((month_key == str(selected_month_key)).sum())
 
-
+# =========================================================
+# DASHBOARD OPERAÇÃO
+# =========================================================
 def render_oper_dashboard(df: pd.DataFrame):
     COL = {
         "mes": "Mês",
@@ -836,7 +846,7 @@ def render_oper_dashboard(df: pd.DataFrame):
         if colname and colname in df.columns:
             df[colname] = parse_date_series(df[colname])
 
-    top_menu, top_l, top_mid, top_r = st.columns([1, 5, 2, 1])
+    top_menu, top_left, top_logo, top_space, top_right = st.columns([1, 4, 2, 1, 1.2])
 
     with top_menu:
         with st.popover("☰"):
@@ -861,14 +871,40 @@ def render_oper_dashboard(df: pd.DataFrame):
 
             st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
 
-    with top_l:
+    with top_left:
         st.markdown("## ⚙️ Operação")
         st.caption(f"Total de registros: **{len(df)}**")
 
-    with top_mid:
+    with top_logo:
+        logo_b64 = img_to_base64("skoobpet.png")
+        if logo_b64:
+            st.markdown(
+                f"""
+                <div style="
+                    display:flex;
+                    justify-content:center;
+                    align-items:center;
+                    margin-top:4px;
+                ">
+                    <img src="data:image/png;base64,{logo_b64}"
+                         style="
+                            width:88px;
+                            height:88px;
+                            object-fit:cover;
+                            border-radius:50%;
+                            background:#ffffff;
+                            padding:8px;
+                            box-shadow:0 10px 24px rgba(15,23,42,0.12);
+                         ">
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+    with top_space:
         st.empty()
 
-    with top_r:
+    with top_right:
         if st.button("Sair", use_container_width=True, key="btn_logout_oper"):
             st.session_state.oper_logged_in = False
             st.session_state.fin_logged_in = False
@@ -1057,7 +1093,9 @@ def render_oper_dashboard(df: pd.DataFrame):
     with g6:
         st.empty()
 
-
+# =========================================================
+# DASHBOARD FINANCEIRO
+# =========================================================
 def render_fin_dashboard(df: pd.DataFrame):
     COL_MES = "Mês"
     COL_UNIDADE = "Unidade"
@@ -1222,7 +1260,6 @@ def render_fin_dashboard(df: pd.DataFrame):
             st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Não foi possível identificar o ano do mês selecionado.")
-
 
 # =========================================================
 # FLUXO PRINCIPAL
