@@ -10,9 +10,6 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-# =========================================================
-# CONFIG
-# =========================================================
 st.set_page_config(
     page_title="Dashboard Vendas Clear",
     page_icon="📋",
@@ -24,9 +21,7 @@ CACHE_TTL_SECONDS = 60
 SHEET_ID = "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
 GID_BASE = 1396326144
 
-# =========================================================
-# HELPERS
-# =========================================================
+
 def image_to_base64(path: str) -> str:
     file_path = Path(path)
     if not file_path.exists():
@@ -76,14 +71,7 @@ def parse_date_any(v) -> Optional[dt.date]:
     if not s:
         return None
 
-    fixed_formats = [
-        "%d/%m/%Y",
-        "%d-%m-%Y",
-        "%Y-%m-%d",
-        "%d/%m/%y",
-        "%d-%m-%y",
-    ]
-    for fmt in fixed_formats:
+    for fmt in ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d/%m/%y", "%d-%m-%y"]:
         try:
             return dt.datetime.strptime(s, fmt).date()
         except Exception:
@@ -146,21 +134,55 @@ def build_month_key(row, col_mes, col_data) -> Optional[Tuple[int, int]]:
             "maio": 5, "junho": 6, "julho": 7, "agosto": 8, "setembro": 9,
             "outubro": 10, "novembro": 11, "dezembro": 12
         }
-        achou_mes = None
+
         for nome, num in nomes.items():
             if nome in s:
-                achou_mes = num
-                break
-        if achou_mes:
-            ano_match = re.search(r"(20\d{2})", s)
-            ano = int(ano_match.group(1)) if ano_match else dt.date.today().year
-            return (ano, achou_mes)
+                ano_match = re.search(r"(20\d{2})", s)
+                ano = int(ano_match.group(1)) if ano_match else dt.date.today().year
+                return (ano, num)
 
     d = parse_date_any(raw_data)
     if d:
         return (d.year, d.month)
 
     return None
+
+
+def normalize_header_name(s: str) -> str:
+    s = str(s).strip().lower()
+    s = s.replace("º", "o").replace("°", "o")
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def find_matching_columns(df: pd.DataFrame, target: str) -> list[str]:
+    target_norm = normalize_header_name(target)
+    return [c for c in df.columns if normalize_header_name(c) == target_norm]
+
+
+def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
+    matching_cols = find_matching_columns(df_month, target)
+    if not matching_cols:
+        return 0
+
+    masks = []
+    for col in matching_cols:
+        s = df_month[col]
+        if isinstance(s, pd.DataFrame):
+            for subcol in s.columns:
+                ss = s[subcol]
+                masks.append((~ss.isna()) & (ss.astype(str).str.strip() != ""))
+        else:
+            masks.append((~s.isna()) & (s.astype(str).str.strip() != ""))
+
+    if not masks:
+        return 0
+
+    final_mask = masks[0].copy()
+    for m in masks[1:]:
+        final_mask = final_mask | m
+
+    return int(final_mask.sum())
 
 
 def card_metric(title: str, value: str, subtitle: str, emoji: str, color: str):
@@ -214,7 +236,7 @@ def render_placeholder_page(title: str, subtitle: str):
         <div class="empty-page-card">
             <div class="empty-page-title">{title}</div>
             <div class="empty-page-sub">
-                Esta página já foi criada no menu e está pronta para receber os cards, gráficos e tabelas que vocês quiserem colocar.
+                Esta página já foi criada no menu e está pronta para receber os cards, gráficos e tabelas.
             </div>
         </div>
         """,
@@ -222,53 +244,11 @@ def render_placeholder_page(title: str, subtitle: str):
     )
 
 
-def normalize_header_name(s: str) -> str:
-    s = str(s).strip().lower()
-    s = s.replace("º", "o").replace("°", "o")
-    s = re.sub(r"\s+", " ", s)
-    return s
-
-
-def find_matching_columns(df: pd.DataFrame, target: str) -> list[str]:
-    target_norm = normalize_header_name(target)
-    return [c for c in df.columns if normalize_header_name(c) == target_norm]
-
-
-def count_filled_matching_columns(df_month: pd.DataFrame, target: str) -> int:
-    matching_cols = find_matching_columns(df_month, target)
-    if not matching_cols:
-        return 0
-
-    masks = []
-    for col in matching_cols:
-        s = df_month[col]
-
-        if isinstance(s, pd.DataFrame):
-            for subcol in s.columns:
-                ss = s[subcol]
-                masks.append((~ss.isna()) & (ss.astype(str).str.strip() != ""))
-        else:
-            masks.append((~s.isna()) & (s.astype(str).str.strip() != ""))
-
-    if not masks:
-        return 0
-
-    final_mask = masks[0].copy()
-    for m in masks[1:]:
-        final_mask = final_mask | m
-
-    return int(final_mask.sum())
-
-
-# =========================================================
-# ESTILO
-# =========================================================
 st.markdown(
     """
 <style>
     :root{
         --navy:#071B49;
-        --navy-2:#0D2A6B;
         --wine:#8E0E3F;
         --gold:#D39A33;
         --bg:#F4F6FB;
@@ -276,20 +256,13 @@ st.markdown(
         --line:#E7EAF3;
         --text:#18243D;
         --muted:#6B7280;
-        --soft:#F9FAFB;
     }
 
-    .stApp {
-        background: var(--bg);
-    }
+    .stApp { background: var(--bg); }
 
-    [data-testid="stHeader"] {
-        background: transparent;
-    }
+    [data-testid="stHeader"] { background: transparent; }
 
-    #MainMenu, footer {
-        visibility: hidden;
-    }
+    #MainMenu, footer { visibility: hidden; }
 
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, var(--navy) 0%, #051535 100%);
@@ -305,9 +278,7 @@ st.markdown(
         padding-bottom: 0.5rem !important;
     }
 
-    [data-testid="stSidebar"] * {
-        color: white;
-    }
+    [data-testid="stSidebar"] * { color: white; }
 
     .block-container {
         padding-top: 1.2rem;
@@ -469,6 +440,8 @@ st.markdown(
         margin-top: 0.15rem;
     }
 
+    .section-space { margin-top: 1rem; }
+
     .card {
         background: var(--card);
         border: 1px solid var(--line);
@@ -568,19 +541,6 @@ st.markdown(
         word-break: break-word;
     }
 
-    .section-space {
-        margin-top: 1rem;
-    }
-
-    div[data-testid="stMetricValue"] {
-        font-weight: 800;
-    }
-
-    .stDataFrame, .stTable {
-        border-radius: 16px;
-        overflow: hidden;
-    }
-
     .empty-page-card {
         background: white;
         border: 1px solid var(--line);
@@ -605,9 +565,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# =========================================================
-# SIDEBAR
-# =========================================================
 with st.sidebar:
     logo_b64 = image_to_base64("campmotors.png")
 
@@ -641,9 +598,6 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-# =========================================================
-# LOAD + PREP
-# =========================================================
 df = load_data().copy()
 
 COL_NOME = "Nome" if "Nome" in df.columns else detect_col(df, [["nome"]])
@@ -661,30 +615,11 @@ else:
 
 df["_mes_key"] = df.apply(lambda row: build_month_key(row, COL_MES, COL_DATA), axis=1)
 
-if COL_NOME and COL_NOME in df.columns:
-    df["_nome_norm"] = df[COL_NOME].astype(str).str.strip()
-else:
-    df["_nome_norm"] = ""
-
-if COL_TEL and COL_TEL in df.columns:
-    df["_tel_norm"] = df[COL_TEL].apply(only_digits)
-else:
-    df["_tel_norm"] = ""
-
-if COL_CPF and COL_CPF in df.columns:
-    df["_cpf_norm"] = df[COL_CPF].apply(only_digits)
-else:
-    df["_cpf_norm"] = ""
-
-if COL_EMAIL and COL_EMAIL in df.columns:
-    df["_email_norm"] = df[COL_EMAIL].astype(str).str.strip().str.lower()
-else:
-    df["_email_norm"] = ""
-
-if COL_RACA and COL_RACA in df.columns:
-    df["_raca_norm"] = df[COL_RACA].astype(str).str.strip()
-else:
-    df["_raca_norm"] = "Não informado"
+df["_nome_norm"] = df[COL_NOME].astype(str).str.strip() if COL_NOME and COL_NOME in df.columns else ""
+df["_tel_norm"] = df[COL_TEL].apply(only_digits) if COL_TEL and COL_TEL in df.columns else ""
+df["_cpf_norm"] = df[COL_CPF].apply(only_digits) if COL_CPF and COL_CPF in df.columns else ""
+df["_email_norm"] = df[COL_EMAIL].astype(str).str.strip().str.lower() if COL_EMAIL and COL_EMAIL in df.columns else ""
+df["_raca_norm"] = df[COL_RACA].astype(str).str.strip() if COL_RACA and COL_RACA in df.columns else "Não informado"
 
 all_months = sorted(
     [m for m in df["_mes_key"].dropna().unique().tolist()],
@@ -698,9 +633,6 @@ else:
     default_month = (today.year, today.month)
     all_months = [default_month]
 
-# =========================================================
-# PÁGINA 1 — VISÃO GERAL
-# =========================================================
 if page == "Visão Geral":
     header_left, header_right = st.columns([3.2, 1.2])
 
@@ -767,47 +699,7 @@ if page == "Visão Geral":
 
     st.markdown('<div class="section-space"></div>', unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns([1.0, 1.0, 1.1])
-
-    with c1:
-        st.markdown('<div class="card"><div class="card-title">Contratos por Raça (Top 5)</div>', unsafe_allow_html=True)
-        if COL_RACA and COL_RACA in month_df.columns:
-            top5 = (
-                month_df[COL_RACA]
-                .fillna("Não informado")
-                .astype(str)
-                .str.strip()
-                .replace("", "Não informado")
-                .value_counts()
-                .head(5)
-                .reset_index()
-            )
-            top5.columns = ["Raça", "Quantidade"]
-
-            if not top5.empty:
-                fig_top = px.bar(
-                    top5.sort_values("Quantidade", ascending=True),
-                    x="Quantidade",
-                    y="Raça",
-                    orientation="h",
-                    text="Quantidade",
-                )
-                fig_top.update_traces(marker_color="#8E0E3F", textposition="outside")
-                fig_top.update_layout(
-                    height=260,
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    paper_bgcolor="white",
-                    plot_bgcolor="white",
-                    xaxis_title="",
-                    yaxis_title="",
-                    showlegend=False,
-                )
-                st.plotly_chart(fig_top, use_container_width=True)
-            else:
-                st.info("Sem dados para o Top 5.")
-        else:
-            st.info("Coluna de raça não encontrada.")
-        st.markdown("</div>", unsafe_allow_html=True)
+    c2, c3 = st.columns([1.0, 1.1])
 
     with c2:
         st.markdown('<div class="card"><div class="card-title">Resumo do Mês</div>', unsafe_allow_html=True)
@@ -956,13 +848,7 @@ if page == "Visão Geral":
         st.markdown("</div>", unsafe_allow_html=True)
 
 elif page == "Pedigree":
-    render_placeholder_page(
-        "Pedigree",
-        "Aqui ficará a página exclusiva de Pedigree."
-    )
+    render_placeholder_page("Pedigree", "Aqui ficará a página exclusiva de Pedigree.")
 
 elif page == "Comissão":
-    render_placeholder_page(
-        "Comissão",
-        "Aqui ficará a página exclusiva de Comissão."
-    )
+    render_placeholder_page("Comissão", "Aqui ficará a página exclusiva de Comissão.")
