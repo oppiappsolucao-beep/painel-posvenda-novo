@@ -1023,15 +1023,27 @@ def render_oper_dashboard(df: pd.DataFrame):
             st.plotly_chart(fig, use_container_width=True, key="oper_racas_vendidas")
 
     with g4:
-        render_chart_header("Vendas por vendedora (mês)", "🏆", "Top 12 vendedoras do mês filtrado")
+        render_chart_header("Vendas por vendedora (mês)", "🏆", "Todas as vendas do mês, incluindo sem nome")
 
         if COL_VENDEDOR and COL_VENDEDOR in f_mes.columns:
+            f_vend = f_mes.copy()
+
+            f_vend[COL_VENDEDOR] = (
+                f_vend[COL_VENDEDOR]
+                .fillna("Sem vendedora")
+                .astype(str)
+                .str.strip()
+            )
+
+            f_vend[COL_VENDEDOR] = f_vend[COL_VENDEDOR].replace(
+                {"": "Sem vendedora", "nan": "Sem vendedora", "None": "Sem vendedora"}
+            )
+
             vv = (
-                f_mes.groupby(COL_VENDEDOR)
+                f_vend.groupby(COL_VENDEDOR, dropna=False)
                 .size()
                 .reset_index(name="Total")
                 .sort_values("Total", ascending=False)
-                .head(12)
             )
 
             if len(vv) == 0:
