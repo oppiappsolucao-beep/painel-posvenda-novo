@@ -908,31 +908,6 @@ def render_oper_dashboard(df: pd.DataFrame):
                 """,
                 unsafe_allow_html=True
             )
-        else:
-            st.markdown(
-                """
-                <div style="
-                    display:flex;
-                    justify-content:center;
-                    align-items:center;
-                    margin-top:-58px;
-                    min-height:68px;
-                ">
-                    <div style="
-                        width:72px;
-                        height:72px;
-                        border-radius:50%;
-                        background:#ffffff;
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        font-size:30px;
-                        box-shadow:0 10px 24px rgba(15,23,42,0.12);
-                    ">🐾</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
 
     with f2:
         unidades = ["Todas"] + sorted(df[COL["unidade"]].dropna().astype(str).unique().tolist())
@@ -1011,29 +986,14 @@ def render_oper_dashboard(df: pd.DataFrame):
         st.plotly_chart(fig, use_container_width=True, key="oper_contatos_mes")
 
     with g2:
-        render_chart_header("Contatos por unidade no mês", "🏬", "Linhas com pelo menos um contato no mês selecionado")
+        render_chart_header(
+            "Vendas por unidade no mês",
+            "🏬",
+            "Quantidade de vendas registradas por unidade no mês selecionado"
+        )
 
-        temp = df.copy()
-        for key in ["c1", "c2", "c3"]:
-            temp[COL[key]] = parse_date_series(temp[COL[key]])
-
-        if unidade != "Todas":
-            temp = temp[temp[COL["unidade"]].astype(str) == str(unidade)]
-
-        month_counts = []
-        for _, row in temp.iterrows():
-            hit = False
-            for dc in [COL["c1"], COL["c2"], COL["c3"]]:
-                dval = row.get(dc)
-                if pd.notna(dval) and pd.to_datetime(dval).strftime("%m/%Y") == str(mes):
-                    hit = True
-                    break
-            month_counts.append(hit)
-
-        temp["_tem_contato_mes"] = month_counts
         vu = (
-            temp[temp["_tem_contato_mes"]]
-            .groupby(COL["unidade"])
+            f_mes.groupby(COL["unidade"])
             .size()
             .reset_index(name="Total")
             .sort_values("Total", ascending=False)
@@ -1043,7 +1003,7 @@ def render_oper_dashboard(df: pd.DataFrame):
             st.info("Sem registros para o filtro selecionado.")
         else:
             fig = build_named_bar(vu, COL["unidade"], "Total", height=360, tickangle=18)
-            st.plotly_chart(fig, use_container_width=True, key="oper_contatos_unidade")
+            st.plotly_chart(fig, use_container_width=True, key="oper_vendas_unidade")
 
     with g3:
         render_chart_header("Raças mais vendidas (mês)", "🐶", "Top 10 raças do mês filtrado")
@@ -1162,31 +1122,6 @@ def render_fin_dashboard(df: pd.DataFrame):
                 """,
                 unsafe_allow_html=True
             )
-        else:
-            st.markdown(
-                """
-                <div style="
-                    display:flex;
-                    justify-content:center;
-                    align-items:center;
-                    margin-top:-58px;
-                    min-height:68px;
-                ">
-                    <div style="
-                        width:72px;
-                        height:72px;
-                        border-radius:50%;
-                        background:#ffffff;
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        font-size:30px;
-                        box-shadow:0 10px 24px rgba(15,23,42,0.12);
-                    ">🐾</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
 
     with f2:
         unidades = ["Todas"] + sorted(df[COL_UNIDADE].dropna().astype(str).unique().tolist())
@@ -1234,13 +1169,7 @@ def render_fin_dashboard(df: pd.DataFrame):
             if len(df_unidade_valor) == 0:
                 st.info("Sem registros para o filtro selecionado.")
             else:
-                fig = build_money_bar(
-                    df_unidade_valor,
-                    COL_UNIDADE,
-                    "Faturamento",
-                    height=390,
-                    tickangle=18
-                )
+                fig = build_money_bar(df_unidade_valor, COL_UNIDADE, "Faturamento", height=390, tickangle=18)
                 st.plotly_chart(fig, use_container_width=True, key="fin_faturamento_unidade")
         else:
             st.info("Sem registros para o filtro selecionado.")
