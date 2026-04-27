@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 # CONFIG DA PÁGINA
 # =========================================================
 st.set_page_config(
-    page_title="Operação SkoobPet",
+    page_title="Painel Pós-Venda",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -27,19 +27,20 @@ WINE = "#9B0033"
 WINE_2 = "#C00040"
 GOLD = "#F59E0B"
 GRAY_TEXT = "#64748b"
+GRID = "rgba(15,23,42,0.07)"
 
 # =========================================================
 # CREDENCIAIS
 # =========================================================
+APP_USER = "operacao"
+APP_PASS = "100316"
+
 OPER_USER = "skoob"
 OPER_PASS = "skoob123"
 
 FIN_USER = "diretoria"
 FIN_PASS = "skoob1234"
 
-# =========================================================
-# PLANILHA
-# =========================================================
 SHEET_CSV_URL = (
     "https://docs.google.com/spreadsheets/d/"
     "1Q0mLvOBxEGCojUITBLxCXRtpXVMAHE3ngvGsa2Cgf9Q"
@@ -52,6 +53,9 @@ hoje = pd.Timestamp(datetime.datetime.now(TZ).date())
 # =========================================================
 # ESTADO INICIAL
 # =========================================================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
 if "oper_logged_in" not in st.session_state:
     st.session_state.oper_logged_in = False
 
@@ -59,10 +63,10 @@ if "fin_logged_in" not in st.session_state:
     st.session_state.fin_logged_in = False
 
 if "page" not in st.session_state:
-    st.session_state.page = "operacao_dashboard" if st.session_state.oper_logged_in else "operacao_login"
+    st.session_state.page = "main"
 
 # =========================================================
-# HELPERS
+# HELPERS VISUAIS
 # =========================================================
 def img_to_base64(path: str):
     try:
@@ -98,7 +102,7 @@ def inject_global_css():
                 padding-bottom: 1.6rem !important;
                 padding-left: 1rem !important;
                 padding-right: 1rem !important;
-                max-width: 1240px !important;
+                max-width: 1180px !important;
             }
 
             .login-page-wrap {
@@ -228,6 +232,23 @@ def inject_global_css():
                 box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18) !important;
             }
 
+            .login-badges {
+                text-align: center;
+                margin-top: 12px;
+            }
+
+            .login-badge {
+                display: inline-block;
+                margin: 4px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                font-size: 11px;
+                background: #F1F5F9;
+                color: #475569;
+                border: 1px solid rgba(15,23,42,0.06);
+                font-weight: 700;
+            }
+
             .login-footer {
                 text-align: center;
                 color: #94a3b8;
@@ -235,6 +256,7 @@ def inject_global_css():
                 margin-top: 10px;
             }
 
+            /* MENU */
             div[data-testid="stPopover"] > button {
                 height: 46px !important;
                 width: 56px !important;
@@ -292,16 +314,17 @@ def inject_global_css():
                 text-align: center;
             }
 
-            div[data-testid="stPopoverContent"] .stButton > button {
+            div[data-testid="stPopoverContent"] .stButton > button,
+            div[data-testid="stPopoverContent"] .stLinkButton > a {
                 width: 100% !important;
-                height: 44px !important;
+                height: 48px !important;
                 margin-top: 8px !important;
-                border-radius: 12px !important;
+                border-radius: 14px !important;
                 border: none !important;
                 background: linear-gradient(90deg, #1B1D6D 0%, #111827 100%) !important;
                 color: #ffffff !important;
                 font-size: 15px !important;
-                font-weight: 700 !important;
+                font-weight: 800 !important;
                 box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18) !important;
                 text-decoration: none !important;
                 display: flex !important;
@@ -309,36 +332,11 @@ def inject_global_css():
                 justify-content: center !important;
             }
 
-            div[data-testid="stPopoverContent"] .stButton > button:hover {
+            div[data-testid="stPopoverContent"] .stButton > button:hover,
+            div[data-testid="stPopoverContent"] .stLinkButton > a:hover {
                 background: linear-gradient(90deg, #16185c 0%, #0f172a 100%) !important;
                 color: #ffffff !important;
                 border: none !important;
-                transform: translateY(-1px);
-            }
-
-            .menu-link-btn {
-                width: 100%;
-                height: 44px;
-                margin-top: 8px;
-                border-radius: 12px;
-                border: none;
-                background: linear-gradient(90deg, #1B1D6D 0%, #111827 100%);
-                color: #ffffff !important;
-                font-size: 15px;
-                font-weight: 500;
-                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
-                text-decoration: none !important;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 0 14px;
-                box-sizing: border-box;
-            }
-
-            .menu-link-btn:hover {
-                background: linear-gradient(90deg, #16185c 0%, #0f172a 100%);
-                color: #ffffff !important;
-                text-decoration: none !important;
                 transform: translateY(-1px);
             }
 
@@ -366,6 +364,35 @@ def inject_global_css():
                 color: #64748b;
                 margin-top: 4px;
                 line-height: 1.2;
+            }
+
+            @media (max-width: 640px) {
+                .login-logo {
+                    width: 70px;
+                    height: 70px;
+                }
+
+                .login-logo-fallback {
+                    width: 70px;
+                    height: 70px;
+                    font-size: 30px;
+                }
+
+                .login-page-wrap {
+                    padding-top: 12px;
+                }
+
+                .login-card {
+                    padding: 10px 14px 8px 14px;
+                }
+
+                .login-subtitle {
+                    font-size: 14px;
+                }
+
+                .login-mini-title {
+                    font-size: 18px;
+                }
             }
         </style>
         """,
@@ -400,6 +427,19 @@ def is_error(status):
     return ("erro" in s) or ("atras" in s) or ("pendenc" in s)
 
 
+def is_sent(status):
+    s = norm(status)
+    return ("enviado" in s) or ("enviada" in s)
+
+
+def status_bucket_today(status):
+    if is_error(status):
+        return "Erro"
+    if is_sent(status):
+        return "Enviado"
+    return "Aguardando"
+
+
 def brl_to_float(v):
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return 0.0
@@ -431,21 +471,9 @@ def kpi_card(title, value, subtitle, accent, value_color="#0f172a", value_size=3
         box-shadow:0 8px 20px rgba(15,23,42,.06);
         height:120px;
         font-family:Inter,Arial,sans-serif;
-        box-sizing:border-box;
-        overflow:hidden;
     ">
         <div style="font-size:14px;font-weight:900;color:#334155;">{title}</div>
-        <div style="
-            font-size:{value_size}px;
-            font-weight:900;
-            color:{value_color};
-            line-height:1.05;
-            margin-top:6px;
-            max-width:100%;
-            white-space:normal;
-            word-break:keep-all;
-            overflow-wrap:anywhere;
-        ">
+        <div style="font-size:{value_size}px;font-weight:900;color:{value_color};line-height:1.05;margin-top:6px;">
             {value}
         </div>
         <div style="font-size:12px;color:#64748b;margin-top:6px;">{subtitle}</div>
@@ -539,7 +567,7 @@ def tune_plotly(fig, height=390):
     return fig
 
 
-def build_named_bar(df_plot, x_col, y_col, height=390, tickangle=28):
+def build_named_bar(df_plot, x_col, y_col, bar_color=NAVY, height=390, tickangle=28):
     d = df_plot.copy()
     fig = px.bar(d, x=x_col, y=y_col)
 
@@ -592,7 +620,9 @@ def build_money_bar(df_plot, x_col, y_col, height=390, tickangle=28):
 def extract_year_from_month_key(month_key: str):
     s = str(month_key).strip()
     m = re.search(r"(\d{4})$", s)
-    return m.group(1) if m else None
+    if m:
+        return m.group(1)
+    return None
 
 
 def extract_month_num_from_month_key(month_key: str):
@@ -605,30 +635,50 @@ def extract_month_num_from_month_key(month_key: str):
             return mm
 
     meses_pt = {
-        "janeiro": 1, "fevereiro": 2, "marco": 3, "março": 3,
-        "abril": 4, "maio": 5, "junho": 6, "julho": 7,
-        "agosto": 8, "setembro": 9, "outubro": 10,
-        "novembro": 11, "dezembro": 12,
+        "janeiro": 1,
+        "fevereiro": 2,
+        "marco": 3,
+        "março": 3,
+        "abril": 4,
+        "maio": 5,
+        "junho": 6,
+        "julho": 7,
+        "agosto": 8,
+        "setembro": 9,
+        "outubro": 10,
+        "novembro": 11,
+        "dezembro": 12,
     }
 
     s_low = s.lower()
     for nome, num in meses_pt.items():
         if nome in s_low:
             return num
+
     return None
 
 
 def month_label_pt(month_num: int):
     labels = {
-        1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr",
-        5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago",
-        9: "Set", 10: "Out", 11: "Nov", 12: "Dez",
+        1: "Jan",
+        2: "Fev",
+        3: "Mar",
+        4: "Abr",
+        5: "Mai",
+        6: "Jun",
+        7: "Jul",
+        8: "Ago",
+        9: "Set",
+        10: "Out",
+        11: "Nov",
+        12: "Dez",
     }
     return labels.get(month_num, str(month_num))
 
 
 def build_monthly_and_cumulative_chart(df_plot, height=420):
     d = df_plot.copy()
+
     fig = px.bar(d, x="Mês", y="Faturamento")
 
     fig.update_traces(
@@ -650,8 +700,21 @@ def build_monthly_and_cumulative_chart(df_plot, height=420):
         showlegend=False
     )
 
-    fig.update_xaxes(title_text="Mês", showgrid=False, zeroline=False, tickfont=dict(size=12, color=GRAY_TEXT))
-    fig.update_yaxes(title_text="Valor", showgrid=True, gridcolor="rgba(100,116,139,0.12)", zeroline=False, tickfont=dict(size=12, color=GRAY_TEXT))
+    fig.update_xaxes(
+        title_text="Mês",
+        showgrid=False,
+        zeroline=False,
+        tickfont=dict(size=12, color=GRAY_TEXT)
+    )
+
+    fig.update_yaxes(
+        title_text="Valor",
+        showgrid=True,
+        gridcolor="rgba(100,116,139,0.12)",
+        zeroline=False,
+        tickfont=dict(size=12, color=GRAY_TEXT)
+    )
+
     return fig
 
 
@@ -700,11 +763,64 @@ def render_chart_header(title, emoji="📊", subtitle=None):
     )
 
 
+def render_main_login():
+    inject_global_css()
+    logo_html = render_logo_html()
+
+    st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
+
+    st.markdown(
+        f'''
+        <div class="login-brand">
+            <div class="logo-center">{logo_html}</div>
+            <div class="login-subtitle">Acesse o dashboard de pós-venda e pedigree</div>
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        """
+        <div class="login-card">
+            <div class="login-mini-title">Acesso ao Painel</div>
+            <div class="login-mini-sub">Digite seu usuário e senha para continuar</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    user = st.text_input("Usuário", placeholder="Digite seu usuário", key="main_login_user")
+    pwd = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="main_login_pass")
+
+    entrar = st.button("Entrar", use_container_width=True, key="btn_main_login")
+
+    if entrar:
+        if (user or "").strip() == APP_USER and (pwd or "").strip() == APP_PASS:
+            st.session_state.logged_in = True
+            st.session_state.page = "main"
+            st.rerun()
+        else:
+            st.error("Usuário ou senha inválidos.")
+
+    st.markdown(
+        """
+        <div class="login-badges">
+            <span class="login-badge">🔒 Acesso restrito</span>
+            <span class="login-badge">🐾 Operação interna SkoobPet</span>
+        </div>
+        <div class="login-footer">Painel interno • Uso autorizado apenas para a equipe</div>
+        </div></div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
 def render_oper_login():
     inject_global_css()
     logo_html = render_logo_html()
 
     st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
+
     st.markdown(
         f'''
         <div class="login-brand">
@@ -714,6 +830,7 @@ def render_oper_login():
         ''',
         unsafe_allow_html=True
     )
+
     st.markdown(
         """
         <div class="login-card">
@@ -726,7 +843,12 @@ def render_oper_login():
 
     user = st.text_input("Usuário", placeholder="Digite seu usuário", key="oper_login_user")
     pwd = st.text_input("Senha", type="password", placeholder="Digite sua senha", key="oper_login_pass")
-    entrar = st.button("Entrar na Operação", use_container_width=True, key="btn_oper_login")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        entrar = st.button("Entrar na Operação", use_container_width=True, key="btn_oper_login")
+    with c2:
+        voltar = st.button("Voltar ao Painel", use_container_width=True, key="btn_oper_back")
 
     if entrar:
         if (user or "").strip() == OPER_USER and (pwd or "").strip() == OPER_PASS:
@@ -735,6 +857,10 @@ def render_oper_login():
             st.rerun()
         else:
             st.error("Usuário ou senha da operação inválidos.")
+
+    if voltar:
+        st.session_state.page = "main"
+        st.rerun()
 
     st.markdown(
         """
@@ -750,6 +876,7 @@ def render_fin_login():
     logo_html = render_logo_html()
 
     st.markdown('<div class="login-page-wrap"><div class="login-shell">', unsafe_allow_html=True)
+
     st.markdown(
         f'''
         <div class="login-brand">
@@ -759,6 +886,7 @@ def render_fin_login():
         ''',
         unsafe_allow_html=True
     )
+
     st.markdown(
         """
         <div class="login-card">
@@ -776,7 +904,7 @@ def render_fin_login():
     with c1:
         entrar = st.button("Entrar no Financeiro", use_container_width=True, key="btn_fin_login")
     with c2:
-        voltar = st.button("Voltar à Operação", use_container_width=True, key="btn_fin_back")
+        voltar = st.button("Voltar ao Painel", use_container_width=True, key="btn_fin_back")
 
     if entrar:
         if (user or "").strip() == FIN_USER and (pwd or "").strip() == FIN_PASS:
@@ -787,7 +915,7 @@ def render_fin_login():
             st.error("Usuário ou senha do financeiro inválidos.")
 
     if voltar:
-        st.session_state.page = "operacao_dashboard"
+        st.session_state.page = "main"
         st.rerun()
 
     st.markdown(
@@ -811,10 +939,187 @@ def count_month_all(df_base, date_col, selected_month_key):
         return 0
     d = df_base.copy()
     series = d[date_col]
-    if not series.notna().any():
+    valid = series.notna()
+    if not valid.any():
         return 0
     month_key = series.dt.strftime("%m/%Y")
     return int((month_key == str(selected_month_key)).sum())
+
+
+def render_main_dashboard(df: pd.DataFrame):
+    COL = {
+        "mes": "Mês",
+        "raca": "Raça",
+        "unidade": "Unidade",
+        "c1": "1º contato",
+        "s1": "Status 1º contato",
+        "c2": "2º contato",
+        "s2": "Status 2º contato",
+        "c3": "3º contato",
+        "s3": "Status 3º contato",
+    }
+
+    COL_VALOR = pick_first_existing(df, ["Valor Filhote", "Valor de filhote", "Valor Filhote ", "Valor"])
+    COL_VENDEDOR = pick_first_existing(df, ["Vendedor", "Vendedora", "Atendente"])
+
+    for key in ["c1", "c2", "c3"]:
+        colname = COL.get(key)
+        if colname and colname in df.columns:
+            df[colname] = parse_date_series(df[colname])
+
+    top_menu, top_l, top_mid, top_r = st.columns([1, 5, 2, 1])
+
+    with top_menu:
+        with st.popover("☰"):
+            st.markdown('<div class="menu-title">Menu</div>', unsafe_allow_html=True)
+            st.markdown('<div class="menu-sub">Escolha uma área para acessar</div>', unsafe_allow_html=True)
+            st.markdown('<div class="menu-divider"></div>', unsafe_allow_html=True)
+
+            st.link_button(
+                "📄  Novo Contrato",
+                "https://n8n.oppitech.com.br/form/55a2bd76-25c9-4ea2-82ad-f5c0ae75e19c",
+                use_container_width=True
+            )
+
+            if st.button("⚙️  Operação", use_container_width=True, key="menu_operacao"):
+                st.session_state.page = "operacao_login"
+                st.rerun()
+
+            if st.button("💰  Financeiro", use_container_width=True, key="menu_financeiro"):
+                st.session_state.page = "financeiro_login"
+                st.rerun()
+
+            st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
+
+    with top_l:
+        st.markdown("## 📊 Painel de Pós-Venda")
+        st.caption(f"Total de registros: **{len(df)}**")
+
+    with top_mid:
+        if st.button("🔄 Atualizar agora", use_container_width=True, key="btn_refresh_main"):
+            st.cache_data.clear()
+            st.rerun()
+
+    with top_r:
+        if st.button("Sair", use_container_width=True, key="btn_logout_main"):
+            st.session_state.logged_in = False
+            st.session_state.oper_logged_in = False
+            st.session_state.fin_logged_in = False
+            st.session_state.page = "main"
+            st.rerun()
+
+    f1, f2, f3 = st.columns(3)
+    with f1:
+        setor = st.selectbox("Setor", ["Pós-Venda", "Pedigree"], key="main_setor")
+    with f2:
+        meses = sorted(df[COL["mes"]].dropna().astype(str).unique())
+        mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0, key="main_mes")
+    with f3:
+        unidades = ["Todas"] + sorted(df[COL["unidade"]].dropna().astype(str).unique().tolist())
+        unidade = st.selectbox("Unidade", unidades, key="main_unidade")
+
+    f = df[df[COL["mes"]].astype(str) == str(mes)].copy()
+    if unidade != "Todas":
+        f = f[f[COL["unidade"]].astype(str) == str(unidade)]
+
+    f_all = df.copy()
+    if unidade != "Todas":
+        f_all = f_all[f_all[COL["unidade"]].astype(str) == str(unidade)]
+
+    records_today = []
+    c1 = c2 = c3 = 0
+    if setor == "Pós-Venda":
+        c1 = count_today_all(f_all, COL["c1"])
+        c2 = count_today_all(f_all, COL["c2"])
+        c3 = count_today_all(f_all, COL["c3"])
+
+        for _, r in f_all.iterrows():
+            for dc, sc in [(COL["c1"], COL["s1"]), (COL["c2"], COL["s2"]), (COL["c3"], COL["s3"])]:
+                dval = r.get(dc)
+                if pd.notna(dval) and pd.to_datetime(dval).date() == hoje.date():
+                    records_today.append(status_bucket_today(r.get(sc)))
+
+    erro_hoje = records_today.count("Erro")
+    vendas_mes = int(len(f))
+
+    if COL_VALOR and (COL_VALOR in f.columns):
+        faturamento = float(f[COL_VALOR].apply(brl_to_float).fillna(0).sum())
+    else:
+        faturamento = 0.0
+
+    st.markdown("---")
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
+    with k1:
+        kpi_card("💬 1º contato hoje", c1, "registros de hoje", NAVY)
+    with k2:
+        kpi_card("💬 2º contato hoje", c2, "registros de hoje", NAVY_2)
+    with k3:
+        kpi_card("💬 3º contato hoje", c3, "registros de hoje", WINE_2)
+    with k4:
+        kpi_card("⚠️ Status com erro", erro_hoje, "atenção", WINE, value_color="#ef4444" if erro_hoje else "#0f172a")
+    with k5:
+        kpi_card("🛍️ Vendas no mês", vendas_mes, str(mes), "#F59E0B")
+    with k6:
+        kpi_card("💰 Faturamento", money_br(faturamento), "valor do filhote", NAVY, value_size=28)
+
+    st.markdown("---")
+    g1, g2 = st.columns(2)
+    g3, g4 = st.columns(2)
+
+    with g1:
+        render_chart_header("Contatos por Status (hoje)", "📌")
+        counts = {"Aguardando": 0, "Enviado": 0, "Erro": 0}
+        for r in records_today:
+            counts[r] = counts.get(r, 0) + 1
+        df_status = pd.DataFrame({"Status": list(counts.keys()), "Total": list(counts.values())})
+        fig = px.pie(
+            df_status,
+            names="Status",
+            values="Total",
+            hole=0.58,
+            color="Status",
+            color_discrete_map={"Aguardando": NAVY, "Enviado": WINE, "Erro": "#ef4444"},
+        )
+        fig.update_traces(textinfo="label+value", textposition="inside")
+        st.plotly_chart(tune_plotly(fig, height=360), use_container_width=True)
+
+    with g2:
+        render_chart_header("Vendas por loja (Unidade)", "🏬")
+        vp = f.groupby(COL["unidade"]).size().reset_index(name="Total")
+        if len(vp) == 0:
+            st.info("Sem registros para o filtro selecionado.")
+        else:
+            fig = build_named_bar(vp, COL["unidade"], "Total", bar_color=NAVY, height=360, tickangle=18)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with g3:
+        render_chart_header("Raças mais vendidas (mês)", "🐶", "Top 10 raças do mês filtrado")
+        vr = (
+            f.groupby(COL["raca"]).size().reset_index(name="Total")
+            .sort_values("Total", ascending=False)
+            .head(10)
+        )
+        if len(vr) == 0:
+            st.info("Sem registros para o filtro selecionado.")
+        else:
+            fig = build_named_bar(vr, COL["raca"], "Total", bar_color=NAVY, height=390, tickangle=28)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with g4:
+        render_chart_header("Vendas por vendedora (mês)", "🏆", "Top 12 vendedoras do mês filtrado")
+        if COL_VENDEDOR:
+            vv = (
+                f.groupby(COL_VENDEDOR).size().reset_index(name="Total")
+                .sort_values("Total", ascending=False)
+                .head(12)
+            )
+            if len(vv) == 0:
+                st.info("Sem registros para o filtro selecionado.")
+            else:
+                fig = build_named_bar(vv, COL_VENDEDOR, "Total", bar_color=WINE, height=390, tickangle=28)
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Coluna de vendedor não encontrada")
 
 
 def render_oper_dashboard(df: pd.DataFrame):
@@ -837,103 +1142,27 @@ def render_oper_dashboard(df: pd.DataFrame):
         if colname and colname in df.columns:
             df[colname] = parse_date_series(df[colname])
 
-    top_menu, top_left, top_space, top_right = st.columns([1, 5, 3, 1.2])
+    top_l, top_mid, top_r = st.columns([6, 2, 1])
 
-    with top_menu:
-        with st.popover("☰"):
-            st.markdown('<div class="menu-title">Menu</div>', unsafe_allow_html=True)
-            st.markdown('<div class="menu-sub">Escolha uma área para acessar</div>', unsafe_allow_html=True)
-            st.markdown('<div class="menu-divider"></div>', unsafe_allow_html=True)
-
-            st.markdown(
-                """
-                <a href="https://n8n.oppitech.com.br/form/55a2bd76-25c9-4ea2-82ad-f5c0ae75e19c"
-                   target="_blank"
-                   class="menu-link-btn">
-                    📄&nbsp;&nbsp;Novo Contrato
-                </a>
-                """,
-                unsafe_allow_html=True
-            )
-
-            if st.button("💰  Financeiro", use_container_width=True, key="menu_financeiro"):
-                st.session_state.page = "financeiro_login"
-                st.rerun()
-
-            st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
-
-    with top_left:
+    with top_l:
         st.markdown("## ⚙️ Operação")
         st.caption(f"Total de registros: **{len(df)}**")
 
-    with top_space:
-        st.empty()
-
-    with top_right:
-        if st.button("Sair", use_container_width=True, key="btn_logout_oper"):
-            st.session_state.oper_logged_in = False
-            st.session_state.fin_logged_in = False
-            st.session_state.page = "operacao_login"
+    with top_mid:
+        if st.button("⬅️ Voltar ao Painel", use_container_width=True, key="btn_back_main"):
+            st.session_state.page = "main"
             st.rerun()
 
-    f1, f_logo, f2 = st.columns([6, 1.1, 6])
+    with top_r:
+        if st.button("Sair", use_container_width=True, key="btn_logout_oper"):
+            st.session_state.oper_logged_in = False
+            st.session_state.page = "main"
+            st.rerun()
 
+    f1, f2 = st.columns(2)
     with f1:
         meses = sorted(df[COL["mes"]].dropna().astype(str).unique())
         mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0, key="oper_mes")
-
-    with f_logo:
-        logo_b64 = img_to_base64("skoobpet.png")
-        if logo_b64:
-            st.markdown(
-                f"""
-                <div style="
-                    display:flex;
-                    justify-content:center;
-                    align-items:center;
-                    margin-top:-58px;
-                    min-height:68px;
-                ">
-                    <img src="data:image/png;base64,{logo_b64}"
-                         style="
-                            width:72px;
-                            height:72px;
-                            object-fit:contain;
-                            border-radius:50%;
-                            background:#ffffff;
-                            padding:6px;
-                            box-shadow:0 10px 24px rgba(15,23,42,0.12);
-                         ">
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.markdown(
-                """
-                <div style="
-                    display:flex;
-                    justify-content:center;
-                    align-items:center;
-                    margin-top:-58px;
-                    min-height:68px;
-                ">
-                    <div style="
-                        width:72px;
-                        height:72px;
-                        border-radius:50%;
-                        background:#ffffff;
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        font-size:30px;
-                        box-shadow:0 10px 24px rgba(15,23,42,0.12);
-                    ">🐾</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
     with f2:
         unidades = ["Todas"] + sorted(df[COL["unidade"]].dropna().astype(str).unique().tolist())
         unidade = st.selectbox("Unidade", unidades, key="oper_unidade")
@@ -1007,33 +1236,18 @@ def render_oper_dashboard(df: pd.DataFrame):
             "Contato": ["1º contato", "2º contato", "3º contato"],
             "Total": [primeiro_mes, segundo_mes, terceiro_mes]
         })
-        fig = build_named_bar(df_contatos, "Contato", "Total", height=360, tickangle=0)
-        st.plotly_chart(fig, use_container_width=True, key="oper_contatos_mes")
+        fig = build_named_bar(df_contatos, "Contato", "Total", bar_color=NAVY, height=360, tickangle=0)
+        st.plotly_chart(fig, use_container_width=True)
 
     with g2:
-        render_chart_header("Contatos por unidade no mês", "🏬", "Linhas com pelo menos um contato no mês selecionado")
+        render_chart_header(
+            "Vendas por unidade no mês",
+            "🏬",
+            "Quantidade de vendas registradas por unidade no mês"
+        )
 
-        temp = df.copy()
-        for key in ["c1", "c2", "c3"]:
-            temp[COL[key]] = parse_date_series(temp[COL[key]])
-
-        if unidade != "Todas":
-            temp = temp[temp[COL["unidade"]].astype(str) == str(unidade)]
-
-        month_counts = []
-        for _, row in temp.iterrows():
-            hit = False
-            for dc in [COL["c1"], COL["c2"], COL["c3"]]:
-                dval = row.get(dc)
-                if pd.notna(dval) and pd.to_datetime(dval).strftime("%m/%Y") == str(mes):
-                    hit = True
-                    break
-            month_counts.append(hit)
-
-        temp["_tem_contato_mes"] = month_counts
         vu = (
-            temp[temp["_tem_contato_mes"]]
-            .groupby(COL["unidade"])
+            f_mes.groupby(COL["unidade"])
             .size()
             .reset_index(name="Total")
             .sort_values("Total", ascending=False)
@@ -1042,8 +1256,8 @@ def render_oper_dashboard(df: pd.DataFrame):
         if len(vu) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_named_bar(vu, COL["unidade"], "Total", height=360, tickangle=18)
-            st.plotly_chart(fig, use_container_width=True, key="oper_contatos_unidade")
+            fig = build_named_bar(vu, COL["unidade"], "Total", bar_color=NAVY, height=360, tickangle=18)
+            st.plotly_chart(fig, use_container_width=True)
 
     with g3:
         render_chart_header("Raças mais vendidas (mês)", "🐶", "Top 10 raças do mês filtrado")
@@ -1059,8 +1273,8 @@ def render_oper_dashboard(df: pd.DataFrame):
         if len(vr) == 0:
             st.info("Sem registros para o filtro selecionado.")
         else:
-            fig = build_named_bar(vr, COL["raca"], "Total", height=390, tickangle=28)
-            st.plotly_chart(fig, use_container_width=True, key="oper_racas_vendidas")
+            fig = build_named_bar(vr, COL["raca"], "Total", bar_color=NAVY, height=390, tickangle=28)
+            st.plotly_chart(fig, use_container_width=True)
 
     with g4:
         render_chart_header("Vendas por vendedora (mês)", "🏆", "Top 12 vendedoras do mês filtrado")
@@ -1077,8 +1291,8 @@ def render_oper_dashboard(df: pd.DataFrame):
             if len(vv) == 0:
                 st.info("Sem registros para o filtro selecionado.")
             else:
-                fig = build_named_bar(vv, COL_VENDEDOR, "Total", height=390, tickangle=28)
-                st.plotly_chart(fig, use_container_width=True, key="oper_vendedoras")
+                fig = build_named_bar(vv, COL_VENDEDOR, "Total", bar_color=WINE, height=390, tickangle=28)
+                st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
 
@@ -1091,103 +1305,27 @@ def render_fin_dashboard(df: pd.DataFrame):
     COL_VALOR = pick_first_existing(df, ["Valor Filhote", "Valor de filhote", "Valor Filhote ", "Valor"])
     COL_VENDEDOR = pick_first_existing(df, ["Vendedora", "Vendedor", "Atendente"])
 
-    top_menu, top_l, top_mid, top_r = st.columns([1, 5, 2, 1])
-
-    with top_menu:
-        with st.popover("☰"):
-            st.markdown('<div class="menu-title">Menu</div>', unsafe_allow_html=True)
-            st.markdown('<div class="menu-sub">Escolha uma área para acessar</div>', unsafe_allow_html=True)
-            st.markdown('<div class="menu-divider"></div>', unsafe_allow_html=True)
-
-            st.markdown(
-                """
-                <a href="https://n8n.oppitech.com.br/form/55a2bd76-25c9-4ea2-82ad-f5c0ae75e19c"
-                   target="_blank"
-                   class="menu-link-btn">
-                    📄&nbsp;&nbsp;Novo Contrato
-                </a>
-                """,
-                unsafe_allow_html=True
-            )
-
-            if st.button("⚙️  Operação", use_container_width=True, key="menu_operacao_from_fin"):
-                st.session_state.page = "operacao_dashboard"
-                st.rerun()
-
-            st.markdown('<div class="menu-help">Painel interno • SkoobPet</div>', unsafe_allow_html=True)
+    top_l, top_mid, top_r = st.columns([6, 2, 1])
 
     with top_l:
         st.markdown("## 💰 Financeiro")
         st.caption(f"Total de registros: **{len(df)}**")
 
     with top_mid:
-        st.empty()
+        if st.button("⬅️ Voltar ao Painel", use_container_width=True, key="btn_back_fin_main"):
+            st.session_state.page = "main"
+            st.rerun()
 
     with top_r:
         if st.button("Sair", use_container_width=True, key="btn_logout_fin"):
-            st.session_state.oper_logged_in = False
             st.session_state.fin_logged_in = False
-            st.session_state.page = "operacao_login"
+            st.session_state.page = "main"
             st.rerun()
 
-    f1, f_logo, f2 = st.columns([6, 1.1, 6])
-
+    f1, f2 = st.columns(2)
     with f1:
         meses = sorted(df[COL_MES].dropna().astype(str).unique())
         mes = st.selectbox("Mês", meses, index=len(meses)-1 if len(meses) else 0, key="fin_mes")
-
-    with f_logo:
-        logo_b64 = img_to_base64("skoobpet.png")
-        if logo_b64:
-            st.markdown(
-                f"""
-                <div style="
-                    display:flex;
-                    justify-content:center;
-                    align-items:center;
-                    margin-top:-58px;
-                    min-height:68px;
-                ">
-                    <img src="data:image/png;base64,{logo_b64}"
-                         style="
-                            width:72px;
-                            height:72px;
-                            object-fit:contain;
-                            border-radius:50%;
-                            background:#ffffff;
-                            padding:6px;
-                            box-shadow:0 10px 24px rgba(15,23,42,0.12);
-                         ">
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.markdown(
-                """
-                <div style="
-                    display:flex;
-                    justify-content:center;
-                    align-items:center;
-                    margin-top:-58px;
-                    min-height:68px;
-                ">
-                    <div style="
-                        width:72px;
-                        height:72px;
-                        border-radius:50%;
-                        background:#ffffff;
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        font-size:30px;
-                        box-shadow:0 10px 24px rgba(15,23,42,0.12);
-                    ">🐾</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
     with f2:
         unidades = ["Todas"] + sorted(df[COL_UNIDADE].dropna().astype(str).unique().tolist())
         unidade = st.selectbox("Unidade", unidades, key="fin_unidade")
@@ -1209,11 +1347,11 @@ def render_fin_dashboard(df: pd.DataFrame):
     st.markdown("---")
     k1, k2, k3, k4 = st.columns(4)
     with k1:
-        kpi_card("💰 Faturamento total", money_br(faturamento_total), str(mes), NAVY, value_size=22)
+        kpi_card("💰 Faturamento total", money_br(faturamento_total), str(mes), NAVY, value_size=28)
     with k2:
         kpi_card("🛍️ Vendas no mês", total_vendas, str(mes), WINE_2)
     with k3:
-        kpi_card("📊 Ticket médio", money_br(ticket_medio), "por venda", WINE, value_size=22)
+        kpi_card("📊 Ticket médio", money_br(ticket_medio), "por venda", WINE, value_size=28)
     with k4:
         kpi_card("🐶 Raças vendidas", total_racas, "no mês", NAVY_2)
 
@@ -1222,26 +1360,17 @@ def render_fin_dashboard(df: pd.DataFrame):
     g3, g4 = st.columns(2)
 
     with g1:
-        render_chart_header("Faturamento por Unidade", "🏬", "Faturamento somado por unidade no mês")
-        if COL_UNIDADE in f_mes.columns and len(f_mes) > 0:
-            df_unidade_valor = (
-                f_mes.groupby(COL_UNIDADE)["_valor_num"]
-                .sum()
-                .reset_index(name="Faturamento")
-                .sort_values("Faturamento", ascending=False)
+        render_chart_header("Raças mais vendidas", "🐾", "Quantidade de vendas por raça no mês")
+        if COL_RACA in f_mes.columns and len(f_mes) > 0:
+            df_racas_qtd = (
+                f_mes.groupby(COL_RACA)
+                .size()
+                .reset_index(name="Total")
+                .sort_values("Total", ascending=False)
+                .head(10)
             )
-
-            if len(df_unidade_valor) == 0:
-                st.info("Sem registros para o filtro selecionado.")
-            else:
-                fig = build_money_bar(
-                    df_unidade_valor,
-                    COL_UNIDADE,
-                    "Faturamento",
-                    height=390,
-                    tickangle=18
-                )
-                st.plotly_chart(fig, use_container_width=True, key="fin_faturamento_unidade")
+            fig = build_named_bar(df_racas_qtd, COL_RACA, "Total", bar_color=NAVY, height=390, tickangle=28)
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Sem registros para o filtro selecionado.")
 
@@ -1256,7 +1385,7 @@ def render_fin_dashboard(df: pd.DataFrame):
                 .head(10)
             )
             fig = build_money_bar(df_racas_valor, COL_RACA, "Faturamento", height=390, tickangle=28)
-            st.plotly_chart(fig, use_container_width=True, key="fin_valor_raca")
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Sem registros para o filtro selecionado.")
 
@@ -1271,7 +1400,7 @@ def render_fin_dashboard(df: pd.DataFrame):
                 .head(12)
             )
             fig = build_money_bar(df_vend_valor, COL_VENDEDOR, "Faturamento", height=390, tickangle=28)
-            st.plotly_chart(fig, use_container_width=True, key="fin_vendedoras")
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Coluna de vendedor/vendedora não encontrada.")
 
@@ -1297,6 +1426,7 @@ def render_fin_dashboard(df: pd.DataFrame):
 
     if ano_ref and COL_MES in df.columns and len(df) > 0:
         f_ano = df[df[COL_MES].astype(str).str.contains(str(ano_ref), na=False)].copy()
+
         if unidade != "Todas":
             f_ano = f_ano[f_ano[COL_UNIDADE].astype(str) == str(unidade)]
 
@@ -1317,11 +1447,12 @@ def render_fin_dashboard(df: pd.DataFrame):
                 .reset_index(name="Faturamento")
                 .sort_values("_mes_num")
             )
+
             df_ano["_mes_num"] = df_ano["_mes_num"].astype(int)
             df_ano["Mês"] = df_ano["_mes_num"].apply(month_label_pt)
 
             fig = build_monthly_and_cumulative_chart(df_ano, height=420)
-            st.plotly_chart(fig, use_container_width=True, key="fin_ano")
+            st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Não foi possível identificar o ano do mês selecionado.")
 
@@ -1331,25 +1462,31 @@ def render_fin_dashboard(df: pd.DataFrame):
 # =========================================================
 inject_global_css()
 
-if st.session_state.page == "operacao_login":
-    render_oper_login()
-    st.stop()
-
-if not st.session_state.oper_logged_in:
-    st.session_state.page = "operacao_login"
-    render_oper_login()
+if not st.session_state.logged_in:
+    render_main_login()
     st.stop()
 
 components.html("<script>setTimeout(() => window.location.reload(), 10000);</script>", height=0)
 
 df = load_sheet(sheet_url_busted(SHEET_CSV_URL))
 
-if st.session_state.page == "financeiro_login":
+if st.session_state.page == "operacao_login":
+    render_oper_login()
+
+elif st.session_state.page == "operacao_dashboard":
+    if not st.session_state.oper_logged_in:
+        render_oper_login()
+    else:
+        render_oper_dashboard(df)
+
+elif st.session_state.page == "financeiro_login":
     render_fin_login()
+
 elif st.session_state.page == "financeiro_dashboard":
     if not st.session_state.fin_logged_in:
         render_fin_login()
     else:
         render_fin_dashboard(df)
+
 else:
-    render_oper_dashboard(df)
+    render_main_dashboard(df)
