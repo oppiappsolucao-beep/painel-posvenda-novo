@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "../components/AppLayout";
 import { KpiCard } from "../components/KpiCard";
 import { useAuth } from "../context/AuthContext";
-import { fetchStatusAssinatura } from "../lib/api";
+import { fetchStatusAssinatura, fetchContractPreview, StatusAssinaturaItem } from "../lib/api";
 import { COLORS } from "../lib/utils";
 
 type SortMode = "ultimo_enviado" | "alfabetica";
@@ -20,7 +20,17 @@ export function StatusAssinaturaPage() {
   const [sortMode, setSortMode] = useState<SortMode>("ultimo_enviado");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
+  const [previewItem, setPreviewItem] = useState<StatusAssinaturaItem | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [applied, setApplied] = useState({ nome: "", dataInicio: "", dataFim: "", status: "todos" });
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   useEffect(() => {
     if (!sortMenuOpen) return;
@@ -73,6 +83,31 @@ export function StatusAssinaturaPage() {
     setSearch("");
     setApplied({ nome: "", dataInicio: "", dataFim: "", status: "todos" });
     setFiltersOpen(false);
+  };
+
+  const closePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setPreviewItem(null);
+    setPreviewError(null);
+    setPreviewLoading(false);
+  };
+
+  const openPreview = async (item: StatusAssinaturaItem) => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setPreviewItem(item);
+    setPreviewLoading(true);
+    setPreviewError(null);
+
+    try {
+      const blob = await fetchContractPreview(item.sheetIndex);
+      setPreviewUrl(URL.createObjectURL(blob));
+    } catch (e) {
+      setPreviewError(e instanceof Error ? e.message : "Erro ao carregar contrato.");
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   return (
@@ -271,19 +306,16 @@ export function StatusAssinaturaPage() {
                     </tr>
                   ) : (
                     filteredItems.map((item) => (
-                      <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50/80">
+                      <tr
+                        key={item.id}
+                        className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors"
+                        onClick={() => openPreview(item)}
+                        title="Clique para visualizar o contrato"
+                      >
                         <td className="px-4 py-4 text-sm text-slate-700">{item.id}</td>
                         <td className="px-4 py-4">
                           <div className="font-semibold text-slate-800">{item.nome}</div>
-                          <a
-                            href={item.linkAssinatura || "#"}
-                            target={item.linkAssinatura ? "_blank" : undefined}
-                            rel={item.linkAssinatura ? "noreferrer" : undefined}
-                            className={`text-sm ${item.linkAssinatura ? "text-blue-600 hover:underline" : "text-slate-500 cursor-default"}`}
-                            onClick={(e) => !item.linkAssinatura && e.preventDefault()}
-                          >
-                            {item.identificador}
-                          </a>
+                          <span className="text-sm text-slate-500">{item.identificador}</span>
                         </td>
                         <td className="px-4 py-4 text-center">
                           <div className={`font-bold ${item.status === "assinado" ? "text-green-700" : "text-slate-900"}`}>
@@ -295,6 +327,7 @@ export function StatusAssinaturaPage() {
                               target="_blank"
                               rel="noreferrer"
                               className="text-xs text-slate-500 hover:text-blue-600 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               [Acompanhar documento]
                             </a>
@@ -318,6 +351,57 @@ export function StatusAssinaturaPage() {
           </div>
         )}
       </div>
+
+      {previewItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={closePreview}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 text-white"
+              style={{ background: COLORS.navy }}
+            >
+              <div>
+                <div className="text-xs uppercase tracking-wide opacity-80">Pré-visualização do contrato</div>
+                <div className="font-bold text-lg">{previewItem.nome}</div>
+                <div className="text-sm opacity-90">{previewItem.identificador}</div>
+              </div>
+              <button
+                type="button"
+                onClick={closePreview}
+                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-xl font-bold"
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 bg-slate-100">
+              {previewLoading && (
+                <div className="h-full flex items-center justify-center text-slate-500">
+                  Carregando contrato...
+                </div>
+              )}
+              {previewError && (
+                <div className="h-full flex items-center justify-center text-red-600 px-6 text-center">
+                  {previewError}
+                </div>
+              )}
+              {previewUrl && !previewLoading && !previewError && (
+                <iframe
+                  src={previewUrl}
+                  title={`Contrato ${previewItem.nome}`}
+                  className="w-full h-full border-0 bg-white"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

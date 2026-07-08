@@ -266,7 +266,7 @@ function buildStatusAssinaturaData(
       if (a.sortTimestamp !== b.sortTimestamp) return a.sortTimestamp - b.sortTimestamp;
       return a.sheetIndex - b.sheetIndex;
     })
-    .map(({ referenciaData: _ref, sortTimestamp: _sort, sheetIndex: _idx, ...item }, index) => ({
+    .map(({ referenciaData: _ref, sortTimestamp: _sort, ...item }, index) => ({
       ...item,
       id: index + 1,
     }));
@@ -326,6 +326,32 @@ router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async 
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });
+  }
+});
+
+router.get("/contracts/preview/:sheetIndex", authMiddleware, requireRole("operacao"), async (req, res) => {
+  try {
+    const sheetIndex = parseInt(String(req.params.sheetIndex), 10);
+    if (!Number.isFinite(sheetIndex) || sheetIndex < 0) {
+      res.status(400).json({ error: "Índice de contrato inválido." });
+      return;
+    }
+
+    const rows = await loadMainSheet();
+    const contrato = rows[sheetIndex];
+    if (!contrato) {
+      res.status(404).json({ error: "Contrato não encontrado." });
+      return;
+    }
+
+    const pdf = await generateContractPdf(contrato);
+    const nome = limparNomeArquivo(String(contrato["Nome"] || "contrato"));
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="contrato_${nome}.pdf"`);
+    res.send(pdf);
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
   }
 });
 

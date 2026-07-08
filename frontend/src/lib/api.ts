@@ -43,6 +43,7 @@ export async function fetchVisaoGeral(mes: string, unidade: string) {
 
 export interface StatusAssinaturaItem {
   id: number;
+  sheetIndex: number;
   nome: string;
   identificador: string;
   status: "assinado" | "pendente";
@@ -69,6 +70,27 @@ export async function fetchStatusAssinatura(params: {
 }) {
   const { data } = await api.get<StatusAssinaturaResponse>("/dashboard/status-assinatura", { params });
   return data;
+}
+
+export async function fetchContractPreview(sheetIndex: number) {
+  const response = await api.get(`/dashboard/contracts/preview/${sheetIndex}`, {
+    responseType: "blob",
+    validateStatus: (s) => s < 500,
+  });
+
+  const contentType = String(response.headers["content-type"] ?? "");
+  if (!contentType.includes("pdf")) {
+    const text = await (response.data as Blob).text();
+    try {
+      const json = JSON.parse(text);
+      throw new Error(json.error || "Erro ao carregar contrato.");
+    } catch (e) {
+      if (e instanceof Error && e.message !== "Erro ao carregar contrato.") throw e;
+      throw new Error("Erro ao carregar contrato.");
+    }
+  }
+
+  return response.data as Blob;
 }
 
 export async function saveContract(contrato: Record<string, string>) {
