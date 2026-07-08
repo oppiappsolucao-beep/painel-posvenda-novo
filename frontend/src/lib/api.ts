@@ -77,7 +77,7 @@ export async function saveContract(contrato: Record<string, string>) {
     validateStatus: (s) => s < 500,
   });
 
-  const contentType = response.headers["content-type"] || "";
+  const contentType = String(response.headers["content-type"] ?? "");
   if (!contentType.includes("pdf")) {
     const text = await (response.data as Blob).text();
     try {

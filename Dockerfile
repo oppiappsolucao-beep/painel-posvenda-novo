@@ -26,7 +26,7 @@ RUN mkdir -p /etc/nginx/http.d /etc/nginx/conf.d /run/nginx
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 RUN cp /etc/nginx/http.d/default.conf /etc/nginx/conf.d/default.conf
 COPY docker/start.sh /start.sh
-RUN chmod +x /start.sh
+RUN sed -i 's/\r$//' /start.sh && chmod +x /start.sh
 ENV NODE_ENV=production
 ENV PORT=3001
 EXPOSE 80
