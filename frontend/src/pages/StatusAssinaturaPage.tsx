@@ -201,10 +201,10 @@ export function StatusAssinaturaPage() {
         )}
 
         {data && !isLoading && (
-          <>
+          <div className="mx-4 mb-4 rounded-2xl overflow-hidden border border-slate-100 shadow-sm">
             <div className="overflow-x-auto">
               <div
-                className="flex items-center justify-between px-4 py-3 text-white text-sm font-bold uppercase tracking-wide"
+                className="flex items-center justify-between px-4 py-3 text-white text-sm font-bold uppercase tracking-wide rounded-t-2xl"
                 style={{ background: COLORS.navy }}
               >
                 <span>Contratos cadastrados</span>
@@ -311,11 +311,11 @@ export function StatusAssinaturaPage() {
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-3 text-center text-sm text-slate-500 border-t border-slate-100">
+            <div className="px-4 py-3 text-center text-sm text-slate-500 border-t border-slate-100 bg-white rounded-b-2xl">
               Mostrando de 1 a {filteredItems.length} de {filteredItems.length} documento(s)
               {sortMode === "ultimo_enviado" ? " • ordenado por último enviado" : " • ordenado alfabeticamente"}
             </div>
-          </>
+          </div>
         )}
       </div>
     </AppLayout>
