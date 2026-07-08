@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL}
+      OPER_USER: ${OPER_USER}
+      OPER_PASS: ${OPER_PASS}
+      FIN_USER: ${FIN_USER}
+      FIN_PASS: ${FIN_PASS}
+      GCP_CLIENT_EMAIL: ${GCP_CLIENT_EMAIL}
+      GCP_PRIVATE_KEY: ${GCP_PRIVATE_KEY}
+      SHEET_ID: ${SHEET_ID}
+      SHEET_TAB: ${SHEET_TAB}
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"

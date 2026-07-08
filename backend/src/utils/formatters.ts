@@ -1,0 +1,233 @@
+export function brlToFloat(v: unknown): number {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === "number" && !Number.isNaN(v)) return v;
+  if (typeof v === "boolean") return 0;
+
+  let s = String(v).replace(/\u00a0/g, " ").trim();
+  if (!s || ["nan", "none", "-"].includes(s.toLowerCase())) return 0;
+
+  s = s.replace("R$", "").trim();
+  s = s.replace(/[^0-9,.\-]/g, "");
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+export function moneyBr(v: unknown): string {
+  const n = brlToFloat(v);
+  const s = n.toFixed(2).replace(".", ",");
+  const [int, dec] = s.split(",");
+  const intFmt = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `R$ ${intFmt},${dec}`;
+}
+
+export function norm(x: unknown): string {
+  if (x === null || x === undefined) return "";
+  return String(x).trim().toLowerCase();
+}
+
+export function isError(status: unknown): boolean {
+  const s = norm(status);
+  return s.includes("erro") || s.includes("atras") || s.includes("pendenc");
+}
+
+export function isCpfComplete(value: unknown): boolean {
+  return /^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(String(value || "").trim());
+}
+
+export function pickFirstExisting(
+  columns: string[],
+  candidates: string[],
+): string | null {
+  const exact = new Map(columns.map((c) => [c.replace(/\u00a0/g, " ").trim(), c]));
+  const lower = new Map(columns.map((c) => [c.replace(/\u00a0/g, " ").trim().toLowerCase(), c]));
+
+  for (const c of candidates) {
+    const key = c.replace(/\u00a0/g, " ").trim();
+    if (exact.has(key)) return exact.get(key)!;
+    if (lower.has(key.toLowerCase())) return lower.get(key.toLowerCase())!;
+  }
+  return null;
+}
+
+export function limparNomeArquivo(texto: string): string {
+  return (
+    String(texto || "contrato")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9áéíóúâêôãõç\s_-]/g, "")
+      .replace(/\s+/g, "_")
+      .slice(0, 80) || "contrato"
+  );
+}
+
+export function extractYearFromMonthKey(monthKey: string): string | null {
+  const m = String(monthKey).trim().match(/(\d{4})$/);
+  return m ? m[1] : null;
+}
+
+export function extractMonthNumFromMonthKey(monthKey: string): number | null {
+  const s = String(monthKey).trim();
+  const m = s.match(/^\s*(\d{1,2})\s*\/\s*\d{4}\s*$/);
+  if (m) {
+    const mm = parseInt(m[1], 10);
+    if (mm >= 1 && mm <= 12) return mm;
+  }
+
+  const meses: Record<string, number> = {
+    janeiro: 1, fevereiro: 2, marco: 3, março: 3, abril: 4, maio: 5,
+    junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10,
+    novembro: 11, dezembro: 12,
+  };
+  const low = s.toLowerCase();
+  for (const [nome, num] of Object.entries(meses)) {
+    if (low.includes(nome)) return num;
+  }
+  return null;
+}
+
+export function monthLabelPt(monthNum: number): string {
+  const labels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  return labels[monthNum - 1] || String(monthNum);
+}
+
+export function monthKeyFromDate(dateValue: unknown): string {
+  const d = parseDate(dateValue);
+  if (!d) return todayMonthKey();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${mm}/${d.getFullYear()}`;
+}
+
+export function todayMonthKey(): string {
+  const now = todaySaoPaulo();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  return `${mm}/${now.getFullYear()}`;
+}
+
+export function todaySaoPaulo(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+}
+
+export function parseDate(v: unknown): Date | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return v;
+
+  const s = String(v).replace(/\u00a0/g, " ").trim();
+  if (!s || ["nan", "none"].includes(s.toLowerCase())) return null;
+
+  if (s.includes("-") && /^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+
+  if (s.includes("/")) {
+    const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/);
+    if (br) {
+      const dd = parseInt(br[1], 10);
+      const mm = parseInt(br[2], 10);
+      let year = parseInt(br[3], 10);
+      if (year < 100) year += 2000;
+      const d = new Date(year, mm - 1, dd);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+  }
+
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export function formatDateBr(d: Date | null): string {
+  if (!d) return "";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+export function countTodayAll(rows: Record<string, string>[], dateCol: string | null): number {
+  if (!dateCol) return 0;
+  const today = todaySaoPaulo();
+  const todayStr = formatDateBr(today);
+  return rows.filter((r) => {
+    const d = parseDate(r[dateCol]);
+    return d && formatDateBr(d) === todayStr;
+  }).length;
+}
+
+export function countMonthAll(
+  rows: Record<string, string>[],
+  dateCol: string | null,
+  selectedMonth: string,
+): number {
+  if (!dateCol) return 0;
+  return rows.filter((r) => {
+    const d = parseDate(r[dateCol]);
+    if (!d) return false;
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const key = `${mm}/${d.getFullYear()}`;
+    return key === selectedMonth;
+  }).length;
+}
+
+export function groupCount(rows: Record<string, string>[], col: string): { name: string; total: number }[] {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    const k = String(r[col] || "Sem dado").trim() || "Sem dado";
+    map.set(k, (map.get(k) || 0) + 1);
+  }
+  return [...map.entries()]
+    .map(([name, total]) => ({ name, total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+export function groupSum(
+  rows: Record<string, string>[],
+  groupCol: string,
+  valueCol: string,
+): { name: string; total: number }[] {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    const k = String(r[groupCol] || "Sem dado").trim() || "Sem dado";
+    map.set(k, (map.get(k) || 0) + brlToFloat(r[valueCol]));
+  }
+  return [...map.entries()]
+    .map(([name, total]) => ({ name, total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+export function filterRows(
+  rows: Record<string, string>[],
+  mesCol: string | null,
+  mes: string,
+  unidadeCol: string | null,
+  unidade: string,
+): Record<string, string>[] {
+  let result = rows;
+  if (mesCol && mes) {
+    result = result.filter((r) => String(r[mesCol] || "").trim() === mes);
+  }
+  if (unidadeCol && unidade && unidade !== "Todas") {
+    result = result.filter((r) => String(r[unidadeCol] || "").trim() === unidade);
+  }
+  return result;
+}
+
+export function getUniqueMonths(rows: Record<string, string>[], mesCol: string | null): string[] {
+  if (!mesCol) return [todayMonthKey()];
+  const set = new Set<string>();
+  for (const r of rows) {
+    const m = String(r[mesCol] || "").trim();
+    if (m) set.add(m);
+  }
+  const months = [...set].sort();
+  return months.length ? months : [todayMonthKey()];
+}
+
+export function getUniqueUnits(rows: Record<string, string>[], unidadeCol: string | null): string[] {
+  if (!unidadeCol) return ["Todas"];
+  const set = new Set<string>();
+  for (const r of rows) {
+    const u = String(r[unidadeCol] || "").trim();
+    if (u) set.add(u);
+  }
+  return ["Todas", ...[...set].sort()];
+}
