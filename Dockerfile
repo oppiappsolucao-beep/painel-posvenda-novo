@@ -22,7 +22,9 @@ COPY backend/package*.json ./
 RUN npm ci --omit=dev
 COPY --from=backend-build /app/dist ./dist
 COPY --from=frontend-build /app/dist /usr/share/nginx/html
+RUN mkdir -p /etc/nginx/http.d /etc/nginx/conf.d /run/nginx
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
+RUN cp /etc/nginx/http.d/default.conf /etc/nginx/conf.d/default.conf
 COPY docker/start.sh /start.sh
 RUN chmod +x /start.sh
 ENV NODE_ENV=production
