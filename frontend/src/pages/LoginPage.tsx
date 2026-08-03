@@ -90,7 +90,7 @@ export function LoginPage() {
     <LoginShell
       title="Operação SkoobPet"
       subtitle="Painel interno de pós-venda"
-      placeholder="campinas@skoobpet.com.br"
+      placeholder=""
       onSubmit={handleSubmit}
       username={username}
       password={password}
