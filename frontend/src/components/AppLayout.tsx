@@ -49,14 +49,14 @@ export function AppLayout({ title, caption, emoji, children, requireFinance }: A
                   <MenuLink to="/login/financeiro" onClick={() => setMenuOpen(false)}>💰 Financeiro</MenuLink>
                 )}
               </nav>
-              <div className="text-[11px] text-slate-400 mt-3 pt-2 border-t">Painel interno • PetShop</div>
+              <div className="text-[11px] text-slate-400 mt-3 pt-2 border-t">Painel interno • SkoobPet</div>
             </div>
           )}
         </div>
 
         <div className="flex-1 text-center">
           <div className="flex justify-center mb-1">
-            <Logo size={78} />
+            <Logo size={84} />
           </div>
           <h1 className="text-xl font-black text-slate-900 m-0">{emoji} {title}</h1>
           {caption && <p className="text-sm text-slate-500 mt-1">{caption}</p>}
