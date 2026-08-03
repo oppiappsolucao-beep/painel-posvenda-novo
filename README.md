@@ -124,6 +124,18 @@ npm run build
 - Frontend: `frontend/dist/`
 - Backend: `backend/dist/` → rode com `npm start --prefix backend`
 
+### Deploy (EasyPanel)
+
+URL de produção: **https://skoobpet.oppitech.com.br**
+
+No EasyPanel, configure:
+
+1. **Domínio** do app: `skoobpet.oppitech.com.br` (DNS apontando para o servidor)
+2. **Variável de ambiente:** `FRONTEND_URL=https://skoobpet.oppitech.com.br`
+3. Redeploy após salvar as alterações
+
+> Se ainda existir o domínio antigo `petshop.oppitech.com.br`, remova-o ou redirecione para o novo.
+
 ## Problemas comuns
 
 ### `npm não é reconhecido`
