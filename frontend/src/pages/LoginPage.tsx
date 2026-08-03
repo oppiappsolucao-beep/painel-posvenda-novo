@@ -46,7 +46,7 @@ export function LoginPage() {
 }
 
 export function LoginFinanceiroPage() {
-  const { user, loading, login, hasRole } = useAuth();
+  const { loading, login, hasRole } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -54,7 +54,6 @@ export function LoginFinanceiroPage() {
   const [submitting, setSubmitting] = useState(false);
 
   if (!loading && hasRole("financeiro")) return <Navigate to="/financeiro" replace />;
-  if (!loading && !user) return <Navigate to="/login" replace />;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -82,7 +81,7 @@ export function LoginFinanceiroPage() {
       setPassword={setPassword}
       error={error}
       submitting={submitting}
-      footer={<Link to="/operacao" className="text-sm text-slate-500">← Voltar ao painel</Link>}
+      footer={<Link to="/login" className="text-sm text-slate-500">← Voltar ao login de operação</Link>}
     />
   );
 }
