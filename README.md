@@ -81,10 +81,10 @@ Acesse:
 
 | Área | E-mail | Senha |
 |------|--------|-------|
-| Operação | `Piracicaba@skoobpet.com.br` | `skoob123` |
-| Operação | `Campinas@skoobpet.com.br` | `skoob1234` |
-| Operação | `Indaiatuba@skoobpet.com.br` | `skoob12345` |
-| Financeiro | `Controle@skoobpet.com.br` | `skoobdiretoria123` |
+| Operação | `piracicaba@skoobpet.com.br` | `skoob123` |
+| Operação | `campinas@skoobpet.com.br` | `skoob1234` |
+| Operação | `indaiatuba@skoobpet.com.br` | `skoob12345` |
+| Financeiro | `controle@skoobpet.com.br` | `skoobdiretoria123` |
 
 ---
 

@@ -44,9 +44,10 @@ router.post("/login", (req, res) => {
       res.status(401).json({ error: "Credenciais financeiras inválidas" });
       return;
     }
-    const token = signToken({ username: username.trim(), roles: ["operacao", "financeiro"] });
+    const email = normalizeEmail(username);
+    const token = signToken({ username: email, roles: ["operacao", "financeiro"] });
     res.cookie("token", token, cookieOptions());
-    res.json({ username: username.trim(), roles: ["operacao", "financeiro"] });
+    res.json({ username: email, roles: ["operacao", "financeiro"] });
     return;
   }
 
@@ -55,9 +56,10 @@ router.post("/login", (req, res) => {
     return;
   }
 
-  const token = signToken({ username: username.trim(), roles: ["operacao"] });
+  const email = normalizeEmail(username);
+  const token = signToken({ username: email, roles: ["operacao"] });
   res.cookie("token", token, cookieOptions());
-  res.json({ username: username.trim(), roles: ["operacao"] });
+  res.json({ username: email, roles: ["operacao"] });
 });
 
 router.post("/logout", (_req, res) => {

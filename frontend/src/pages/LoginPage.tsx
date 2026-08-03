@@ -32,7 +32,7 @@ export function LoginPage() {
     <LoginShell
       title="Operação SkoobPet"
       subtitle="Painel interno de pós-venda"
-      placeholder="Campinas@skoobpet.com.br"
+      placeholder="campinas@skoobpet.com.br"
       onSubmit={handleSubmit}
       username={username}
       password={password}
@@ -74,7 +74,7 @@ export function LoginFinanceiroPage() {
     <LoginShell
       title="Financeiro SkoobPet"
       subtitle="Acesso restrito à diretoria"
-      placeholder="Controle@skoobpet.com.br"
+      placeholder="controle@skoobpet.com.br"
       onSubmit={handleSubmit}
       username={username}
       password={password}
@@ -143,7 +143,7 @@ function LoginShell({
             <input
               type="email"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
               placeholder={placeholder}
               autoComplete="username"
               className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/30"

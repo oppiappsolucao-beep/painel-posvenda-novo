@@ -9,7 +9,7 @@ export interface AuthAccount {
 
 function operAccount(user: string, envKey: string, defaultPassword: string): AuthAccount {
   return {
-    user,
+    user: user.trim().toLowerCase(),
     password: process.env[envKey] || defaultPassword,
   };
 }
@@ -23,12 +23,12 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || "dev-secret-change-me",
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
   operAccounts: [
-    operAccount("Piracicaba@skoobpet.com.br", "OPER_PASS_PIRACICABA", "skoob123"),
-    operAccount("Campinas@skoobpet.com.br", "OPER_PASS_CAMPINAS", "skoob1234"),
-    operAccount("Indaiatuba@skoobpet.com.br", "OPER_PASS_INDAIATUBA", "skoob12345"),
+    operAccount("piracicaba@skoobpet.com.br", "OPER_PASS_PIRACICABA", "skoob123"),
+    operAccount("campinas@skoobpet.com.br", "OPER_PASS_CAMPINAS", "skoob1234"),
+    operAccount("indaiatuba@skoobpet.com.br", "OPER_PASS_INDAIATUBA", "skoob12345"),
   ],
   finAccount: {
-    user: process.env.FIN_USER || "Controle@skoobpet.com.br",
+    user: (process.env.FIN_USER || "controle@skoobpet.com.br").trim().toLowerCase(),
     password: process.env.FIN_PASS || "skoobdiretoria123",
   },
   gcpClientEmail: process.env.GCP_CLIENT_EMAIL || "",
