@@ -128,6 +128,15 @@ export const DEFAULT_HEADERS = [
   "Observações", "Data preenchimento", "Unidade",
 ];
 
+export const SIGNATURE_HEADERS = [
+  "Link Assinatura",
+  "Data Envio",
+  "Documento ZapSign",
+  "Data Assinatura Cliente",
+  "Data Assinatura Loja",
+  "Status Assinatura",
+];
+
 export type UserRole = "operacao" | "financeiro";
 
 export interface AuthPayload {

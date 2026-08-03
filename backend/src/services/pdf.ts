@@ -1,7 +1,8 @@
 import PDFDocument from "pdfkit";
 import { SheetRow } from "../config.js";
+import { generateCampinasContractPdf } from "./pdfCampinas.js";
 
-/** Dados fictícios do vendedor — ambiente de testes */
+/** Dados fictícios do vendedor — outras unidades (modelo simplificado) */
 const VENDEDOR_TESTE =
   'PET SHOP DEMONSTRACAO LTDA, inscrita no CNPJ sob nº 12.345.678/0001-99 e na Inscrição Estadual sob nº 987.654.321.000, ' +
   "estabelecida à RUA FICTICIA DOS TESTES, 250, Complemento: LOJA 03, Bairro: JARDIM MODELO, CEP: 13.111-222, " +
@@ -9,10 +10,13 @@ const VENDEDOR_TESTE =
 
 const RODAPE_VENDEDOR_TESTE = "PET SHOP DEMONSTRACAO LTDA — CNPJ: 12.345.678/0001-99 (dados fictícios para teste)";
 
+function isCampinas(contrato: SheetRow): boolean {
+  const unidade = String(contrato.Unidade || "").trim().toLowerCase();
+  return unidade.includes("campinas");
+}
+
 function valor(contrato: SheetRow, campo: string, padrao = "Não informado"): string {
-  const v = contrato[campo];
-  if (v === null || v === undefined) return padrao;
-  const s = String(v).trim();
+  const s = String(contrato[campo] ?? "").trim();
   return s || padrao;
 }
 
@@ -26,7 +30,7 @@ function addParagraph(doc: PDFKit.PDFDocument, text: string, opts?: { bold?: boo
   doc.moveDown(0.4);
 }
 
-export function generateContractPdf(contrato: SheetRow): Promise<Buffer> {
+function generateDefaultContractPdf(contrato: SheetRow): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 50 });
     const chunks: Buffer[] = [];
@@ -102,4 +106,11 @@ export function generateContractPdf(contrato: SheetRow): Promise<Buffer> {
 
     doc.end();
   });
+}
+
+export function generateContractPdf(contrato: SheetRow): Promise<Buffer> {
+  if (isCampinas(contrato)) {
+    return generateCampinasContractPdf(contrato);
+  }
+  return generateDefaultContractPdf(contrato);
 }

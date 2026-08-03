@@ -101,6 +101,23 @@ export async function fetchVisaoGeral(mes: string, unidade: string) {
   return data;
 }
 
+export type SignatarioStatus = "assinado" | "pendente" | "aguardando" | "nao_enviado";
+
+export interface SignatarioItem {
+  papel: string;
+  nome: string;
+  email: string;
+  status: SignatarioStatus;
+  statusLabel: string;
+  assinadoEm: string;
+  linkAssinatura?: string;
+}
+
+export interface SignatureProgress {
+  signatarios: SignatarioItem[];
+  progresso: number;
+}
+
 export interface StatusAssinaturaItem {
   id: number;
   sheetIndex: number;
@@ -115,6 +132,7 @@ export interface StatusAssinaturaItem {
   linkAssinatura: string;
   email: string;
   telefone: string;
+  assinatura: SignatureProgress;
 }
 
 export interface StatusAssinaturaResponse {

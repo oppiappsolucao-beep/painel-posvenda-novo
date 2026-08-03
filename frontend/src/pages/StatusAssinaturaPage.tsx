@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "../components/AppLayout";
 import { KpiCard } from "../components/KpiCard";
 import { useAuth } from "../context/AuthContext";
-import { fetchStatusAssinatura, fetchContractPreview, StatusAssinaturaItem } from "../lib/api";
+import { fetchStatusAssinatura, fetchContractPreview, StatusAssinaturaItem, SignatureProgress, SignatarioItem } from "../lib/api";
 import { COLORS } from "../lib/utils";
 
 type SortMode = "ultimo_enviado" | "alfabetica";
@@ -46,7 +46,7 @@ export function StatusAssinaturaPage() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["status-assinatura", applied],
     queryFn: () => fetchStatusAssinatura(applied),
-    refetchInterval: 15000,
+    refetchInterval: 10000,
     enabled: !!user,
   });
 
@@ -317,19 +317,20 @@ export function StatusAssinaturaPage() {
                           <div className="font-semibold text-slate-800">{item.nome}</div>
                           <span className="text-sm text-slate-500">{item.identificador}</span>
                         </td>
-                        <td className="px-4 py-4 text-center">
-                          <div className={`font-bold ${item.status === "assinado" ? "text-green-700" : "text-slate-900"}`}>
+                        <td className="px-4 py-4 text-center align-top min-w-[280px]">
+                          <div className={`font-bold mb-2 ${item.status === "assinado" ? "text-green-700" : "text-slate-900"}`}>
                             {item.statusLabel}
                           </div>
+                          <SignatureProgressPanel assinatura={item.assinatura} />
                           {item.linkAssinatura && (
                             <a
                               href={item.linkAssinatura}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-xs text-slate-500 hover:text-blue-600 hover:underline"
+                              className="inline-block mt-2 text-xs text-blue-600 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              [Acompanhar documento]
+                              Acompanhar documento
                             </a>
                           )}
                         </td>
@@ -441,4 +442,67 @@ function sortItems<T extends { nome: string; disparoEm: string; atualizadoEm: st
     const tb = parseBrDateTime(b.disparoEm) || parseBrDateTime(b.atualizadoEm);
     return tb - ta;
   });
+}
+
+function signatureStatusColor(status: SignatarioItem["status"]): string {
+  switch (status) {
+    case "assinado":
+      return "#16a34a";
+    case "pendente":
+      return "#dc2626";
+    case "aguardando":
+      return "#d97706";
+    default:
+      return "#94a3b8";
+  }
+}
+
+function SignatureProgressPanel({ assinatura }: { assinatura: SignatureProgress }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Assinaturas
+        </span>
+        <span className="text-xs font-bold text-slate-700">{assinatura.progresso}%</span>
+      </div>
+      <div className="h-2 rounded-full bg-slate-200 overflow-hidden mb-3">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{
+            width: `${assinatura.progresso}%`,
+            background: assinatura.progresso === 100 ? "#16a34a" : `linear-gradient(90deg, ${COLORS.navy}, ${COLORS.wine})`,
+          }}
+        />
+      </div>
+      <div className="space-y-2">
+        {assinatura.signatarios.map((signatario) => (
+          <div key={signatario.papel} className="flex items-start gap-2">
+            <span
+              className="mt-1 w-2.5 h-2.5 rounded-full shrink-0"
+              style={{ background: signatureStatusColor(signatario.status) }}
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-slate-800 truncate">
+                {signatario.papel}: {signatario.nome}
+              </div>
+              <div className="text-xs text-slate-500">{signatario.statusLabel}</div>
+              {signatario.linkAssinatura && signatario.status !== "assinado" && (
+                <a
+                  href={signatario.linkAssinatura}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-blue-600 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Abrir link do signatário
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

@@ -30,6 +30,7 @@ import {
   saveContractForUser,
 } from "../services/sheets.js";
 import { generateContractPdf } from "../services/pdf.js";
+import { buildSignatureProgress } from "../services/signatureStatus.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middleware/auth.js";
 
 const router = Router();
@@ -254,6 +255,7 @@ function buildStatusAssinaturaData(
       telefone: String(row["Telefone"] || "").trim(),
       referenciaData: getReferenciaData(row),
       sortTimestamp: getSortTimestamp(row),
+      assinatura: buildSignatureProgress(row, item.unitKey),
     };
   });
 

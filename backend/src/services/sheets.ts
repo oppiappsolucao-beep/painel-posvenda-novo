@@ -7,6 +7,7 @@ import {
   AuthPayload,
   config,
   DEFAULT_HEADERS,
+  SIGNATURE_HEADERS,
   getConfiguredUnits,
   getUnitByEmail,
   getUnitByKey,
@@ -254,7 +255,8 @@ async function ensureHeaders(unit: ResolvedUnitConfig): Promise<string[]> {
     return DEFAULT_HEADERS;
   }
 
-  const missing = DEFAULT_HEADERS.filter((h) => !current.includes(h));
+  const requiredHeaders = [...DEFAULT_HEADERS, ...SIGNATURE_HEADERS];
+  const missing = requiredHeaders.filter((h) => !current.includes(h));
   if (missing.length) {
     const newHeaders = [...current, ...missing];
     await sheets.spreadsheets.values.update({

@@ -4,6 +4,7 @@ COPY backend/package*.json ./
 RUN npm ci
 COPY backend/tsconfig.json ./
 COPY backend/src ./src
+COPY backend/assets ./assets
 RUN npm run build
 
 FROM node:22-alpine AS frontend-build
@@ -22,6 +23,7 @@ ENV PORT=80
 COPY backend/package*.json ./
 RUN npm ci --omit=dev
 COPY --from=backend-build /app/dist ./dist
+COPY --from=backend-build /app/assets ./assets
 COPY --from=frontend-build /app/dist ./public
 EXPOSE 80
 CMD ["node", "--use-system-ca", "dist/index.js"]
