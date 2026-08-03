@@ -15,14 +15,16 @@ function normalizeEmail(value: string): string {
 
 function isOperacaoUser(username: string, password: string): boolean {
   const normalized = normalizeEmail(username);
-  return (
-    config.operUsers.some((user) => normalizeEmail(user) === normalized) &&
-    password === config.operPass
+  return config.operAccounts.some(
+    (account) => normalizeEmail(account.user) === normalized && password === account.password,
   );
 }
 
 function isFinanceiroUser(username: string, password: string): boolean {
-  return normalizeEmail(username) === normalizeEmail(config.finUser) && password === config.finPass;
+  return (
+    normalizeEmail(username) === normalizeEmail(config.finAccount.user) &&
+    password === config.finAccount.password
+  );
 }
 
 router.post("/login", (req, res) => {

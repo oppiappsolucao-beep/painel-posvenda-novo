@@ -79,10 +79,12 @@ Acesse:
 
 ### 6. Login
 
-| Área       | E-mail | Senha (padrão) |
-|------------|--------|----------------|
-| Operação   | `Piracicaba@skoobpet.com.br`, `Campinas@skoobpet.com.br`, `Indaiatuba@skoobpet.com.br` | `100316` |
-| Financeiro | `Controle@skoobpet.com.br` | `100316` |
+| Área | E-mail | Senha |
+|------|--------|-------|
+| Operação | `Piracicaba@skoobpet.com.br` | `skoob123` |
+| Operação | `Campinas@skoobpet.com.br` | `skoob1234` |
+| Operação | `Indaiatuba@skoobpet.com.br` | `skoob12345` |
+| Financeiro | `Controle@skoobpet.com.br` | `skoobdiretoria123` |
 
 ---
 
