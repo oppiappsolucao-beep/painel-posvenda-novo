@@ -22,7 +22,7 @@ export function LoginPage() {
       await login(username, password);
       navigate("/operacao");
     } catch {
-      setError("Usuário ou senha inválidos.");
+      setError("E-mail ou senha inválidos.");
     } finally {
       setSubmitting(false);
     }
@@ -32,6 +32,7 @@ export function LoginPage() {
     <LoginShell
       title="Operação SkoobPet"
       subtitle="Painel interno de pós-venda"
+      placeholder="Campinas@skoobpet.com.br"
       onSubmit={handleSubmit}
       username={username}
       password={password}
@@ -73,6 +74,7 @@ export function LoginFinanceiroPage() {
     <LoginShell
       title="Financeiro SkoobPet"
       subtitle="Acesso restrito à diretoria"
+      placeholder="Controle@skoobpet.com.br"
       onSubmit={handleSubmit}
       username={username}
       password={password}
@@ -86,10 +88,21 @@ export function LoginFinanceiroPage() {
 }
 
 function LoginShell({
-  title, subtitle, onSubmit, username, password, setUsername, setPassword, error, submitting, footer,
+  title,
+  subtitle,
+  placeholder,
+  onSubmit,
+  username,
+  password,
+  setUsername,
+  setPassword,
+  error,
+  submitting,
+  footer,
 }: {
   title: string;
   subtitle: string;
+  placeholder: string;
   onSubmit: (e: FormEvent) => void;
   username: string;
   password: string;
@@ -126,11 +139,13 @@ function LoginShell({
           <h2 className="text-xl font-black text-center mb-6" style={{ color: COLORS.navy }}>{title}</h2>
           {error && <div className="mb-4 text-sm text-red-600 bg-red-50 rounded-lg p-3">{error}</div>}
           <label className="block mb-4">
-            <span className="text-sm font-semibold text-slate-600">Usuário</span>
+            <span className="text-sm font-semibold text-slate-600">E-mail</span>
             <input
-              type="text"
+              type="email"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              placeholder={placeholder}
+              autoComplete="username"
               className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/30"
               required
             />
@@ -142,6 +157,7 @@ function LoginShell({
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-12 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/30"
                 required
               />

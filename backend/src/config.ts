@@ -2,6 +2,17 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+function parseOperUsers(raw: string | undefined): string[] {
+  if (raw?.trim()) {
+    return raw.split(",").map((u) => u.trim()).filter(Boolean);
+  }
+  return [
+    "Piracicaba@skoobpet.com.br",
+    "Campinas@skoobpet.com.br",
+    "Indaiatuba@skoobpet.com.br",
+  ];
+}
+
 /** Planilha única: Planilha SkoobPet (Campinas) */
 export const config = {
   port: parseInt(
@@ -10,9 +21,9 @@ export const config = {
   ),
   jwtSecret: process.env.JWT_SECRET || "dev-secret-change-me",
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
-  operUser: process.env.OPER_USER || "operacao",
+  operUsers: parseOperUsers(process.env.OPER_USERS),
   operPass: process.env.OPER_PASS || "100316",
-  finUser: process.env.FIN_USER || "financeiro",
+  finUser: process.env.FIN_USER || "Controle@skoobpet.com.br",
   finPass: process.env.FIN_PASS || "100316",
   gcpClientEmail: process.env.GCP_CLIENT_EMAIL || "",
   gcpPrivateKey: (process.env.GCP_PRIVATE_KEY || "").replace(/\\n/g, "\n"),

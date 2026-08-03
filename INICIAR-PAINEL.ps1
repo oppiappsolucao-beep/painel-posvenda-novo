@@ -104,8 +104,8 @@ if ($LanIp) {
   Write-Host "  NAO use localhost no celular!" -ForegroundColor Red
 }
 Write-Host ""
-Write-Host "  Login operacao: operacao / 100316" -ForegroundColor Gray
-Write-Host "  Login financeiro: financeiro / 100316" -ForegroundColor Gray
+Write-Host "  Operacao: Piracicaba/Campinas/Indaiatuba @skoobpet.com.br" -ForegroundColor Gray
+Write-Host "  Financeiro: Controle@skoobpet.com.br" -ForegroundColor Gray
 Write-Host ""
 Log "Iniciando backend (3001) e frontend (5173)..."
 

@@ -9,6 +9,22 @@ function cookieOptions() {
   return { httpOnly: true, sameSite: "lax" as const, secure, maxAge: 12 * 3600 * 1000 };
 }
 
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isOperacaoUser(username: string, password: string): boolean {
+  const normalized = normalizeEmail(username);
+  return (
+    config.operUsers.some((user) => normalizeEmail(user) === normalized) &&
+    password === config.operPass
+  );
+}
+
+function isFinanceiroUser(username: string, password: string): boolean {
+  return normalizeEmail(username) === normalizeEmail(config.finUser) && password === config.finPass;
+}
+
 router.post("/login", (req, res) => {
   const { username, password, role } = req.body as {
     username?: string;
@@ -22,24 +38,24 @@ router.post("/login", (req, res) => {
   }
 
   if (role === "financeiro") {
-    if (username !== config.finUser || password !== config.finPass) {
+    if (!isFinanceiroUser(username, password)) {
       res.status(401).json({ error: "Credenciais financeiras inválidas" });
       return;
     }
-    const token = signToken({ username, roles: ["operacao", "financeiro"] });
+    const token = signToken({ username: username.trim(), roles: ["operacao", "financeiro"] });
     res.cookie("token", token, cookieOptions());
-    res.json({ username, roles: ["operacao", "financeiro"] });
+    res.json({ username: username.trim(), roles: ["operacao", "financeiro"] });
     return;
   }
 
-  if (username !== config.operUser || password !== config.operPass) {
+  if (!isOperacaoUser(username, password)) {
     res.status(401).json({ error: "Credenciais inválidas" });
     return;
   }
 
-  const token = signToken({ username, roles: ["operacao"] });
+  const token = signToken({ username: username.trim(), roles: ["operacao"] });
   res.cookie("token", token, cookieOptions());
-  res.json({ username, roles: ["operacao"] });
+  res.json({ username: username.trim(), roles: ["operacao"] });
 });
 
 router.post("/logout", (_req, res) => {
