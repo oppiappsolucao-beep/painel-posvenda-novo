@@ -9,18 +9,37 @@ function getTransporter(): nodemailer.Transporter | null {
   }
 
   if (!transporter) {
+    const port = config.smtp.port;
+    const secure = config.smtp.secure;
     transporter = nodemailer.createTransport({
       host: config.smtp.host,
-      port: config.smtp.port,
-      secure: config.smtp.secure,
+      port,
+      secure,
       auth: {
         user: config.smtp.user,
         pass: config.smtp.pass,
+      },
+      ...(port === 587 && !secure ? { requireTLS: true } : {}),
+      tls: {
+        minVersion: "TLSv1.2",
       },
     });
   }
 
   return transporter;
+}
+
+function friendlySmtpError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/535|EAUTH|authentication failed/i.test(message)) {
+    return [
+      "Não foi possível autenticar no e-mail.",
+      "Confira no EasyPanel: SMTP_USER = e-mail completo (contato@skoobpet.com.br), SMTP_PASS = senha dessa caixa.",
+      "Se o e-mail for Titan (Hostinger), use SMTP_HOST=smtp.titan.email, ative 'Titan em outros apps' no webmail e tente porta 465 com SMTP_SECURE=true.",
+      "Teste a senha em https://webmail.hostinger.com antes de salvar no painel.",
+    ].join(" ");
+  }
+  return message;
 }
 
 export async function sendTwoFactorCode(params: {
@@ -67,11 +86,15 @@ export async function sendTwoFactorCode(params: {
     throw new Error("Servidor de e-mail não configurado. Defina SMTP_HOST, SMTP_USER e SMTP_PASS.");
   }
 
-  await mail.sendMail({
-    from: config.smtp.from,
-    to,
-    subject,
-    text,
-    html,
-  });
+  try {
+    await mail.sendMail({
+      from: config.smtp.from,
+      to,
+      subject,
+      text,
+      html,
+    });
+  } catch (error) {
+    throw new Error(friendlySmtpError(error));
+  }
 }
