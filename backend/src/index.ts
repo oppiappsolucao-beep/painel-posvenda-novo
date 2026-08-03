@@ -58,7 +58,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 app.listen(config.port, "0.0.0.0", () => {
-  console.log(`Backend SkoobPet rodando em http://0.0.0.0:${config.port}`);
+  console.log(`SkoobPet online em http://0.0.0.0:${config.port} (${process.env.NODE_ENV || "development"})`);
   const lan = Object.values(os.networkInterfaces())
     .flat()
     .find((n) => n?.family === "IPv4" && !n.internal)?.address;
