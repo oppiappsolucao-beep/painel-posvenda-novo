@@ -22,7 +22,7 @@ import {
   todayMonthKey,
   todaySaoPaulo,
 } from "../utils/formatters.js";
-import { loadMainSheet, saveContract } from "../services/sheets.js";
+import { loadMainSheet, pruneMainSheetToDemo, saveContract } from "../services/sheets.js";
 import { generateContractPdf } from "../services/pdf.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middleware/auth.js";
 
@@ -382,6 +382,20 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req, r
     res.send(pdf);
   } catch (e) {
     res.status(500).json({ error: String(e) });
+  }
+});
+
+router.post("/prune-demo-data", authMiddleware, requireRole("financeiro"), async (_req, res) => {
+  try {
+    const result = await pruneMainSheetToDemo();
+    res.json({
+      ok: true,
+      message: `Planilha reduzida de ${result.before} para ${result.after} registros.`,
+      ...result,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
   }
 });
 
