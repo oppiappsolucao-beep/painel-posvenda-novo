@@ -24,7 +24,7 @@ export function FinanceiroDashboard() {
 
   return (
     <AppLayout
-      title="Financeiro PetShop"
+      title="Financeiro SkoobPet"
       emoji="💰"
       caption={data ? `Total de registros: ${data.total}` : undefined}
       requireFinance

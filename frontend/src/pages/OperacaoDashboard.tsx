@@ -23,7 +23,7 @@ export function OperacaoDashboard() {
   if (!loading && !user) return <Navigate to="/login" replace />;
 
   return (
-    <AppLayout title="Operação PetShop" emoji="⚙️" caption={data ? `Total de registros: ${data.total}` : undefined}>
+    <AppLayout title="Operação SkoobPet" emoji="⚙️" caption={data ? `Total de registros: ${data.total}` : undefined}>
       {data && (
         <FilterBar
           meses={data.meses}

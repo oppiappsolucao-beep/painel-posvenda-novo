@@ -30,7 +30,7 @@ export function LoginPage() {
 
   return (
     <LoginShell
-      title="Operação PetShop"
+      title="Operação SkoobPet"
       subtitle="Painel interno de pós-venda"
       onSubmit={handleSubmit}
       username={username}
@@ -71,7 +71,7 @@ export function LoginFinanceiroPage() {
 
   return (
     <LoginShell
-      title="Financeiro PetShop"
+      title="Financeiro SkoobPet"
       subtitle="Acesso restrito à diretoria"
       onSubmit={handleSubmit}
       username={username}
