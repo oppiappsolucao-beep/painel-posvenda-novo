@@ -109,6 +109,7 @@ export const config = {
   sheetId: campinasSheetId,
   sheetTab: sharedSheetTab,
   twoFactorEmail: (process.env.TWO_FA_EMAIL || "contato@skoobpet.com.br").trim().toLowerCase(),
+  twoFactorEnabled: process.env.TWO_FA_ENABLED !== "false",
   smtp: {
     host: process.env.SMTP_HOST || "",
     port: parseInt(process.env.SMTP_PORT || "587", 10),

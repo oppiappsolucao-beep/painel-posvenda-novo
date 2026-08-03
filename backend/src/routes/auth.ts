@@ -62,9 +62,15 @@ router.post("/login", async (req, res) => {
     return;
   }
 
+  const email = normalizeEmail(username);
+  const unitConfig = getUnitByEmail(email);
+
+  if (!config.twoFactorEnabled) {
+    issueSession(res, email, ["operacao"], unitConfig?.key);
+    return;
+  }
+
   try {
-    const email = normalizeEmail(username);
-    const unitConfig = getUnitByEmail(email);
     const challengeId = await startTwoFactorChallenge({
       username: email,
       roles: ["operacao"],
@@ -80,7 +86,11 @@ router.post("/login", async (req, res) => {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    res.status(500).json({ error: msg });
+    res.status(500).json({
+      error: msg.includes("SMTP")
+        ? "E-mail de verificação não configurado no servidor. Peça ao administrador para configurar SMTP no EasyPanel."
+        : msg,
+    });
   }
 });
 
