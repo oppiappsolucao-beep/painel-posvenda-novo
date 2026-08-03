@@ -22,11 +22,30 @@ import {
   todayMonthKey,
   todaySaoPaulo,
 } from "../utils/formatters.js";
-import { loadMainSheet, pruneMainSheetToDemo, saveContract } from "../services/sheets.js";
+import { getUnitByKey, LoadedRow, UnitKey } from "../config.js";
+import {
+  getContractRow,
+  loadRowsForUser,
+  pruneAllSheetsToDemo,
+  saveContractForUser,
+} from "../services/sheets.js";
 import { generateContractPdf } from "../services/pdf.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middleware/auth.js";
 
 const router = Router();
+
+function toSheetRows(loaded: LoadedRow[]): Record<string, string>[] {
+  return loaded.map((item) => item.data);
+}
+
+function defaultUnidade(user: AuthRequest["user"], requested: string): string {
+  if (requested && requested !== "Todas") return requested;
+  if (user?.unit) {
+    const unit = getUnitByKey(user.unit);
+    if (unit) return unit.label;
+  }
+  return requested || "Todas";
+}
 
 function getColumns(rows: Record<string, string>[]) {
   const cols = rows.length ? Object.keys(rows[0]) : [];
@@ -199,18 +218,20 @@ function getSortTimestamp(row: Record<string, string>): number {
 }
 
 function buildStatusAssinaturaData(
-  rows: Record<string, string>[],
+  loaded: LoadedRow[],
   nome: string,
   dataInicio: string,
   dataFim: string,
   statusFilter: string,
 ) {
+  const rows = toSheetRows(loaded);
   const cols = rows.length ? Object.keys(rows[0]) : [];
   const statusCol = pickFirstExisting(cols, ["Status", "Status Assinatura", "Status do contrato"]);
   const nomeCol = pickFirstExisting(cols, ["Nome"]);
   const nomeQuery = norm(nome);
 
-  let filtered = rows.map((row, index) => {
+  let filtered = loaded.map((item, index) => {
+    const row = item.data;
     const nomeCliente = nomeCol ? String(row[nomeCol] || "").trim() : "";
     const assinado = isContratoAssinado(row, statusCol);
     const disparoEm = getDisparoEm(row);
@@ -219,7 +240,8 @@ function buildStatusAssinaturaData(
     const identificador = `contrato_${limparNomeArquivo(nomeCliente || `registro_${index + 1}`)}.pdf`;
 
     return {
-      sheetIndex: index,
+      sheetIndex: item.sheetIndex,
+      unitKey: item.unitKey,
       nome: nomeCliente || "Sem nome",
       identificador,
       status: assinado ? "assinado" as const : "pendente" as const,
@@ -281,64 +303,68 @@ function buildStatusAssinaturaData(
   };
 }
 
-router.get("/operacao", authMiddleware, requireRole("operacao"), async (req, res) => {
+router.get("/operacao", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
   try {
     const mes = String(req.query.mes || todayMonthKey());
-    const unidade = String(req.query.unidade || "Todas");
-    const rows = await loadMainSheet();
-    res.json(buildOperacaoData(rows, mes, unidade));
+    const unidade = defaultUnidade(req.user, String(req.query.unidade || "Todas"));
+    const loaded = await loadRowsForUser(req.user!);
+    res.json(buildOperacaoData(toSheetRows(loaded), mes, unidade));
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
 });
 
-router.get("/financeiro", authMiddleware, requireRole("financeiro"), async (req, res) => {
+router.get("/financeiro", authMiddleware, requireRole("financeiro"), async (req: AuthRequest, res) => {
   try {
     const mes = String(req.query.mes || todayMonthKey());
     const unidade = String(req.query.unidade || "Todas");
-    const rows = await loadMainSheet();
-    res.json(buildFinanceiroData(rows, mes, unidade));
+    const loaded = await loadRowsForUser(req.user!);
+    res.json(buildFinanceiroData(toSheetRows(loaded), mes, unidade));
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
 });
 
-router.get("/visao-geral", authMiddleware, requireRole("operacao"), async (req, res) => {
+router.get("/visao-geral", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
   try {
     const mes = String(req.query.mes || todayMonthKey());
-    const unidade = String(req.query.unidade || "Todas");
-    const rows = await loadMainSheet();
-    res.json(buildVisaoGeralData(rows, mes, unidade));
+    const unidade = defaultUnidade(req.user, String(req.query.unidade || "Todas"));
+    const loaded = await loadRowsForUser(req.user!);
+    res.json(buildVisaoGeralData(toSheetRows(loaded), mes, unidade));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });
   }
 });
 
-router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async (req, res) => {
+router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
   try {
     const nome = String(req.query.nome || "");
     const dataInicio = String(req.query.dataInicio || "");
     const dataFim = String(req.query.dataFim || "");
     const status = String(req.query.status || "todos");
-    const rows = await loadMainSheet();
-    res.json(buildStatusAssinaturaData(rows, nome, dataInicio, dataFim, status));
+    const loaded = await loadRowsForUser(req.user!);
+    res.json(buildStatusAssinaturaData(loaded, nome, dataInicio, dataFim, status));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });
   }
 });
 
-router.get("/contracts/preview/:sheetIndex", authMiddleware, requireRole("operacao"), async (req, res) => {
+router.get("/contracts/preview/:unitKey/:sheetIndex", authMiddleware, requireRole("operacao"), async (req, res) => {
   try {
+    const unitKey = String(req.params.unitKey) as UnitKey;
     const sheetIndex = parseInt(String(req.params.sheetIndex), 10);
+    if (!getUnitByKey(unitKey)) {
+      res.status(400).json({ error: "Unidade inválida." });
+      return;
+    }
     if (!Number.isFinite(sheetIndex) || sheetIndex < 0) {
       res.status(400).json({ error: "Índice de contrato inválido." });
       return;
     }
 
-    const rows = await loadMainSheet();
-    const contrato = rows[sheetIndex];
+    const contrato = await getContractRow(unitKey, sheetIndex);
     if (!contrato) {
       res.status(404).json({ error: "Contrato não encontrado." });
       return;
@@ -355,7 +381,7 @@ router.get("/contracts/preview/:sheetIndex", authMiddleware, requireRole("operac
   }
 });
 
-router.post("/contracts", authMiddleware, requireRole("operacao"), async (req, res) => {
+router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
   try {
     const contrato = req.body as Record<string, string>;
     const obrigatorios = ["Nome", "Telefone", "CPF", "E-mail", "Raça", "Sexo", "Cor", "Pelagem", "Data Compra", "Valor Filhote"];
@@ -373,7 +399,7 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req, r
     const now = todaySaoPaulo();
     contrato["Data preenchimento"] = `${formatDateBr(now)} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
 
-    await saveContract(contrato);
+    await saveContractForUser(contrato, req.user!);
     const pdf = await generateContractPdf(contrato);
     const nome = limparNomeArquivo(contrato["Nome"]);
 
@@ -387,14 +413,15 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req, r
 
 router.post("/prune-demo-data", authMiddleware, requireRole("financeiro"), async (_req, res) => {
   try {
-    const result = await pruneMainSheetToDemo();
-    const missingNote = result.missing.length
-      ? ` Sem cliente para: ${result.missing.join(", ")}.`
-      : "";
+    const results = await pruneAllSheetsToDemo();
+    const before = results.reduce((sum, item) => sum + item.before, 0);
+    const after = results.reduce((sum, item) => sum + item.after, 0);
     res.json({
       ok: true,
-      message: `Planilha reduzida de ${result.before} para ${result.after} registros.${missingNote}`,
-      ...result,
+      message: `Planilhas atualizadas: ${before} -> ${after} registros no total.`,
+      before,
+      after,
+      results,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -6,10 +6,12 @@ export const api = axios.create({
 });
 
 export type UserRole = "operacao" | "financeiro";
+export type UnitKey = "campinas" | "piracicaba" | "indaiatuba";
 
 export interface AuthUser {
   username: string;
   roles: UserRole[];
+  unit?: UnitKey;
 }
 
 export async function login(username: string, password: string, role?: "financeiro") {
@@ -44,6 +46,7 @@ export async function fetchVisaoGeral(mes: string, unidade: string) {
 export interface StatusAssinaturaItem {
   id: number;
   sheetIndex: number;
+  unitKey: UnitKey;
   nome: string;
   identificador: string;
   status: "assinado" | "pendente";
@@ -72,8 +75,8 @@ export async function fetchStatusAssinatura(params: {
   return data;
 }
 
-export async function fetchContractPreview(sheetIndex: number) {
-  const response = await api.get(`/dashboard/contracts/preview/${sheetIndex}`, {
+export async function fetchContractPreview(unitKey: UnitKey, sheetIndex: number) {
+  const response = await api.get(`/dashboard/contracts/preview/${unitKey}/${sheetIndex}`, {
     responseType: "blob",
     validateStatus: (s) => s < 500,
   });

@@ -14,10 +14,9 @@ const DEFAULT_HEADERS = [
   "Observações", "Data preenchimento", "Unidade",
 ];
 
-const sheetId = process.env.SHEET_ID || "1TTrjf0DZxWkIacYTp7_vcRmTx2-8XrobIaPgIflnyG8";
-const sheetTab = process.env.SHEET_TAB || "Folha1";
-
-const contrato = JSON.parse(process.argv[2] || "{}");
+const sheetId = process.argv[2] || process.env.SHEET_ID || "1TTrjf0DZxWkIacYTp7_vcRmTx2-8XrobIaPgIflnyG8";
+const sheetTab = process.argv[3] || process.env.SHEET_TAB || "Folha1";
+const contrato = JSON.parse(process.argv[4] || "{}");
 
 const auth = new google.auth.JWT({
   email: process.env.GCP_CLIENT_EMAIL,

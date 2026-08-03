@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { config } from "../config.js";
+import { config, getUnitByEmail, normalizeEmail } from "../config.js";
 import { signToken, authMiddleware, AuthRequest } from "../middleware/auth.js";
 
 const router = Router();
@@ -7,10 +7,6 @@ const router = Router();
 function cookieOptions() {
   const secure = process.env.NODE_ENV === "production" || config.frontendUrl.startsWith("https://");
   return { httpOnly: true, sameSite: "lax" as const, secure, maxAge: 12 * 3600 * 1000 };
-}
-
-function normalizeEmail(value: string): string {
-  return value.trim().toLowerCase();
 }
 
 function isOperacaoUser(username: string, password: string): boolean {
@@ -57,9 +53,10 @@ router.post("/login", (req, res) => {
   }
 
   const email = normalizeEmail(username);
-  const token = signToken({ username: email, roles: ["operacao"] });
+  const unit = getUnitByEmail(email)?.key;
+  const token = signToken({ username: email, roles: ["operacao"], unit });
   res.cookie("token", token, cookieOptions());
-  res.json({ username: email, roles: ["operacao"] });
+  res.json({ username: email, roles: ["operacao"], unit });
 });
 
 router.post("/logout", (_req, res) => {

@@ -3,11 +3,24 @@ import { promisify } from "util";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { google } from "googleapis";
-import { config, DEFAULT_HEADERS, SheetRow } from "../config.js";
+import {
+  AuthPayload,
+  config,
+  DEFAULT_HEADERS,
+  getConfiguredUnits,
+  getUnitByEmail,
+  getUnitByKey,
+  LoadedRow,
+  ResolvedUnitConfig,
+  SheetRow,
+  UnitConfig,
+  UnitKey,
+} from "../config.js";
 
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const loadScript = join(__dirname, "../../scripts/load-sheet.mjs");
+const saveScript = join(__dirname, "../../scripts/save-contract.mjs");
 
 const SCOPES = [
   "https://www.googleapis.com/auth/spreadsheets",
@@ -29,154 +42,65 @@ function getSheets() {
   return google.sheets({ version: "v4", auth: getAuth() });
 }
 
-/** Carrega via subprocess no Windows (contorna erro SSL do Node/tsx) */
-async function loadMainSheetWindows(): Promise<SheetRow[]> {
-  const node = join(process.env.ProgramFiles || "C:\\Program Files", "nodejs", "node.exe");
-  const { stdout } = await execFileAsync(
-    node,
-    ["--use-system-ca", loadScript],
-    { maxBuffer: 30 * 1024 * 1024, encoding: "utf8", cwd: join(__dirname, "../..") },
+function getDrive() {
+  return google.drive({ version: "v3", auth: getAuth() });
+}
+
+const resolvedSheetCache = new Map<UnitKey, string>();
+
+async function findSheetIdByName(name: string): Promise<string> {
+  const drive = getDrive();
+  const exact = await drive.files.list({
+    q: `mimeType='application/vnd.google-apps.spreadsheet' and name='${name.replace(/'/g, "\\'")}'`,
+    fields: "files(id, name)",
+    pageSize: 5,
+  });
+  const exactMatch = exact.data.files?.[0];
+  if (exactMatch?.id) return exactMatch.id;
+
+  const fuzzy = await drive.files.list({
+    q: "mimeType='application/vnd.google-apps.spreadsheet'",
+    fields: "files(id, name)",
+    pageSize: 50,
+  });
+  const normalizedTarget = name.trim().toLowerCase();
+  const fuzzyMatch = (fuzzy.data.files || []).find((file) =>
+    String(file.name || "").trim().toLowerCase().includes(normalizedTarget),
   );
-  return JSON.parse(stdout.trim() || "[]");
+  if (fuzzyMatch?.id) return fuzzyMatch.id;
+
+  throw new Error(`Planilha "${name}" não encontrada. Compartilhe com ${config.gcpClientEmail} ou defina SHEET_ID no servidor.`);
 }
 
-/** Carrega via API direta (Linux/Mac ou fallback) */
-async function loadMainSheetDirect(): Promise<SheetRow[]> {
-  const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: config.sheetId,
-    range: `'${config.sheetTab}'!A:ZZ`,
-  });
-
-  const values = res.data.values || [];
-  if (values.length <= 1) return [];
-
-  const headers = values[0].map((h) => String(h).replace(/\u00a0/g, " ").trim());
-  const rows: SheetRow[] = [];
-
-  for (let i = 1; i < values.length; i++) {
-    const rowValues = values[i] as string[];
-    const row: SheetRow = {};
-    headers.forEach((h, idx) => {
-      row[h] = rowValues[idx] ?? "";
-    });
-    if (Object.values(row).some((v) => String(v).trim())) rows.push(row);
-  }
-  return rows;
-}
-
-export async function loadMainSheet(): Promise<SheetRow[]> {
-  if (process.platform === "win32") {
-    return loadMainSheetWindows();
-  }
-  return loadMainSheetDirect();
-}
-
-async function ensureHeaders(): Promise<string[]> {
-  const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: config.sheetId,
-    range: `'${config.sheetTab}'!1:1`,
-  });
-
-  const current = (res.data.values?.[0] || [])
-    .map((h) => String(h).trim())
-    .filter(Boolean);
-
-  if (!current.length) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: config.sheetId,
-      range: `'${config.sheetTab}'!A1`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [DEFAULT_HEADERS] },
-    });
-    return DEFAULT_HEADERS;
+export async function resolveUnitSheet(unit: UnitConfig): Promise<ResolvedUnitConfig> {
+  if (unit.sheetId.trim()) {
+    return { ...unit, resolvedSheetId: unit.sheetId.trim() };
   }
 
-  const missing = DEFAULT_HEADERS.filter((h) => !current.includes(h));
-  if (missing.length) {
-    const newHeaders = [...current, ...missing];
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: config.sheetId,
-      range: `'${config.sheetTab}'!A1`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [newHeaders] },
-    });
-    return newHeaders;
-  }
-  return current;
-}
-
-export async function saveContract(contrato: SheetRow): Promise<void> {
-  if (process.platform === "win32") {
-    await saveContractWindows(contrato);
-    return;
-  }
-  const sheets = getSheets();
-  const headers = await ensureHeaders();
-  const row = headers.map((h) => contrato[h] ?? "");
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: config.sheetId,
-    range: `'${config.sheetTab}'!A:A`,
-    valueInputOption: "USER_ENTERED",
-    insertDataOption: "INSERT_ROWS",
-    requestBody: { values: [row] },
-  });
-}
-
-async function saveContractWindows(contrato: SheetRow): Promise<void> {
-  const node = join(process.env.ProgramFiles || "C:\\Program Files", "nodejs", "node.exe");
-  const saveScript = join(__dirname, "../../scripts/save-contract.mjs");
-  await execFileAsync(
-    node,
-    ["--use-system-ca", saveScript, JSON.stringify(contrato)],
-    { maxBuffer: 5 * 1024 * 1024, encoding: "utf8", cwd: join(__dirname, "../..") },
-  );
-}
-
-const DEMO_CITIES = ["campinas", "piracicaba", "indaiatuba"] as const;
-
-function normCity(value: string): string {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function cityFromRow(row: SheetRow): string {
-  const fields = [
-    row["Unidade"],
-    row["Cidade"],
-    row["Cidade do comprador"],
-  ];
-
-  for (const value of fields) {
-    const normalized = normCity(String(value || ""));
-    for (const target of DEMO_CITIES) {
-      if (normalized.includes(target)) return target;
-    }
+  const cached = resolvedSheetCache.get(unit.key);
+  if (cached) {
+    return { ...unit, resolvedSheetId: cached };
   }
 
-  // Fallback: procura o nome da cidade em qualquer coluna da linha.
-  for (const value of Object.values(row)) {
-    const normalized = normCity(String(value || ""));
-    for (const target of DEMO_CITIES) {
-      if (normalized.includes(target)) return target;
-    }
-  }
-
-  return "";
+  const resolvedSheetId = await findSheetIdByName(unit.sheetName);
+  resolvedSheetCache.set(unit.key, resolvedSheetId);
+  return { ...unit, resolvedSheetId };
 }
 
-async function loadSheetValues(): Promise<{ headers: string[]; rows: SheetRow[] }> {
-  const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: config.sheetId,
-    range: `'${config.sheetTab}'!A:ZZ`,
-  });
+function assertUnitSheet(unit: ResolvedUnitConfig): void {
+  if (!unit.resolvedSheetId.trim()) {
+    throw new Error(`Planilha não configurada para ${unit.label}.`);
+  }
+}
 
-  const values = res.data.values || [];
+function withUnitLabel(row: SheetRow, unit: UnitConfig): SheetRow {
+  return {
+    ...row,
+    Unidade: String(row["Unidade"] || unit.label).trim() || unit.label,
+  };
+}
+
+function parseSheetValues(values: string[][]): { headers: string[]; rows: SheetRow[] } {
   if (!values.length) return { headers: [], rows: [] };
 
   const headers = values[0].map((h) => String(h).replace(/\u00a0/g, " ").trim());
@@ -194,57 +118,294 @@ async function loadSheetValues(): Promise<{ headers: string[]; rows: SheetRow[] 
   return { headers, rows };
 }
 
-export async function pruneMainSheetToDemo(): Promise<{
+async function loadSheetWindows(unit: ResolvedUnitConfig): Promise<SheetRow[]> {
+  assertUnitSheet(unit);
+  const node = join(process.env.ProgramFiles || "C:\\Program Files", "nodejs", "node.exe");
+  const { stdout } = await execFileAsync(
+    node,
+    ["--use-system-ca", loadScript, unit.resolvedSheetId, unit.sheetTab],
+    { maxBuffer: 30 * 1024 * 1024, encoding: "utf8", cwd: join(__dirname, "../..") },
+  );
+  return JSON.parse(stdout.trim() || "[]");
+}
+
+async function loadSheetDirect(unit: ResolvedUnitConfig): Promise<SheetRow[]> {
+  assertUnitSheet(unit);
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: unit.resolvedSheetId,
+    range: `'${unit.sheetTab}'!A:ZZ`,
+  });
+
+  const { rows } = parseSheetValues(res.data.values || []);
+  return rows;
+}
+
+export async function loadUnitSheet(unit: UnitConfig): Promise<SheetRow[]> {
+  const resolved = await resolveUnitSheet(unit);
+  if (process.platform === "win32") {
+    return loadSheetWindows(resolved);
+  }
+  return loadSheetDirect(resolved);
+}
+
+export async function loadUnitRows(unit: UnitConfig): Promise<LoadedRow[]> {
+  const rows = await loadUnitSheet(unit);
+  return rows.map((data, sheetIndex) => ({
+    data: withUnitLabel(data, unit),
+    unitKey: unit.key,
+    sheetIndex,
+  }));
+}
+
+export async function loadAllUnitRows(): Promise<LoadedRow[]> {
+  const loaded: LoadedRow[] = [];
+  for (const unit of getConfiguredUnits()) {
+    try {
+      const rows = await loadUnitRows(unit);
+      loaded.push(...rows);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[sheets] ${unit.label}: ${message}`);
+    }
+  }
+
+  if (!loaded.length) {
+    throw new Error("Nenhuma planilha carregada. Verifique SHEET_ID_* ou compartilhe as planilhas com a service account.");
+  }
+
+  return loaded;
+}
+
+export async function loadRowsForUser(user: AuthPayload): Promise<LoadedRow[]> {
+  if (user.roles.includes("financeiro")) {
+    return loadAllUnitRows();
+  }
+
+  const unitKey = user.unit || getUnitByEmail(user.username)?.key;
+  if (!unitKey) {
+    throw new Error("Unidade não configurada para este usuário.");
+  }
+
+  const unit = getUnitByKey(unitKey);
+  if (!unit) {
+    throw new Error("Unidade inválida.");
+  }
+
+  return loadUnitRows(unit);
+}
+
+/** @deprecated use loadRowsForUser */
+export async function loadMainSheet(): Promise<SheetRow[]> {
+  const campinas = getUnitByKey("campinas");
+  if (!campinas) return [];
+  const rows = await loadUnitSheet(campinas);
+  return rows.map((row) => withUnitLabel(row, campinas));
+}
+
+async function ensureHeaders(unit: ResolvedUnitConfig): Promise<string[]> {
+  assertUnitSheet(unit);
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: unit.resolvedSheetId,
+    range: `'${unit.sheetTab}'!1:1`,
+  });
+
+  const current = (res.data.values?.[0] || [])
+    .map((h) => String(h).trim())
+    .filter(Boolean);
+
+  if (!current.length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: unit.resolvedSheetId,
+      range: `'${unit.sheetTab}'!A1`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [DEFAULT_HEADERS] },
+    });
+    return DEFAULT_HEADERS;
+  }
+
+  const missing = DEFAULT_HEADERS.filter((h) => !current.includes(h));
+  if (missing.length) {
+    const newHeaders = [...current, ...missing];
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: unit.resolvedSheetId,
+      range: `'${unit.sheetTab}'!A1`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [newHeaders] },
+    });
+    return newHeaders;
+  }
+  return current;
+}
+
+export async function saveContractForUser(contrato: SheetRow, user: AuthPayload): Promise<void> {
+  const unitKey = user.unit || getUnitByEmail(user.username)?.key;
+  if (!unitKey) {
+    throw new Error("Unidade não configurada para salvar contrato.");
+  }
+
+  const unit = getUnitByKey(unitKey);
+  if (!unit) {
+    throw new Error("Unidade inválida.");
+  }
+
+  contrato["Unidade"] = contrato["Unidade"] || unit.label;
+  await saveContract(contrato, unit);
+}
+
+export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promise<void> {
+  const resolved = await resolveUnitSheet(unit);
+  if (process.platform === "win32") {
+    await saveContractWindows(contrato, resolved);
+    return;
+  }
+
+  assertUnitSheet(resolved);
+  const sheets = getSheets();
+  const headers = await ensureHeaders(resolved);
+  const row = headers.map((h) => contrato[h] ?? "");
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: resolved.resolvedSheetId,
+    range: `'${resolved.sheetTab}'!A:A`,
+    valueInputOption: "USER_ENTERED",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: { values: [row] },
+  });
+}
+
+async function saveContractWindows(contrato: SheetRow, unit: ResolvedUnitConfig): Promise<void> {
+  assertUnitSheet(unit);
+  const node = join(process.env.ProgramFiles || "C:\\Program Files", "nodejs", "node.exe");
+  await execFileAsync(
+    node,
+    ["--use-system-ca", saveScript, unit.resolvedSheetId, unit.sheetTab, JSON.stringify(contrato)],
+    { maxBuffer: 5 * 1024 * 1024, encoding: "utf8", cwd: join(__dirname, "../..") },
+  );
+}
+
+export async function getContractRow(unitKey: UnitKey, sheetIndex: number): Promise<SheetRow | null> {
+  const unit = getUnitByKey(unitKey);
+  if (!unit) return null;
+
+  const rows = await loadUnitSheet(unit);
+  const row = rows[sheetIndex];
+  return row ? withUnitLabel(row, unit) : null;
+}
+
+async function loadSheetValues(unit: ResolvedUnitConfig): Promise<{ headers: string[]; rows: SheetRow[] }> {
+  assertUnitSheet(unit);
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: unit.resolvedSheetId,
+    range: `'${unit.sheetTab}'!A:ZZ`,
+  });
+  return parseSheetValues(res.data.values || []);
+}
+
+export async function pruneUnitSheetToDemo(unit: UnitConfig): Promise<{
+  unitKey: UnitKey;
+  label: string;
+  sheetName: string;
   before: number;
   after: number;
   kept: Array<{ city: string; nome: string }>;
   missing: string[];
 }> {
+  const resolved = await resolveUnitSheet(unit);
+  assertUnitSheet(resolved);
   const sheets = getSheets();
-  const { headers, rows } = await loadSheetValues();
+  const { headers, rows } = await loadSheetValues(resolved);
 
   if (!headers.length) {
-    throw new Error("Planilha sem cabeçalho.");
+    throw new Error(`Planilha ${unit.label} sem cabeçalho.`);
   }
 
   const keptRows: SheetRow[] = [];
   const kept: Array<{ city: string; nome: string }> = [];
   const missing: string[] = [];
-  const usedIndexes = new Set<number>();
 
-  for (const target of DEMO_CITIES) {
-    const matchIndex = rows.findIndex((row, index) => !usedIndexes.has(index) && cityFromRow(row) === target);
-    if (matchIndex < 0) {
-      missing.push(target);
-      continue;
-    }
+  const matchIndex = rows.findIndex((row) => {
+    const label = normCity(row["Unidade"] || row["Cidade"] || unit.label);
+    return label.includes(unit.key);
+  });
 
-    const match = rows[matchIndex];
-    usedIndexes.add(matchIndex);
-    keptRows.push(match);
-    kept.push({
-      city: target,
-      nome: String(match["Nome"] || "Sem nome"),
-    });
-  }
-
-  if (!keptRows.length) {
-    throw new Error("Nenhum cliente encontrado para Campinas, Piracicaba ou Indaiatuba.");
+  if (matchIndex < 0 && rows.length > 0) {
+    keptRows.push(rows[0]);
+    kept.push({ city: unit.key, nome: String(rows[0]["Nome"] || "Sem nome") });
+  } else if (matchIndex >= 0) {
+    keptRows.push(rows[matchIndex]);
+    kept.push({ city: unit.key, nome: String(rows[matchIndex]["Nome"] || "Sem nome") });
+  } else {
+    missing.push(unit.key);
   }
 
   const outputRows = keptRows.map((row) => headers.map((h) => row[h] ?? ""));
 
   await sheets.spreadsheets.values.clear({
-    spreadsheetId: config.sheetId,
-    range: `'${config.sheetTab}'!A2:ZZ`,
+    spreadsheetId: resolved.resolvedSheetId,
+    range: `'${resolved.sheetTab}'!A2:ZZ`,
   });
 
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: config.sheetId,
-    range: `'${config.sheetTab}'!A2`,
-    valueInputOption: "USER_ENTERED",
-    requestBody: { values: outputRows },
-  });
+  if (outputRows.length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: resolved.resolvedSheetId,
+      range: `'${resolved.sheetTab}'!A2`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: outputRows },
+    });
+  }
 
-  return { before: rows.length, after: keptRows.length, kept, missing };
+  return {
+    unitKey: unit.key,
+    label: unit.label,
+    sheetName: unit.sheetName,
+    before: rows.length,
+    after: keptRows.length,
+    kept,
+    missing,
+  };
+}
+
+export async function pruneAllSheetsToDemo(): Promise<Array<Awaited<ReturnType<typeof pruneUnitSheetToDemo>>>> {
+  const results = [];
+  for (const unit of getConfiguredUnits()) {
+    try {
+      results.push(await pruneUnitSheetToDemo(unit));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      results.push({
+        unitKey: unit.key,
+        label: unit.label,
+        sheetName: unit.sheetName,
+        before: 0,
+        after: 0,
+        kept: [],
+        missing: [unit.key],
+        error: message,
+      });
+    }
+  }
+  return results;
+}
+
+/** @deprecated use pruneAllSheetsToDemo */
+export async function pruneMainSheetToDemo() {
+  const campinas = getUnitByKey("campinas");
+  if (!campinas) throw new Error("Campinas não configurada.");
+  const result = await pruneUnitSheetToDemo(campinas);
+  return {
+    before: result.before,
+    after: result.after,
+    kept: result.kept,
+    missing: result.missing,
+  };
+}
+
+function normCity(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 }

@@ -86,6 +86,16 @@ Acesse:
 | Operação | `indaiatuba@skoobpet.com.br` | `skoob12345` |
 | Financeiro | `controle@skoobpet.com.br` | `skoobdiretoria123` |
 
+Cada login de operação usa **sua própria planilha Google**:
+
+| Unidade | Planilha | Variável de ambiente |
+|---------|----------|----------------------|
+| Campinas | Planilha SkoobPet (Campinas) | `SHEET_ID_CAMPINAS` |
+| Piracicaba | Planilha SkoobPet (Piracicaba) | `SHEET_ID_PIRACICABA` |
+| Indaiatuba | Planilha SkoobPet (Indaiatuba) | `SHEET_ID_INDAIATUBA` |
+
+Se `SHEET_ID_*` estiver vazio, o sistema busca a planilha pelo nome (`SHEET_NAME_*`). Compartilhe cada planilha com a service account do GCP.
+
 ---
 
 ## Estrutura do projeto

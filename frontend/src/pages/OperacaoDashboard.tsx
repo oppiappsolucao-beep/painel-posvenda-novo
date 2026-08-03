@@ -6,12 +6,12 @@ import { KpiCard, SummaryCard } from "../components/KpiCard";
 import { BarChart } from "../components/BarChart";
 import { useAuth } from "../context/AuthContext";
 import { fetchOperacao } from "../lib/api";
-import { COLORS, monthKeyNow } from "../lib/utils";
+import { COLORS, defaultUnitFilter, monthKeyNow } from "../lib/utils";
 
 export function OperacaoDashboard() {
   const { user, loading } = useAuth();
   const [mes, setMes] = useState(monthKeyNow());
-  const [unidade, setUnidade] = useState("Todas");
+  const [unidade, setUnidade] = useState(() => defaultUnitFilter(user?.unit));
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["operacao", mes, unidade],

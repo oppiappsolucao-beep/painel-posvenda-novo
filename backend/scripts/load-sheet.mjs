@@ -6,8 +6,8 @@ import { dirname, join } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "../.env") });
 
-const sheetId = process.env.SHEET_ID || "1TTrjf0DZxWkIacYTp7_vcRmTx2-8XrobIaPgIflnyG8";
-const sheetTab = process.env.SHEET_TAB || "Folha1";
+const sheetId = process.argv[2] || process.env.SHEET_ID || "1TTrjf0DZxWkIacYTp7_vcRmTx2-8XrobIaPgIflnyG8";
+const sheetTab = process.argv[3] || process.env.SHEET_TAB || "Folha1";
 
 const auth = new google.auth.JWT({
   email: process.env.GCP_CLIENT_EMAIL,

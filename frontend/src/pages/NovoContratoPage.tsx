@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { saveContract } from "../lib/api";
 import {
   CIDADES, ESTADOS, RACAS_CANINA, RACAS_FELINA,
-  COLORS, formatCpfInput, formatDateInput, isCpfComplete, monthKeyNow,
+  COLORS, defaultUnitFilter, formatCpfInput, formatDateInput, isCpfComplete, monthKeyNow,
 } from "../lib/utils";
 
 export function NovoContratoPage() {
@@ -47,7 +47,7 @@ export function NovoContratoPage() {
   const [parcelas, setParcelas] = useState("");
   const [vendedora, setVendedora] = useState("");
   const [mes, setMes] = useState(monthKeyNow());
-  const [unidade, setUnidade] = useState("Campinas");
+  const [unidade, setUnidade] = useState(() => defaultUnitFilter(user?.unit) === "Todas" ? "Campinas" : defaultUnitFilter(user?.unit));
 
   if (!loading && !user) return <Navigate to="/login" replace />;
 
@@ -168,7 +168,7 @@ export function NovoContratoPage() {
             <Field label="Quantidade de parcelas" value={parcelas} onChange={setParcelas} />
             <Field label="Vendedora" value={vendedora} onChange={setVendedora} />
             <Field label="Mês" value={mes} onChange={setMes} />
-            <Field label="Unidade" value={unidade} onChange={setUnidade} />
+            <Field label="Unidade" value={unidade} onChange={setUnidade} readOnly={!!user?.unit} />
           </div>
         </Section>
 
@@ -196,8 +196,8 @@ function Section({ title, icon, children }: { title: string; icon: string; child
   );
 }
 
-function Field({ label, value, onChange, required, placeholder }: {
-  label: string; value: string; onChange: (v: string) => void; required?: boolean; placeholder?: string;
+function Field({ label, value, onChange, required, placeholder, readOnly }: {
+  label: string; value: string; onChange: (v: string) => void; required?: boolean; placeholder?: string; readOnly?: boolean;
 }) {
   return (
     <label className="block">
@@ -208,7 +208,8 @@ function Field({ label, value, onChange, required, placeholder }: {
         onChange={(e) => onChange(e.target.value)}
         required={required}
         placeholder={placeholder}
-        className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5"
+        readOnly={readOnly}
+        className={`mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5${readOnly ? " bg-slate-100" : ""}`}
       />
     </label>
   );

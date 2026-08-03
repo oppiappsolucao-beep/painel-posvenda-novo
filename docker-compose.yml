@@ -13,8 +13,13 @@ services:
       FIN_PASS: ${FIN_PASS}
       GCP_CLIENT_EMAIL: ${GCP_CLIENT_EMAIL}
       GCP_PRIVATE_KEY: ${GCP_PRIVATE_KEY}
-      SHEET_ID: ${SHEET_ID}
-      SHEET_TAB: ${SHEET_TAB}
+      SHEET_TAB: ${SHEET_TAB:-Folha1}
+      SHEET_ID_CAMPINAS: ${SHEET_ID_CAMPINAS:-${SHEET_ID}}
+      SHEET_ID_PIRACICABA: ${SHEET_ID_PIRACICABA}
+      SHEET_ID_INDAIATUBA: ${SHEET_ID_INDAIATUBA}
+      SHEET_NAME_CAMPINAS: ${SHEET_NAME_CAMPINAS:-Planilha SkoobPet (Campinas)}
+      SHEET_NAME_PIRACICABA: ${SHEET_NAME_PIRACICABA:-Planilha SkoobPet (Piracicaba)}
+      SHEET_NAME_INDAIATUBA: ${SHEET_NAME_INDAIATUBA:-Planilha SkoobPet (Indaiatuba)}
 
   frontend:
     build: ./frontend

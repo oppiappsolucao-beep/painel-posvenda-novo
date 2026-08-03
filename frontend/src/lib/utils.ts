@@ -44,6 +44,17 @@ export const RACAS_FELINA = ["Persa", "Maine Coon", "British Shorthair", "Outro"
 
 export const CIDADES = ["Campinas", "Indaiatuba", "Piracicaba", "Outro"];
 
+export const UNIT_LABELS: Record<string, string> = {
+  campinas: "Campinas",
+  piracicaba: "Piracicaba",
+  indaiatuba: "Indaiatuba",
+};
+
+export function defaultUnitFilter(unit?: string): string {
+  if (unit && UNIT_LABELS[unit]) return UNIT_LABELS[unit];
+  return "Todas";
+}
+
 export function formatCpfInput(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 11);
   if (digits.length <= 3) return digits;

@@ -6,12 +6,12 @@ import { KpiCard } from "../components/KpiCard";
 import { BarChart } from "../components/BarChart";
 import { useAuth } from "../context/AuthContext";
 import { fetchVisaoGeral } from "../lib/api";
-import { COLORS, monthKeyNow } from "../lib/utils";
+import { COLORS, defaultUnitFilter, monthKeyNow } from "../lib/utils";
 
 export function VisaoGeralPage() {
   const { user, loading } = useAuth();
   const [mes, setMes] = useState(monthKeyNow());
-  const [unidade, setUnidade] = useState("Todas");
+  const [unidade, setUnidade] = useState(() => defaultUnitFilter(user?.unit));
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["visao-geral", mes, unidade],

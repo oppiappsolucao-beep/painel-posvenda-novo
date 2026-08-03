@@ -101,7 +101,7 @@ export function StatusAssinaturaPage() {
     setPreviewError(null);
 
     try {
-      const blob = await fetchContractPreview(item.sheetIndex);
+      const blob = await fetchContractPreview(item.unitKey, item.sheetIndex);
       setPreviewUrl(URL.createObjectURL(blob));
     } catch (e) {
       setPreviewError(e instanceof Error ? e.message : "Erro ao carregar contrato.");
