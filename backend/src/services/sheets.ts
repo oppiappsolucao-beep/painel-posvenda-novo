@@ -46,12 +46,29 @@ function getDrive() {
   return google.drive({ version: "v3", auth: getAuth() });
 }
 
-const resolvedSheetCache = new Map<UnitKey, string>();
+const resolvedSheetCache = new Map<UnitKey, ResolvedUnitConfig>();
 
-async function findSheetIdByName(name: string): Promise<string> {
+const TAB_CANDIDATES = ["Folha1", "Página1", "Pagina1"];
+
+async function resolveSheetTab(sheetId: string, preferredTab: string): Promise<string> {
+  const sheets = getSheets();
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
+  const tabs = (meta.data.sheets || [])
+    .map((sheet) => sheet.properties?.title)
+    .filter((title): title is string => Boolean(title));
+
+  if (tabs.includes(preferredTab)) return preferredTab;
+  for (const candidate of TAB_CANDIDATES) {
+    if (tabs.includes(candidate)) return candidate;
+  }
+  return tabs[0] || preferredTab;
+}
+
+async function findSheetIdByName(name: string, unitKey: UnitKey): Promise<string> {
   const drive = getDrive();
+  const escapedName = name.replace(/'/g, "\\'");
   const exact = await drive.files.list({
-    q: `mimeType='application/vnd.google-apps.spreadsheet' and name='${name.replace(/'/g, "\\'")}'`,
+    q: `mimeType='application/vnd.google-apps.spreadsheet' and name='${escapedName}'`,
     fields: "files(id, name)",
     pageSize: 5,
   });
@@ -61,30 +78,42 @@ async function findSheetIdByName(name: string): Promise<string> {
   const fuzzy = await drive.files.list({
     q: "mimeType='application/vnd.google-apps.spreadsheet'",
     fields: "files(id, name)",
-    pageSize: 50,
+    pageSize: 100,
   });
+  const files = fuzzy.data.files || [];
   const normalizedTarget = name.trim().toLowerCase();
-  const fuzzyMatch = (fuzzy.data.files || []).find((file) =>
+  const keyword = unitKey.toLowerCase();
+
+  const byKeywordAndBrand = files.find((file) => {
+    const sheetName = String(file.name || "").trim().toLowerCase();
+    return sheetName.includes(keyword) && (sheetName.includes("skoob") || sheetName.includes("planilha"));
+  });
+  if (byKeywordAndBrand?.id) return byKeywordAndBrand.id;
+
+  const byFullName = files.find((file) =>
     String(file.name || "").trim().toLowerCase().includes(normalizedTarget),
   );
-  if (fuzzyMatch?.id) return fuzzyMatch.id;
+  if (byFullName?.id) return byFullName.id;
 
-  throw new Error(`Planilha "${name}" não encontrada. Compartilhe com ${config.gcpClientEmail} ou defina SHEET_ID no servidor.`);
+  const byKeyword = files.find((file) =>
+    String(file.name || "").trim().toLowerCase().includes(keyword),
+  );
+  if (byKeyword?.id) return byKeyword.id;
+
+  throw new Error(
+    `Planilha de ${unitKey} não encontrada (${name}). Compartilhe a planilha com ${config.gcpClientEmail} ou defina SHEET_ID_${unitKey.toUpperCase()} no EasyPanel.`,
+  );
 }
 
 export async function resolveUnitSheet(unit: UnitConfig): Promise<ResolvedUnitConfig> {
-  if (unit.sheetId.trim()) {
-    return { ...unit, resolvedSheetId: unit.sheetId.trim() };
-  }
-
   const cached = resolvedSheetCache.get(unit.key);
-  if (cached) {
-    return { ...unit, resolvedSheetId: cached };
-  }
+  if (cached) return cached;
 
-  const resolvedSheetId = await findSheetIdByName(unit.sheetName);
-  resolvedSheetCache.set(unit.key, resolvedSheetId);
-  return { ...unit, resolvedSheetId };
+  const resolvedSheetId = unit.sheetId.trim() || await findSheetIdByName(unit.sheetName, unit.key);
+  const resolvedSheetTab = await resolveSheetTab(resolvedSheetId, unit.sheetTab);
+  const resolved = { ...unit, resolvedSheetId, resolvedSheetTab };
+  resolvedSheetCache.set(unit.key, resolved);
+  return resolved;
 }
 
 function assertUnitSheet(unit: ResolvedUnitConfig): void {
@@ -123,7 +152,7 @@ async function loadSheetWindows(unit: ResolvedUnitConfig): Promise<SheetRow[]> {
   const node = join(process.env.ProgramFiles || "C:\\Program Files", "nodejs", "node.exe");
   const { stdout } = await execFileAsync(
     node,
-    ["--use-system-ca", loadScript, unit.resolvedSheetId, unit.sheetTab],
+    ["--use-system-ca", loadScript, unit.resolvedSheetId, unit.resolvedSheetTab],
     { maxBuffer: 30 * 1024 * 1024, encoding: "utf8", cwd: join(__dirname, "../..") },
   );
   return JSON.parse(stdout.trim() || "[]");
@@ -134,7 +163,7 @@ async function loadSheetDirect(unit: ResolvedUnitConfig): Promise<SheetRow[]> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: unit.resolvedSheetId,
-    range: `'${unit.sheetTab}'!A:ZZ`,
+    range: `'${unit.resolvedSheetTab}'!A:ZZ`,
   });
 
   const { rows } = parseSheetValues(res.data.values || []);
@@ -208,7 +237,7 @@ async function ensureHeaders(unit: ResolvedUnitConfig): Promise<string[]> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: unit.resolvedSheetId,
-    range: `'${unit.sheetTab}'!1:1`,
+    range: `'${unit.resolvedSheetTab}'!1:1`,
   });
 
   const current = (res.data.values?.[0] || [])
@@ -218,7 +247,7 @@ async function ensureHeaders(unit: ResolvedUnitConfig): Promise<string[]> {
   if (!current.length) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: unit.resolvedSheetId,
-      range: `'${unit.sheetTab}'!A1`,
+      range: `'${unit.resolvedSheetTab}'!A1`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [DEFAULT_HEADERS] },
     });
@@ -230,7 +259,7 @@ async function ensureHeaders(unit: ResolvedUnitConfig): Promise<string[]> {
     const newHeaders = [...current, ...missing];
     await sheets.spreadsheets.values.update({
       spreadsheetId: unit.resolvedSheetId,
-      range: `'${unit.sheetTab}'!A1`,
+      range: `'${unit.resolvedSheetTab}'!A1`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [newHeaders] },
     });
@@ -267,7 +296,7 @@ export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promis
   const row = headers.map((h) => contrato[h] ?? "");
   await sheets.spreadsheets.values.append({
     spreadsheetId: resolved.resolvedSheetId,
-    range: `'${resolved.sheetTab}'!A:A`,
+    range: `'${resolved.resolvedSheetTab}'!A:A`,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
@@ -279,7 +308,7 @@ async function saveContractWindows(contrato: SheetRow, unit: ResolvedUnitConfig)
   const node = join(process.env.ProgramFiles || "C:\\Program Files", "nodejs", "node.exe");
   await execFileAsync(
     node,
-    ["--use-system-ca", saveScript, unit.resolvedSheetId, unit.sheetTab, JSON.stringify(contrato)],
+    ["--use-system-ca", saveScript, unit.resolvedSheetId, unit.resolvedSheetTab, JSON.stringify(contrato)],
     { maxBuffer: 5 * 1024 * 1024, encoding: "utf8", cwd: join(__dirname, "../..") },
   );
 }
@@ -298,7 +327,7 @@ async function loadSheetValues(unit: ResolvedUnitConfig): Promise<{ headers: str
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: unit.resolvedSheetId,
-    range: `'${unit.sheetTab}'!A:ZZ`,
+    range: `'${unit.resolvedSheetTab}'!A:ZZ`,
   });
   return parseSheetValues(res.data.values || []);
 }
@@ -344,13 +373,13 @@ export async function pruneUnitSheetToDemo(unit: UnitConfig): Promise<{
 
   await sheets.spreadsheets.values.clear({
     spreadsheetId: resolved.resolvedSheetId,
-    range: `'${resolved.sheetTab}'!A2:ZZ`,
+    range: `'${resolved.resolvedSheetTab}'!A2:ZZ`,
   });
 
   if (outputRows.length) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: resolved.resolvedSheetId,
-      range: `'${resolved.sheetTab}'!A2`,
+      range: `'${resolved.resolvedSheetTab}'!A2`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: outputRows },
     });

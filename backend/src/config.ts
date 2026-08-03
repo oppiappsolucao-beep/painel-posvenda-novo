@@ -86,6 +86,7 @@ export function getConfiguredUnits(): UnitConfig[] {
 
 export interface ResolvedUnitConfig extends UnitConfig {
   resolvedSheetId: string;
+  resolvedSheetTab: string;
 }
 
 /** @deprecated use units — mantido para compatibilidade interna */

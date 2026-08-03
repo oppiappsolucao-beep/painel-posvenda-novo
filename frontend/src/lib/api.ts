@@ -5,6 +5,16 @@ export const api = axios.create({
   withCredentials: true,
 });
 
+async function readBlobError(data: Blob): Promise<string> {
+  const text = await data.text();
+  try {
+    const json = JSON.parse(text) as { error?: string };
+    return json.error || text || "Erro na requisição.";
+  } catch {
+    return text || "Erro na requisição.";
+  }
+}
+
 export type UserRole = "operacao" | "financeiro";
 export type UnitKey = "campinas" | "piracicaba" | "indaiatuba";
 
@@ -78,19 +88,12 @@ export async function fetchStatusAssinatura(params: {
 export async function fetchContractPreview(unitKey: UnitKey, sheetIndex: number) {
   const response = await api.get(`/dashboard/contracts/preview/${unitKey}/${sheetIndex}`, {
     responseType: "blob",
-    validateStatus: (s) => s < 500,
+    validateStatus: () => true,
   });
 
   const contentType = String(response.headers["content-type"] ?? "");
-  if (!contentType.includes("pdf")) {
-    const text = await (response.data as Blob).text();
-    try {
-      const json = JSON.parse(text);
-      throw new Error(json.error || "Erro ao carregar contrato.");
-    } catch (e) {
-      if (e instanceof Error && e.message !== "Erro ao carregar contrato.") throw e;
-      throw new Error("Erro ao carregar contrato.");
-    }
+  if (response.status >= 400 || !contentType.includes("pdf")) {
+    throw new Error(await readBlobError(response.data as Blob));
   }
 
   return response.data as Blob;
@@ -99,19 +102,12 @@ export async function fetchContractPreview(unitKey: UnitKey, sheetIndex: number)
 export async function saveContract(contrato: Record<string, string>) {
   const response = await api.post("/dashboard/contracts", contrato, {
     responseType: "blob",
-    validateStatus: (s) => s < 500,
+    validateStatus: () => true,
   });
 
   const contentType = String(response.headers["content-type"] ?? "");
-  if (!contentType.includes("pdf")) {
-    const text = await (response.data as Blob).text();
-    try {
-      const json = JSON.parse(text);
-      throw new Error(json.error || "Erro ao salvar contrato.");
-    } catch (e) {
-      if (e instanceof Error && e.message !== "Erro ao salvar contrato.") throw e;
-      throw new Error("Erro ao salvar contrato.");
-    }
+  if (response.status >= 400 || !contentType.includes("pdf")) {
+    throw new Error(await readBlobError(response.data as Blob));
   }
 
   const disposition = response.headers["content-disposition"] as string | undefined;

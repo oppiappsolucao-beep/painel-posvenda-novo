@@ -407,7 +407,8 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
     res.setHeader("Content-Disposition", `attachment; filename="contrato_${nome}.pdf"`);
     res.send(pdf);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
   }
 });
 
