@@ -108,6 +108,15 @@ export const config = {
   /** Planilha Campinas — retrocompatível com SHEET_ID */
   sheetId: campinasSheetId,
   sheetTab: sharedSheetTab,
+  twoFactorEmail: (process.env.TWO_FA_EMAIL || "contato@skoobpet.com.br").trim().toLowerCase(),
+  smtp: {
+    host: process.env.SMTP_HOST || "",
+    port: parseInt(process.env.SMTP_PORT || "587", 10),
+    secure: process.env.SMTP_SECURE === "true",
+    user: process.env.SMTP_USER || "",
+    pass: process.env.SMTP_PASS || "",
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || "contato@skoobpet.com.br",
+  },
 };
 
 export const DEFAULT_HEADERS = [

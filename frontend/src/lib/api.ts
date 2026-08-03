@@ -24,9 +24,40 @@ export interface AuthUser {
   unit?: UnitKey;
 }
 
+export interface LoginPending2fa {
+  requires2fa: true;
+  challengeId: string;
+  message: string;
+}
+
+export type LoginResult = AuthUser | LoginPending2fa;
+
+export function isLoginPending2fa(result: LoginResult): result is LoginPending2fa {
+  return "requires2fa" in result && result.requires2fa === true;
+}
+
 export async function login(username: string, password: string, role?: "financeiro") {
-  const { data } = await api.post<AuthUser>("/auth/login", { username, password, role });
-  return data;
+  try {
+    const { data } = await api.post<LoginResult>("/auth/login", { username, password, role });
+    return data;
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      throw new Error(err.response?.data?.error || "Não foi possível entrar.");
+    }
+    throw err;
+  }
+}
+
+export async function verify2fa(challengeId: string, code: string) {
+  try {
+    const { data } = await api.post<AuthUser>("/auth/verify-2fa", { challengeId, code });
+    return data;
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      throw new Error(err.response?.data?.error || "Código inválido.");
+    }
+    throw err;
+  }
 }
 
 export async function logout() {

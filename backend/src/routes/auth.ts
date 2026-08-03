@@ -1,12 +1,24 @@
-import { Router } from "express";
-import { config, getUnitByEmail, normalizeEmail } from "../config.js";
+import { Router, Response } from "express";
+import { config, getUnitByEmail, normalizeEmail, UnitKey } from "../config.js";
 import { signToken, authMiddleware, AuthRequest } from "../middleware/auth.js";
+import { startTwoFactorChallenge, verifyTwoFactorChallenge } from "../services/twoFactor.js";
 
 const router = Router();
 
 function cookieOptions() {
   const secure = process.env.NODE_ENV === "production" || config.frontendUrl.startsWith("https://");
   return { httpOnly: true, sameSite: "lax" as const, secure, maxAge: 12 * 3600 * 1000 };
+}
+
+function issueSession(
+  res: Response,
+  username: string,
+  roles: Array<"operacao" | "financeiro">,
+  unit?: UnitKey,
+) {
+  const token = signToken({ username, roles, unit });
+  res.cookie("token", token, cookieOptions());
+  res.json({ username, roles, unit });
 }
 
 function isOperacaoUser(username: string, password: string): boolean {
@@ -23,7 +35,7 @@ function isFinanceiroUser(username: string, password: string): boolean {
   );
 }
 
-router.post("/login", (req, res) => {
+router.post("/login", async (req, res) => {
   const { username, password, role } = req.body as {
     username?: string;
     password?: string;
@@ -41,9 +53,7 @@ router.post("/login", (req, res) => {
       return;
     }
     const email = normalizeEmail(username);
-    const token = signToken({ username: email, roles: ["operacao", "financeiro"] });
-    res.cookie("token", token, cookieOptions());
-    res.json({ username: email, roles: ["operacao", "financeiro"] });
+    issueSession(res, email, ["operacao", "financeiro"]);
     return;
   }
 
@@ -52,11 +62,43 @@ router.post("/login", (req, res) => {
     return;
   }
 
-  const email = normalizeEmail(username);
-  const unit = getUnitByEmail(email)?.key;
-  const token = signToken({ username: email, roles: ["operacao"], unit });
-  res.cookie("token", token, cookieOptions());
-  res.json({ username: email, roles: ["operacao"], unit });
+  try {
+    const email = normalizeEmail(username);
+    const unitConfig = getUnitByEmail(email);
+    const challengeId = await startTwoFactorChallenge({
+      username: email,
+      roles: ["operacao"],
+      unit: unitConfig?.key,
+      unitLabel: unitConfig?.label,
+      recipientEmail: config.twoFactorEmail,
+    });
+
+    res.json({
+      requires2fa: true,
+      challengeId,
+      message: `Código enviado para ${config.twoFactorEmail}.`,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.post("/verify-2fa", (req, res) => {
+  const { challengeId, code } = req.body as { challengeId?: string; code?: string };
+
+  if (!challengeId || !code) {
+    res.status(400).json({ error: "Informe o código de verificação." });
+    return;
+  }
+
+  try {
+    const session = verifyTwoFactorChallenge(challengeId, code);
+    issueSession(res, session.username, session.roles, session.unit);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(401).json({ error: msg });
+  }
 });
 
 router.post("/logout", (_req, res) => {

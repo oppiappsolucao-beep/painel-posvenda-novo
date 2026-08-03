@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { AuthUser, getMe, login as apiLogin, logout as apiLogout } from "../lib/api";
+import { AuthUser, getMe, login as apiLogin, logout as apiLogout, verify2fa as apiVerify2fa, LoginResult, isLoginPending2fa } from "../lib/api";
 
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (username: string, password: string, role?: "financeiro") => Promise<void>;
+  login: (username: string, password: string, role?: "financeiro") => Promise<LoginResult>;
+  verify2fa: (challengeId: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
   hasRole: (role: "operacao" | "financeiro") => boolean;
 }
@@ -23,8 +24,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (username: string, password: string, role?: "financeiro") => {
-    const u = await apiLogin(username, password, role);
-    setUser(u);
+    const result = await apiLogin(username, password, role);
+    if (!isLoginPending2fa(result)) {
+      setUser(result);
+    }
+    return result;
+  };
+
+  const verify2fa = async (challengeId: string, code: string) => {
+    const userData = await apiVerify2fa(challengeId, code);
+    setUser(userData);
   };
 
   const logout = async () => {
@@ -35,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = (role: "operacao" | "financeiro") => !!user?.roles.includes(role);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, hasRole }}>
+    <AuthContext.Provider value={{ user, loading, login, verify2fa, logout, hasRole }}>
       {children}
     </AuthContext.Provider>
   );
