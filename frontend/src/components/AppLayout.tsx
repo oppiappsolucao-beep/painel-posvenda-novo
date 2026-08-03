@@ -56,7 +56,7 @@ export function AppLayout({ title, caption, emoji, children, requireFinance }: A
 
         <div className="flex-1 text-center">
           <div className="flex justify-center mb-1">
-            <Logo size={84} />
+            <Logo variant="circle" size={88} />
           </div>
           <h1 className="text-xl font-black text-slate-900 m-0">{emoji} {title}</h1>
           {caption && <p className="text-sm text-slate-500 mt-1">{caption}</p>}

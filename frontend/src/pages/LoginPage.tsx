@@ -125,12 +125,7 @@ function LoginShell({
       <div className="w-full max-w-md">
         <div className="text-center mb-5">
           <div className="flex justify-center">
-            <div className="w-44 h-44 rounded-full overflow-hidden shadow-xl bg-white">
-              <Logo
-                className="w-full h-full"
-                style={{ width: "100%", height: "100%", objectFit: "contain" }}
-              />
-            </div>
+            <Logo variant="circle" size={176} />
           </div>
           <p className="text-white font-medium mt-3 text-[15px] drop-shadow-sm">{subtitle}</p>
         </div>
