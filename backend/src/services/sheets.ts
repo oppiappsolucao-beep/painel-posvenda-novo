@@ -145,11 +145,27 @@ function normCity(value: string): string {
 }
 
 function cityFromRow(row: SheetRow): string {
-  const unidade = normCity(row["Unidade"] || "");
-  const cidade = normCity(row["Cidade"] || "");
-  for (const target of DEMO_CITIES) {
-    if (unidade.includes(target) || cidade.includes(target)) return target;
+  const fields = [
+    row["Unidade"],
+    row["Cidade"],
+    row["Cidade do comprador"],
+  ];
+
+  for (const value of fields) {
+    const normalized = normCity(String(value || ""));
+    for (const target of DEMO_CITIES) {
+      if (normalized.includes(target)) return target;
+    }
   }
+
+  // Fallback: procura o nome da cidade em qualquer coluna da linha.
+  for (const value of Object.values(row)) {
+    const normalized = normCity(String(value || ""));
+    for (const target of DEMO_CITIES) {
+      if (normalized.includes(target)) return target;
+    }
+  }
+
   return "";
 }
 
@@ -182,6 +198,7 @@ export async function pruneMainSheetToDemo(): Promise<{
   before: number;
   after: number;
   kept: Array<{ city: string; nome: string }>;
+  missing: string[];
 }> {
   const sheets = getSheets();
   const { headers, rows } = await loadSheetValues();
@@ -192,17 +209,27 @@ export async function pruneMainSheetToDemo(): Promise<{
 
   const keptRows: SheetRow[] = [];
   const kept: Array<{ city: string; nome: string }> = [];
+  const missing: string[] = [];
+  const usedIndexes = new Set<number>();
 
   for (const target of DEMO_CITIES) {
-    const match = rows.find((row) => cityFromRow(row) === target);
-    if (!match) {
-      throw new Error(`Nenhum cliente encontrado para ${target}.`);
+    const matchIndex = rows.findIndex((row, index) => !usedIndexes.has(index) && cityFromRow(row) === target);
+    if (matchIndex < 0) {
+      missing.push(target);
+      continue;
     }
+
+    const match = rows[matchIndex];
+    usedIndexes.add(matchIndex);
     keptRows.push(match);
     kept.push({
       city: target,
       nome: String(match["Nome"] || "Sem nome"),
     });
+  }
+
+  if (!keptRows.length) {
+    throw new Error("Nenhum cliente encontrado para Campinas, Piracicaba ou Indaiatuba.");
   }
 
   const outputRows = keptRows.map((row) => headers.map((h) => row[h] ?? ""));
@@ -219,5 +246,5 @@ export async function pruneMainSheetToDemo(): Promise<{
     requestBody: { values: outputRows },
   });
 
-  return { before: rows.length, after: keptRows.length, kept };
+  return { before: rows.length, after: keptRows.length, kept, missing };
 }

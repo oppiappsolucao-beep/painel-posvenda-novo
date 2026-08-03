@@ -28,10 +28,18 @@ function norm(value) {
 }
 
 function cityFromRow(row) {
-  const unidade = norm(row["Unidade"]);
-  const cidade = norm(row["Cidade"]);
-  for (const target of TARGET_CITIES) {
-    if (unidade.includes(target) || cidade.includes(target)) return target;
+  const fields = [row["Unidade"], row["Cidade"], row["Cidade do comprador"]];
+  for (const value of fields) {
+    const normalized = norm(value);
+    for (const target of TARGET_CITIES) {
+      if (normalized.includes(target)) return target;
+    }
+  }
+  for (const value of Object.values(row)) {
+    const normalized = norm(value);
+    for (const target of TARGET_CITIES) {
+      if (normalized.includes(target)) return target;
+    }
   }
   return "";
 }
@@ -61,19 +69,23 @@ for (let i = 1; i < values.length; i++) {
 
 const kept = [];
 const keptNames = [];
+const missing = [];
+const usedIndexes = new Set();
 
 for (const target of TARGET_CITIES) {
-  const match = rows.find((row) => cityFromRow(row) === target);
-  if (match) {
-    kept.push(match);
-    keptNames.push(`${match["Nome"] || "Sem nome"} (${target})`);
+  const matchIndex = rows.findIndex((row, index) => !usedIndexes.has(index) && cityFromRow(row) === target);
+  if (matchIndex < 0) {
+    missing.push(target);
+    continue;
   }
+  const match = rows[matchIndex];
+  usedIndexes.add(matchIndex);
+  kept.push(match);
+  keptNames.push(`${match["Nome"] || "Sem nome"} (${target})`);
 }
 
-if (kept.length !== TARGET_CITIES.length) {
-  const found = kept.map((row) => cityFromRow(row));
-  console.error("Nao foi possivel encontrar 1 cliente para cada cidade.");
-  console.error("Encontrados:", found.join(", ") || "nenhum");
+if (!kept.length) {
+  console.error("Nenhum cliente encontrado para Campinas, Piracicaba ou Indaiatuba.");
   process.exit(1);
 }
 
@@ -92,5 +104,8 @@ await sheets.spreadsheets.values.update({
 });
 
 console.log(`Planilha atualizada: ${rows.length} -> ${kept.length} registros.`);
+if (missing.length) {
+  console.log(`Sem cliente para: ${missing.join(", ")}`);
+}
 console.log("Mantidos:");
 for (const name of keptNames) console.log(`- ${name}`);

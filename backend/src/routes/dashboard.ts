@@ -388,9 +388,12 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req, r
 router.post("/prune-demo-data", authMiddleware, requireRole("financeiro"), async (_req, res) => {
   try {
     const result = await pruneMainSheetToDemo();
+    const missingNote = result.missing.length
+      ? ` Sem cliente para: ${result.missing.join(", ")}.`
+      : "";
     res.json({
       ok: true,
-      message: `Planilha reduzida de ${result.before} para ${result.after} registros.`,
+      message: `Planilha reduzida de ${result.before} para ${result.after} registros.${missingNote}`,
       ...result,
     });
   } catch (e) {
