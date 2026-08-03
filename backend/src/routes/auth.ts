@@ -1,7 +1,14 @@
 import { Router, Response } from "express";
 import { config, getUnitByEmail, normalizeEmail, UnitKey } from "../config.js";
-import { signToken, authMiddleware, AuthRequest } from "../middleware/auth.js";
-import { startTwoFactorChallenge, verifyTwoFactorChallenge } from "../services/twoFactor.js";
+import { signToken, authMiddleware, requireRole, AuthRequest } from "../middleware/auth.js";
+import {
+  assertNotLocked,
+  clearLoginFailures,
+  listLockedAccounts,
+  recordLoginFailure,
+  unlockAccount,
+} from "../services/loginLockout.js";
+import { peekPendingUsername, startTwoFactorChallenge, verifyTwoFactorChallenge } from "../services/twoFactor.js";
 
 const router = Router();
 
@@ -35,6 +42,21 @@ function isFinanceiroUser(username: string, password: string): boolean {
   );
 }
 
+function lockoutResponse(res: Response, failure: { locked: boolean; attemptsLeft: number }) {
+  if (failure.locked) {
+    res.status(403).json({
+      error: "Acesso bloqueado após 3 tentativas incorretas. Solicite o desbloqueio ao financeiro (controle@skoobpet.com.br).",
+      locked: true,
+    });
+    return;
+  }
+
+  res.status(401).json({
+    error: `Credenciais inválidas. Restam ${failure.attemptsLeft} tentativa(s) antes do bloqueio.`,
+    attemptsLeft: failure.attemptsLeft,
+  });
+}
+
 router.post("/login", async (req, res) => {
   const { username, password, role } = req.body as {
     username?: string;
@@ -57,13 +79,24 @@ router.post("/login", async (req, res) => {
     return;
   }
 
-  if (!isOperacaoUser(username, password)) {
-    res.status(401).json({ error: "Credenciais inválidas" });
+  const email = normalizeEmail(username);
+
+  try {
+    assertNotLocked(email);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(403).json({ error: msg, locked: true });
     return;
   }
 
-  const email = normalizeEmail(username);
+  if (!isOperacaoUser(username, password)) {
+    const failure = recordLoginFailure(email);
+    lockoutResponse(res, failure);
+    return;
+  }
+
   const unitConfig = getUnitByEmail(email);
+  clearLoginFailures(email);
 
   if (!config.twoFactorEnabled) {
     issueSession(res, email, ["operacao"], unitConfig?.key);
@@ -102,13 +135,66 @@ router.post("/verify-2fa", (req, res) => {
     return;
   }
 
+  const pendingEmail = peekPendingUsername(challengeId);
+  if (pendingEmail) {
+    try {
+      assertNotLocked(pendingEmail);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      res.status(403).json({ error: msg, locked: true });
+      return;
+    }
+  }
+
   try {
     const session = verifyTwoFactorChallenge(challengeId, code);
+    clearLoginFailures(session.username);
     issueSession(res, session.username, session.roles, session.unit);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    if (pendingEmail && msg === "Código incorreto.") {
+      const failure = recordLoginFailure(pendingEmail);
+      if (failure.locked) {
+        res.status(403).json({
+          error: "Acesso bloqueado após 3 tentativas incorretas. Solicite o desbloqueio ao financeiro (controle@skoobpet.com.br).",
+          locked: true,
+        });
+        return;
+      }
+      res.status(401).json({
+        error: `Código incorreto. Restam ${failure.attemptsLeft} tentativa(s) antes do bloqueio.`,
+        attemptsLeft: failure.attemptsLeft,
+      });
+      return;
+    }
     res.status(401).json({ error: msg });
   }
+});
+
+router.get("/locked-accounts", authMiddleware, requireRole("financeiro"), (_req, res) => {
+  res.json({ items: listLockedAccounts() });
+});
+
+router.post("/unlock-account", authMiddleware, requireRole("financeiro"), (req, res) => {
+  const { email } = req.body as { email?: string };
+  if (!email?.trim()) {
+    res.status(400).json({ error: "Informe o e-mail da unidade." });
+    return;
+  }
+
+  const normalized = normalizeEmail(email);
+  const unit = getUnitByEmail(normalized);
+  if (!unit) {
+    res.status(400).json({ error: "E-mail de unidade inválido." });
+    return;
+  }
+
+  unlockAccount(normalized);
+  res.json({
+    ok: true,
+    message: `Acesso de ${unit.label} desbloqueado.`,
+    email: normalized,
+  });
 });
 
 router.post("/logout", (_req, res) => {

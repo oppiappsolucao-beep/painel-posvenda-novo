@@ -60,6 +60,23 @@ export async function verify2fa(challengeId: string, code: string) {
   }
 }
 
+export interface LockedAccount {
+  email: string;
+  unitLabel: string;
+  attempts: number;
+  lockedAt: string;
+}
+
+export async function fetchLockedAccounts() {
+  const { data } = await api.get<{ items: LockedAccount[] }>("/auth/locked-accounts");
+  return data.items;
+}
+
+export async function unlockAccount(email: string) {
+  const { data } = await api.post<{ ok: boolean; message: string }>("/auth/unlock-account", { email });
+  return data;
+}
+
 export async function logout() {
   await api.post("/auth/logout");
 }

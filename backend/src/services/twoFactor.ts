@@ -60,6 +60,11 @@ export async function startTwoFactorChallenge(params: {
   return challengeId;
 }
 
+export function peekPendingUsername(challengeId: string): string | null {
+  cleanupExpired();
+  return pendingLogins.get(challengeId)?.username ?? null;
+}
+
 export function verifyTwoFactorChallenge(
   challengeId: string,
   code: string,
