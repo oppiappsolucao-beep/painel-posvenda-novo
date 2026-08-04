@@ -1,6 +1,7 @@
 import PDFDocument from "pdfkit";
 import { SheetRow } from "../config.js";
-import { generateCampinasContractPdf } from "./pdfCampinas.js";
+import { ContractAttachmentImages } from "./contractAttachments.js";
+import { ContractSignatureImages, generateCampinasContractPdf } from "./pdfCampinas.js";
 
 /** Dados fictícios do vendedor — outras unidades (modelo simplificado) */
 const VENDEDOR_TESTE =
@@ -108,9 +109,13 @@ function generateDefaultContractPdf(contrato: SheetRow): Promise<Buffer> {
   });
 }
 
-export function generateContractPdf(contrato: SheetRow): Promise<Buffer> {
+export function generateContractPdf(
+  contrato: SheetRow,
+  signatures?: ContractSignatureImages,
+  attachments?: ContractAttachmentImages,
+): Promise<Buffer> {
   if (isCampinas(contrato)) {
-    return generateCampinasContractPdf(contrato);
+    return generateCampinasContractPdf(contrato, signatures, attachments);
   }
   return generateDefaultContractPdf(contrato);
 }

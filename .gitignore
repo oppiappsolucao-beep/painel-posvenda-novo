@@ -2,6 +2,9 @@ node_modules/
 dist/
 .env
 backend/.env
+backend/data/signatures.json
+backend/data/attachments.json
+backend/data/attachments/
 *.log
 .DS_Store
 venv/

@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import { AppLayout } from "../components/AppLayout";
 import { useAuth } from "../context/AuthContext";
 import { saveContract } from "../lib/api";
+import { ImageUploadField, compactAnexos, type ContractAnexos } from "../components/ImageUploadField";
 import {
   CIDADES, ESTADOS, RACAS_CANINA, RACAS_FELINA,
   COLORS, defaultUnitFilter, formatCpfInput, formatDateInput, isCpfComplete, monthKeyNow,
@@ -13,6 +14,7 @@ export function NovoContratoPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [clientSignUrl, setClientSignUrl] = useState("");
 
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -49,6 +51,16 @@ export function NovoContratoPage() {
   const [mes, setMes] = useState(monthKeyNow());
   const [unidade, setUnidade] = useState(() => defaultUnitFilter(user?.unit) === "Todas" ? "Campinas" : defaultUnitFilter(user?.unit));
 
+  const [anexos, setAnexos] = useState<ContractAnexos>({
+    rgFrente: null,
+    rgVerso: null,
+    carteirinha: null,
+    laudo: null,
+    fotoAnimal: null,
+  });
+
+  const isCampinas = unidade.toLowerCase().includes("campinas");
+
   if (!loading && !user) return <Navigate to="/login" replace />;
 
   const raca = racaOpcao === "Outro" ? racaOutro : racaOpcao;
@@ -59,6 +71,7 @@ export function NovoContratoPage() {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setClientSignUrl("");
     setCpfError("");
 
     if (!isCpfComplete(cpf)) {
@@ -100,8 +113,12 @@ export function NovoContratoPage() {
     };
 
     try {
-      await saveContract(contrato);
+      const anexosPayload = isCampinas ? compactAnexos(anexos) : undefined;
+      const result = await saveContract(contrato, anexosPayload);
       setSuccess("Contrato salvo com sucesso! PDF baixado automaticamente.");
+      if (result.clientSignUrl) {
+        setClientSignUrl(result.clientSignUrl);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao salvar contrato.");
     } finally {
@@ -114,6 +131,29 @@ export function NovoContratoPage() {
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg p-6 md:p-8 space-y-8">
         {error && <div className="text-red-600 bg-red-50 rounded-xl p-3 text-sm">{error}</div>}
         {success && <div className="text-green-700 bg-green-50 rounded-xl p-3 text-sm">{success}</div>}
+        {clientSignUrl && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+            <div className="font-semibold text-blue-900">Link para o cliente assinar</div>
+            <p className="text-sm text-blue-800">
+              Envie este link por WhatsApp ou e-mail para o cliente assinar o contrato no celular.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                readOnly
+                value={clientSignUrl}
+                className="flex-1 rounded-lg border border-blue-200 px-3 py-2 text-sm bg-white text-slate-700"
+              />
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(clientSignUrl)}
+                className="px-4 py-2 rounded-lg text-white font-semibold text-sm shrink-0"
+                style={{ background: COLORS.navy }}
+              >
+                Copiar link
+              </button>
+            </div>
+          </div>
+        )}
 
         <Section title="Dados do comprador" icon="👤">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -171,6 +211,46 @@ export function NovoContratoPage() {
             <Field label="Unidade" value={unidade} onChange={setUnidade} readOnly={!!user?.unit} />
           </div>
         </Section>
+
+        {isCampinas && (
+          <Section title="Documentos e fotos (anexos do PDF)" icon="📎">
+            <p className="text-sm text-slate-500 mb-4">
+              Anexe fotos que serão incluídas automaticamente nas últimas páginas do contrato em PDF.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <ImageUploadField
+                label="RG — Frente"
+                hint="Foto nítida da frente do documento"
+                value={anexos.rgFrente ?? null}
+                onChange={(v) => setAnexos((prev) => ({ ...prev, rgFrente: v }))}
+              />
+              <ImageUploadField
+                label="RG — Verso"
+                hint="Foto nítida do verso do documento"
+                value={anexos.rgVerso ?? null}
+                onChange={(v) => setAnexos((prev) => ({ ...prev, rgVerso: v }))}
+              />
+              <ImageUploadField
+                label="Carteirinha do filhote"
+                hint="Carteira de vacinação"
+                value={anexos.carteirinha ?? null}
+                onChange={(v) => setAnexos((prev) => ({ ...prev, carteirinha: v }))}
+              />
+              <ImageUploadField
+                label="Laudo de saúde"
+                hint="Atestado ou laudo veterinário"
+                value={anexos.laudo ?? null}
+                onChange={(v) => setAnexos((prev) => ({ ...prev, laudo: v }))}
+              />
+              <ImageUploadField
+                label="Foto do animal"
+                hint="Foto do filhote"
+                value={anexos.fotoAnimal ?? null}
+                onChange={(v) => setAnexos((prev) => ({ ...prev, fotoAnimal: v }))}
+              />
+            </div>
+          </Section>
+        )}
 
         <button
           type="submit"

@@ -22,7 +22,7 @@ import {
   todayMonthKey,
   todaySaoPaulo,
 } from "../utils/formatters.js";
-import { getUnitByKey, LoadedRow, UnitKey } from "../config.js";
+import { getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } from "../config.js";
 import {
   getContractRow,
   loadRowsForUser,
@@ -30,7 +30,20 @@ import {
   saveContractForUser,
 } from "../services/sheets.js";
 import { generateContractPdf } from "../services/pdf.js";
-import { buildSignatureProgress } from "../services/signatureStatus.js";
+import { buildSignatureProgress, isContratoAssinadoInApp } from "../services/signatureStatus.js";
+import {
+  clientSignUrl,
+  createSignatureSession,
+  getSignature,
+  loadSignaturesMap,
+  signatureImages,
+  SignatureRecord,
+} from "../services/signatures.js";
+import {
+  getContractAttachmentBuffers,
+  saveContractAttachments,
+  AttachmentKind,
+} from "../services/contractAttachments.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middleware/auth.js";
 
 const router = Router();
@@ -177,7 +190,20 @@ function buildVisaoGeralData(rows: Record<string, string>[], mes: string, unidad
   return { ...oper, financeiro: fin.kpis, finCharts: fin.charts, tabelaVendedor: fin.tabelaVendedor };
 }
 
-function isContratoAssinado(row: Record<string, string>, statusCol: string | null): boolean {
+function signatureKey(unitKey: UnitKey, sheetIndex: number): string {
+  return `${unitKey}:${sheetIndex}`;
+}
+
+function isContratoAssinado(
+  row: Record<string, string>,
+  statusCol: string | null,
+  unitKey: UnitKey,
+  record?: SignatureRecord | null,
+): boolean {
+  if (unitKey === "campinas") {
+    return isContratoAssinadoInApp(record);
+  }
+
   const st = norm(statusCol ? row[statusCol] : row["Status"]);
   if (st) {
     if (st.includes("nao assin") || st.includes("não assin") || st.includes("pendent") || st.includes("aguard")) {
@@ -191,11 +217,15 @@ function isContratoAssinado(row: Record<string, string>, statusCol: string | nul
   );
 }
 
-function getDisparoEm(row: Record<string, string>): string {
+function getDisparoEm(row: Record<string, string>, record?: SignatureRecord | null): string {
+  if (record?.sentAt) return record.sentAt;
   return String(row["Data Envio"] || row["Documento ZapSign"] || "").trim();
 }
 
-function getAtualizadoEm(row: Record<string, string>): string {
+function getAtualizadoEm(row: Record<string, string>, record?: SignatureRecord | null): string {
+  if (record?.lojaSignedAt) return record.lojaSignedAt;
+  if (record?.clienteSignedAt) return record.clienteSignedAt;
+  if (record?.sentAt) return record.sentAt;
   return String(
     row["Data Assinatura Cliente"] ||
     row["Data Assinatura Loja"] ||
@@ -224,6 +254,7 @@ function buildStatusAssinaturaData(
   dataInicio: string,
   dataFim: string,
   statusFilter: string,
+  signatures: Map<string, SignatureRecord>,
 ) {
   const rows = toSheetRows(loaded);
   const cols = rows.length ? Object.keys(rows[0]) : [];
@@ -233,12 +264,18 @@ function buildStatusAssinaturaData(
 
   let filtered = loaded.map((item, index) => {
     const row = item.data;
+    const record = signatures.get(signatureKey(item.unitKey, item.sheetIndex)) || null;
     const nomeCliente = nomeCol ? String(row[nomeCol] || "").trim() : "";
-    const assinado = isContratoAssinado(row, statusCol);
-    const disparoEm = getDisparoEm(row);
-    const atualizadoEm = getAtualizadoEm(row);
-    const linkAssinatura = String(row["Link Assinatura"] || "").trim();
+    const assinado = isContratoAssinado(row, statusCol, item.unitKey, record);
+    const disparoEm = getDisparoEm(row, record);
+    const atualizadoEm = getAtualizadoEm(row, record);
+    const linkAssinatura =
+      item.unitKey === "campinas" && record
+        ? clientSignUrl(record.clientToken)
+        : String(row["Link Assinatura"] || "").trim();
     const identificador = `contrato_${limparNomeArquivo(nomeCliente || `registro_${index + 1}`)}.pdf`;
+    const assinatura = buildSignatureProgress(row, item.unitKey, record);
+    const podeAssinarLoja = Boolean(record?.clienteSignedAt && !record?.lojaSignedAt);
 
     return {
       sheetIndex: item.sheetIndex,
@@ -255,7 +292,9 @@ function buildStatusAssinaturaData(
       telefone: String(row["Telefone"] || "").trim(),
       referenciaData: getReferenciaData(row),
       sortTimestamp: getSortTimestamp(row),
-      assinatura: buildSignatureProgress(row, item.unitKey),
+      assinatura,
+      podeAssinarLoja,
+      inAppSignature: item.unitKey === "campinas",
     };
   });
 
@@ -346,7 +385,8 @@ router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async 
     const dataFim = String(req.query.dataFim || "");
     const status = String(req.query.status || "todos");
     const loaded = await loadRowsForUser(req.user!);
-    res.json(buildStatusAssinaturaData(loaded, nome, dataInicio, dataFim, status));
+    const signatures = await loadSignaturesMap();
+    res.json(buildStatusAssinaturaData(loaded, nome, dataInicio, dataFim, status, signatures));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });
@@ -372,7 +412,9 @@ router.get("/contracts/preview/:unitKey/:sheetIndex", authMiddleware, requireRol
       return;
     }
 
-    const pdf = await generateContractPdf(contrato);
+    const record = await getSignature(unitKey, sheetIndex);
+    const attachments = await getContractAttachmentBuffers(unitKey, sheetIndex);
+    const pdf = await generateContractPdf(contrato, signatureImages(record), attachments);
     const nome = limparNomeArquivo(String(contrato["Nome"] || "contrato"));
 
     res.setHeader("Content-Type", "application/pdf");
@@ -385,7 +427,13 @@ router.get("/contracts/preview/:unitKey/:sheetIndex", authMiddleware, requireRol
 
 router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
   try {
-    const contrato = req.body as Record<string, string>;
+    const body = req.body as {
+      contrato?: Record<string, string>;
+      anexos?: Partial<Record<AttachmentKind, string>>;
+    } & Record<string, string>;
+
+    const contrato = (body.contrato && typeof body.contrato === "object" ? body.contrato : body) as Record<string, string>;
+    const anexos = body.anexos;
     const obrigatorios = ["Nome", "Telefone", "CPF", "E-mail", "Raça", "Sexo", "Cor", "Pelagem", "Data Compra", "Valor Filhote"];
     const faltando = obrigatorios.filter((k) => !String(contrato[k] || "").trim());
     if (faltando.length) {
@@ -401,13 +449,66 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
     const now = todaySaoPaulo();
     contrato["Data preenchimento"] = `${formatDateBr(now)} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
 
-    await saveContractForUser(contrato, req.user!);
-    const pdf = await generateContractPdf(contrato);
+    const sheetIndex = await saveContractForUser(contrato, req.user!);
+    const unitKey = req.user!.unit || getUnitByEmail(req.user!.username)?.key;
+
+    let record = null;
+    let clientSignUrlHeader = "";
+    if (unitKey === "campinas") {
+      record = await createSignatureSession(unitKey, sheetIndex, contrato);
+      clientSignUrlHeader = clientSignUrl(record.clientToken);
+      if (anexos && Object.keys(anexos).length) {
+        await saveContractAttachments(unitKey, sheetIndex, anexos);
+      }
+    }
+
+    const attachments = unitKey === "campinas" ? await getContractAttachmentBuffers(unitKey, sheetIndex) : undefined;
+    const pdf = await generateContractPdf(contrato, signatureImages(record), attachments);
     const nome = limparNomeArquivo(contrato["Nome"]);
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="contrato_${nome}.pdf"`);
+    if (clientSignUrlHeader) {
+      res.setHeader("X-Client-Sign-Url", clientSignUrlHeader);
+      res.setHeader("X-Sheet-Index", String(sheetIndex));
+    }
     res.send(pdf);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.post("/contracts/:unitKey/:sheetIndex/attachments", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
+  try {
+    const unitKey = String(req.params.unitKey) as UnitKey;
+    const sheetIndex = parseInt(String(req.params.sheetIndex), 10);
+    const anexos = req.body?.anexos as Partial<Record<AttachmentKind, string>> | undefined;
+
+    if (unitKey !== "campinas" || !getUnitByKey(unitKey) || !Number.isFinite(sheetIndex) || sheetIndex < 0) {
+      res.status(400).json({ error: "Parâmetros inválidos." });
+      return;
+    }
+
+    const userUnit = req.user?.unit;
+    if (userUnit && userUnit !== unitKey) {
+      res.status(403).json({ error: "Acesso negado para esta unidade." });
+      return;
+    }
+
+    if (!anexos || !Object.keys(anexos).length) {
+      res.status(400).json({ error: "Nenhuma imagem enviada." });
+      return;
+    }
+
+    const contrato = await getContractRow(unitKey, sheetIndex);
+    if (!contrato) {
+      res.status(404).json({ error: "Contrato não encontrado." });
+      return;
+    }
+
+    await saveContractAttachments(unitKey, sheetIndex, anexos);
+    res.json({ ok: true, message: "Anexos salvos com sucesso." });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });

@@ -7,6 +7,8 @@ import { fileURLToPath } from "url";
 import { config } from "./config.js";
 import authRoutes from "./routes/auth.js";
 import dashboardRoutes from "./routes/dashboard.js";
+import signatureRoutes from "./routes/signatures.js";
+import { getDatabaseHealth, initDatabase } from "./db/init.js";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -31,14 +33,19 @@ app.use(
       callback(null, isAllowedOrigin(origin));
     },
     credentials: true,
+    exposedHeaders: ["X-Client-Sign-Url", "X-Sheet-Index"],
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: "30mb" }));
 app.use(cookieParser());
 
-app.get("/api/health", (_req, res) => res.json({ ok: true }));
+app.get("/api/health", async (_req, res) => {
+  const database = await getDatabaseHealth();
+  res.json({ ok: database.ok, database });
+});
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/signatures", signatureRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(publicDir));
@@ -57,12 +64,23 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-app.listen(config.port, "0.0.0.0", () => {
-  console.log(`SkoobPet online em http://0.0.0.0:${config.port} (${process.env.NODE_ENV || "development"})`);
-  const lan = Object.values(os.networkInterfaces())
-    .flat()
-    .find((n) => n?.family === "IPv4" && !n.internal)?.address;
-  if (lan && process.env.NODE_ENV !== "production") {
-    console.log(`Outros dispositivos na mesma rede Wi-Fi: http://${lan}:5173/login`);
+async function start() {
+  try {
+    await initDatabase();
+  } catch (e) {
+    console.error("[db] Falha ao conectar PostgreSQL:", e instanceof Error ? e.message : e);
+    process.exit(1);
   }
-});
+
+  app.listen(config.port, "0.0.0.0", () => {
+    console.log(`SkoobPet online em http://0.0.0.0:${config.port} (${process.env.NODE_ENV || "development"})`);
+    const lan = Object.values(os.networkInterfaces())
+      .flat()
+      .find((n) => n?.family === "IPv4" && !n.internal)?.address;
+    if (lan && process.env.NODE_ENV !== "production") {
+      console.log(`Outros dispositivos na mesma rede Wi-Fi: http://${lan}:5173/login`);
+    }
+  });
+}
+
+start();

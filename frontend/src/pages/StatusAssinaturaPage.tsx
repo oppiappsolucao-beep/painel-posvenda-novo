@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "../components/AppLayout";
 import { KpiCard } from "../components/KpiCard";
 import { useAuth } from "../context/AuthContext";
-import { fetchStatusAssinatura, fetchContractPreview, StatusAssinaturaItem, SignatureProgress, SignatarioItem } from "../lib/api";
+import { fetchStatusAssinatura, fetchContractPreview, StatusAssinaturaItem, SignatureProgress, SignatarioItem, initSignatureSession, signContractAsStore } from "../lib/api";
+import { SignaturePad } from "../components/SignaturePad";
 import { COLORS } from "../lib/utils";
 
 type SortMode = "ultimo_enviado" | "alfabetica";
@@ -24,6 +25,11 @@ export function StatusAssinaturaPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [signItem, setSignItem] = useState<StatusAssinaturaItem | null>(null);
+  const [storeSignature, setStoreSignature] = useState<string | null>(null);
+  const [signSubmitting, setSignSubmitting] = useState(false);
+  const [signError, setSignError] = useState("");
+  const [copyFeedback, setCopyFeedback] = useState("");
   const [applied, setApplied] = useState({ nome: "", dataInicio: "", dataFim: "", status: "todos" });
 
   useEffect(() => {
@@ -110,12 +116,68 @@ export function StatusAssinaturaPage() {
     }
   };
 
+  const copyClientLink = async (item: StatusAssinaturaItem, e: ReactMouseEvent) => {
+    e.stopPropagation();
+    let link = item.linkAssinatura || item.assinatura.clientSignUrl;
+    if (!link && item.inAppSignature) {
+      try {
+        const result = await initSignatureSession(item.unitKey, item.sheetIndex);
+        link = result.clientSignUrl;
+        await refetch();
+      } catch (err) {
+        setCopyFeedback(err instanceof Error ? err.message : "Erro ao gerar link.");
+        setTimeout(() => setCopyFeedback(""), 3000);
+        return;
+      }
+    }
+    if (!link) return;
+    await navigator.clipboard.writeText(link);
+    setCopyFeedback("Link copiado!");
+    setTimeout(() => setCopyFeedback(""), 2000);
+  };
+
+  const openStoreSign = (item: StatusAssinaturaItem, e: ReactMouseEvent) => {
+    e.stopPropagation();
+    setSignItem(item);
+    setStoreSignature(null);
+    setSignError("");
+  };
+
+  const closeStoreSign = () => {
+    setSignItem(null);
+    setStoreSignature(null);
+    setSignError("");
+  };
+
+  const submitStoreSign = async () => {
+    if (!signItem || !storeSignature) {
+      setSignError("Desenhe a assinatura da loja.");
+      return;
+    }
+    setSignSubmitting(true);
+    setSignError("");
+    try {
+      await signContractAsStore(signItem.unitKey, signItem.sheetIndex, storeSignature);
+      closeStoreSign();
+      await refetch();
+    } catch (err) {
+      setSignError(err instanceof Error ? err.message : "Erro ao assinar.");
+    } finally {
+      setSignSubmitting(false);
+    }
+  };
+
   return (
     <AppLayout
       title="Status De Assinatura"
       emoji="✍️"
       caption={data ? `Total de registros: ${data.total}` : undefined}
     >
+      {copyFeedback && (
+        <div className="mb-3 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-2">
+          {copyFeedback}
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
         <KpiCard
           title="✅ Contratos assinados"
@@ -322,7 +384,29 @@ export function StatusAssinaturaPage() {
                             {item.statusLabel}
                           </div>
                           <SignatureProgressPanel assinatura={item.assinatura} />
-                          {item.linkAssinatura && (
+                          {item.inAppSignature && item.status !== "assinado" && (
+                            <div className="mt-2 flex flex-wrap gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={(e) => copyClientLink(item, e)}
+                                className="text-xs px-3 py-1.5 rounded-lg text-white font-semibold"
+                                style={{ background: COLORS.navy2 }}
+                              >
+                                Copiar link do cliente
+                              </button>
+                              {item.podeAssinarLoja && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => openStoreSign(item, e)}
+                                  className="text-xs px-3 py-1.5 rounded-lg text-white font-semibold"
+                                  style={{ background: COLORS.wine }}
+                                >
+                                  Assinar como loja
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {!item.inAppSignature && item.linkAssinatura && (
                             <a
                               href={item.linkAssinatura}
                               target="_blank"
@@ -399,6 +483,46 @@ export function StatusAssinaturaPage() {
                   className="w-full h-full border-0 bg-white"
                 />
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {signItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={closeStoreSign}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-500">Assinatura da loja</div>
+              <div className="text-xl font-bold text-slate-900">{signItem.nome}</div>
+            </div>
+            <p className="text-sm text-slate-600">
+              O cliente já assinou. Desenhe a assinatura da unidade para concluir o contrato.
+            </p>
+            <SignaturePad onChange={setStoreSignature} />
+            {signError && <div className="text-sm text-red-600">{signError}</div>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={closeStoreSign}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 font-semibold text-slate-600"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={submitStoreSign}
+                disabled={signSubmitting || !storeSignature}
+                className="flex-1 py-2.5 rounded-xl text-white font-bold disabled:opacity-50"
+                style={{ background: COLORS.navy }}
+              >
+                {signSubmitting ? "Salvando..." : "Confirmar assinatura"}
+              </button>
             </div>
           </div>
         </div>
@@ -488,16 +612,8 @@ function SignatureProgressPanel({ assinatura }: { assinatura: SignatureProgress 
                 {signatario.papel}: {signatario.nome}
               </div>
               <div className="text-xs text-slate-500">{signatario.statusLabel}</div>
-              {signatario.linkAssinatura && signatario.status !== "assinado" && (
-                <a
-                  href={signatario.linkAssinatura}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-blue-600 hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Abrir link do signatário
-                </a>
+              {signatario.linkAssinatura && signatario.status !== "assinado" && signatario.papel === "Cliente" && (
+                <span className="text-xs text-slate-500 block mt-0.5">Link disponível para envio</span>
               )}
             </div>
           </div>

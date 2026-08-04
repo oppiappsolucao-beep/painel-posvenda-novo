@@ -1,4 +1,5 @@
 import { getUnitByKey, SheetRow, UnitKey } from "../config.js";
+import { SignatureRecord, clientSignUrl, isSignatureComplete } from "./signatures.js";
 
 export type SignatarioStatus = "assinado" | "pendente" | "aguardando" | "nao_enviado";
 
@@ -15,6 +16,8 @@ export interface SignatarioItem {
 export interface SignatureProgress {
   signatarios: SignatarioItem[];
   progresso: number;
+  inApp?: boolean;
+  clientSignUrl?: string;
 }
 
 function statusLabel(status: SignatarioStatus): string {
@@ -44,7 +47,81 @@ function lojaSignatario(unitKey: UnitKey): { nome: string; email: string } {
   };
 }
 
-export function buildSignatureProgress(row: SheetRow, unitKey: UnitKey): SignatureProgress {
+function buildFromRecord(record: SignatureRecord, row: SheetRow, unitKey: UnitKey): SignatureProgress {
+  const loja = lojaSignatario(unitKey);
+  const link = clientSignUrl(record.clientToken);
+
+  const clienteStatus: SignatarioStatus = record.clienteSignedAt ? "assinado" : "pendente";
+  const lojaStatus: SignatarioStatus = record.lojaSignedAt
+    ? "assinado"
+    : record.clienteSignedAt
+      ? "pendente"
+      : "aguardando";
+
+  const signatarios: SignatarioItem[] = [
+    {
+      papel: "Cliente",
+      nome: record.clienteNome || String(row["Nome"] || "Cliente").trim() || "Cliente",
+      email: record.clienteEmail || String(row["E-mail"] || "").trim(),
+      status: clienteStatus,
+      statusLabel: statusLabel(clienteStatus),
+      assinadoEm: record.clienteSignedAt || "—",
+      linkAssinatura: clienteStatus !== "assinado" ? link : undefined,
+    },
+    {
+      papel: "Loja",
+      nome: loja.nome,
+      email: loja.email,
+      status: lojaStatus,
+      statusLabel: statusLabel(lojaStatus),
+      assinadoEm: record.lojaSignedAt || "—",
+    },
+  ];
+
+  const assinados = signatarios.filter((s) => s.status === "assinado").length;
+
+  return {
+    signatarios,
+    progresso: Math.round((assinados / signatarios.length) * 100),
+    inApp: true,
+    clientSignUrl: link,
+  };
+}
+
+function buildCampinasEmpty(row: SheetRow, unitKey: UnitKey): SignatureProgress {
+  const loja = lojaSignatario(unitKey);
+  const signatarios: SignatarioItem[] = [
+    {
+      papel: "Cliente",
+      nome: String(row["Nome"] || "Cliente").trim() || "Cliente",
+      email: String(row["E-mail"] || "").trim(),
+      status: "nao_enviado",
+      statusLabel: statusLabel("nao_enviado"),
+      assinadoEm: "—",
+    },
+    {
+      papel: "Loja",
+      nome: loja.nome,
+      email: loja.email,
+      status: "nao_enviado",
+      statusLabel: statusLabel("nao_enviado"),
+      assinadoEm: "—",
+    },
+  ];
+
+  return { signatarios, progresso: 0, inApp: true };
+}
+
+export function buildSignatureProgress(
+  row: SheetRow,
+  unitKey: UnitKey,
+  record?: SignatureRecord | null,
+): SignatureProgress {
+  if (unitKey === "campinas") {
+    if (record) return buildFromRecord(record, row, unitKey);
+    return buildCampinasEmpty(row, unitKey);
+  }
+
   const enviado = Boolean(String(row["Data Envio"] || row["Documento ZapSign"] || "").trim());
   const dataCliente = String(row["Data Assinatura Cliente"] || "").trim();
   const dataLoja = String(row["Data Assinatura Loja"] || "").trim();
@@ -84,4 +161,8 @@ export function buildSignatureProgress(row: SheetRow, unitKey: UnitKey): Signatu
     signatarios,
     progresso: Math.round((assinados / signatarios.length) * 100),
   };
+}
+
+export function isContratoAssinadoInApp(record: SignatureRecord | null | undefined): boolean {
+  return Boolean(record && isSignatureComplete(record));
 }

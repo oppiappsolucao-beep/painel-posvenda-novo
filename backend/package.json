@@ -16,7 +16,8 @@
     "googleapis": "^144.0.0",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^9.0.3",
-    "pdfkit": "^0.16.0"
+    "pdfkit": "^0.16.0",
+    "pg": "^8.14.1"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.8",

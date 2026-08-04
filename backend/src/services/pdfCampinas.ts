@@ -2,6 +2,7 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import { fileURLToPath } from "url";
 import { SheetRow } from "../config.js";
+import { ATTACHMENT_KINDS, ATTACHMENT_LABELS, ContractAttachmentImages } from "./contractAttachments.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOGO_PATH = path.join(__dirname, "../../assets/skoobpet-logo.png");
@@ -66,7 +67,63 @@ function pageBreak(doc: PdfDoc) {
   doc.addPage();
 }
 
-export function generateCampinasContractPdf(contrato: SheetRow): Promise<Buffer> {
+export interface ContractSignatureImages {
+  cliente?: string;
+  loja?: string;
+}
+
+function dataUrlToBuffer(dataUrl: string): Buffer {
+  const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
+  return Buffer.from(base64, "base64");
+}
+
+function drawSignatureImage(doc: PdfDoc, dataUrl: string | undefined, width = 180, height = 48): void {
+  if (!dataUrl?.startsWith("data:image/")) return;
+  try {
+    const y = doc.y;
+    doc.image(dataUrlToBuffer(dataUrl), doc.page.margins.left, y, { width, height });
+    doc.y = y + height + 4;
+  } catch {
+    /* ignora imagem inválida */
+  }
+}
+
+function drawFittedImage(doc: PdfDoc, image: Buffer): void {
+  const pageW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const maxH = doc.page.height - doc.y - doc.page.margins.bottom - 20;
+  if (maxH <= 40) return;
+  try {
+    doc.image(image, doc.page.margins.left, doc.y, {
+      fit: [pageW, maxH],
+      align: "center",
+    });
+  } catch {
+    paragraph(doc, "Não foi possível exibir esta imagem.", { align: "center", color: "#64748b" });
+  }
+}
+
+function appendAttachmentPages(doc: PdfDoc, attachments?: ContractAttachmentImages): void {
+  if (!attachments) return;
+
+  const items = ATTACHMENT_KINDS.filter((kind) => attachments[kind]);
+  if (!items.length) return;
+
+  for (const kind of items) {
+    const buffer = attachments[kind];
+    if (!buffer) continue;
+    pageBreak(doc);
+    addLogo(doc);
+    paragraph(doc, "ANEXOS DO CONTRATO", { bold: true, size: 12, align: "center", gap: 0.3 });
+    paragraph(doc, ATTACHMENT_LABELS[kind], { bold: true, size: 11, align: "center", gap: 0.6 });
+    drawFittedImage(doc, buffer);
+  }
+}
+
+export function generateCampinasContractPdf(
+  contrato: SheetRow,
+  signatures?: ContractSignatureImages,
+  attachments?: ContractAttachmentImages,
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 47 });
     const chunks: Buffer[] = [];
@@ -242,8 +299,12 @@ export function generateCampinasContractPdf(contrato: SheetRow): Promise<Buffer>
     doc.moveDown(1.5);
 
     paragraph(doc, "PELO VENDEDOR", { bold: true });
-    doc.moveDown(2);
-    paragraph(doc, "______________________________________");
+    if (signatures?.loja) {
+      drawSignatureImage(doc, signatures.loja);
+    } else {
+      doc.moveDown(2);
+      paragraph(doc, "______________________________________");
+    }
     paragraph(doc, "SHOOKPET COMERCIO DE ANIMAIS E MEDICAMENTOS VETERINARIOS LTDA", { size: 8.5 });
     paragraph(doc, "CNPJ : 47.945.634/0002-61", { size: 8.5 });
     paragraph(doc, `VENDA REALIZADA POR: ${vendedora}`, { size: 8.5 });
@@ -251,8 +312,12 @@ export function generateCampinasContractPdf(contrato: SheetRow): Promise<Buffer>
 
     doc.moveDown(1.5);
     paragraph(doc, "PELO COMPRADOR", { bold: true });
-    doc.moveDown(2);
-    paragraph(doc, "______________________________________");
+    if (signatures?.cliente) {
+      drawSignatureImage(doc, signatures.cliente);
+    } else {
+      doc.moveDown(2);
+      paragraph(doc, "______________________________________");
+    }
     paragraph(doc, nome, { size: 8.5, color: "#dc2626" });
     paragraph(doc, cpf, { size: 8.5, color: "#dc2626" });
     paragraph(doc, telefone, { size: 8.5, color: "#dc2626" });
@@ -268,9 +333,16 @@ export function generateCampinasContractPdf(contrato: SheetRow): Promise<Buffer>
     );
     doc.moveDown(0.8);
     paragraph(doc, `CIDADE ${cidadeFinal}, ${dataExtenso}.`, { align: "left" });
-    doc.moveDown(3);
-    paragraph(doc, "__________________________________");
+    doc.moveDown(1);
+    if (signatures?.cliente) {
+      drawSignatureImage(doc, signatures.cliente, 160, 44);
+    } else {
+      doc.moveDown(2);
+      paragraph(doc, "__________________________________");
+    }
     paragraph(doc, nome, { size: 8.5, color: "#dc2626" });
+
+    appendAttachmentPages(doc, attachments);
 
     doc.end();
   });

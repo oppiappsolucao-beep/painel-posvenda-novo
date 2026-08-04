@@ -1,12 +1,25 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: skoobpet
+      POSTGRES_USER: skoobpet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skoobpet_local}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   backend:
     build: ./backend
     restart: unless-stopped
+    depends_on:
+      - postgres
     environment:
       PORT: 3001
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
+      DATABASE_URL: postgresql://skoobpet:${POSTGRES_PASSWORD:-skoobpet_local}@postgres:5432/skoobpet
       OPER_USER: ${OPER_USER}
       OPER_PASS: ${OPER_PASS}
       FIN_USER: ${FIN_USER}
@@ -28,3 +41,6 @@ services:
       - backend
     ports:
       - "80:80"
+
+volumes:
+  postgres_data:

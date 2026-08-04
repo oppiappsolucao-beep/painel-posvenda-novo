@@ -270,7 +270,7 @@ async function ensureHeaders(unit: ResolvedUnitConfig): Promise<string[]> {
   return current;
 }
 
-export async function saveContractForUser(contrato: SheetRow, user: AuthPayload): Promise<void> {
+export async function saveContractForUser(contrato: SheetRow, user: AuthPayload): Promise<number> {
   const unitKey = user.unit || getUnitByEmail(user.username)?.key;
   if (!unitKey) {
     throw new Error("Unidade não configurada para salvar contrato.");
@@ -282,14 +282,17 @@ export async function saveContractForUser(contrato: SheetRow, user: AuthPayload)
   }
 
   contrato["Unidade"] = contrato["Unidade"] || unit.label;
-  await saveContract(contrato, unit);
+  return saveContract(contrato, unit);
 }
 
-export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promise<void> {
+export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promise<number> {
   const resolved = await resolveUnitSheet(unit);
+  const { rows } = await loadSheetValues(resolved);
+  const sheetIndex = rows.length;
+
   if (process.platform === "win32") {
     await saveContractWindows(contrato, resolved);
-    return;
+    return sheetIndex;
   }
 
   assertUnitSheet(resolved);
@@ -303,6 +306,7 @@ export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promis
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
   });
+  return sheetIndex;
 }
 
 async function saveContractWindows(contrato: SheetRow, unit: ResolvedUnitConfig): Promise<void> {

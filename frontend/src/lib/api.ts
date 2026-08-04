@@ -116,6 +116,8 @@ export interface SignatarioItem {
 export interface SignatureProgress {
   signatarios: SignatarioItem[];
   progresso: number;
+  inApp?: boolean;
+  clientSignUrl?: string;
 }
 
 export interface StatusAssinaturaItem {
@@ -133,6 +135,8 @@ export interface StatusAssinaturaItem {
   email: string;
   telefone: string;
   assinatura: SignatureProgress;
+  podeAssinarLoja?: boolean;
+  inAppSignature?: boolean;
 }
 
 export interface StatusAssinaturaResponse {
@@ -165,8 +169,11 @@ export async function fetchContractPreview(unitKey: UnitKey, sheetIndex: number)
   return response.data as Blob;
 }
 
-export async function saveContract(contrato: Record<string, string>) {
-  const response = await api.post("/dashboard/contracts", contrato, {
+export async function saveContract(
+  contrato: Record<string, string>,
+  anexos?: Record<string, string>,
+): Promise<{ clientSignUrl?: string; sheetIndex?: number }> {
+  const response = await api.post("/dashboard/contracts", { contrato, anexos }, {
     responseType: "blob",
     validateStatus: () => true,
   });
@@ -187,4 +194,76 @@ export async function saveContract(contrato: Record<string, string>) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+
+  const clientSignUrl = response.headers["x-client-sign-url"] as string | undefined;
+  const sheetIndexHeader = response.headers["x-sheet-index"] as string | undefined;
+
+  return {
+    clientSignUrl,
+    sheetIndex: sheetIndexHeader ? parseInt(sheetIndexHeader, 10) : undefined,
+  };
+}
+
+export interface PublicSignatureInfo {
+  nome: string;
+  email: string;
+  telefone: string;
+  canSign: boolean;
+  concluido: boolean;
+  assinatura: SignatureProgress;
+  clientSignUrl: string;
+}
+
+export async function fetchPublicSignature(token: string) {
+  const { data } = await api.get<PublicSignatureInfo>(`/signatures/public/${token}`);
+  return data;
+}
+
+export async function fetchPublicSignaturePdf(token: string) {
+  const response = await api.get(`/signatures/public/${token}/pdf`, {
+    responseType: "blob",
+    validateStatus: () => true,
+  });
+  const contentType = String(response.headers["content-type"] ?? "");
+  if (response.status >= 400 || !contentType.includes("pdf")) {
+    throw new Error(await readBlobError(response.data as Blob));
+  }
+  return response.data as Blob;
+}
+
+export async function signContractAsClient(token: string, signatureImage: string) {
+  try {
+    const { data } = await api.post<{ ok: boolean; message: string; concluido: boolean; assinatura: SignatureProgress }>(
+      `/signatures/public/${token}/sign`,
+      { signatureImage },
+    );
+    return data;
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      throw new Error(err.response?.data?.error || "Erro ao assinar.");
+    }
+    throw err;
+  }
+}
+
+export async function initSignatureSession(unitKey: UnitKey, sheetIndex: number) {
+  const { data } = await api.post<{ ok: boolean; clientSignUrl: string; assinatura: SignatureProgress }>(
+    `/signatures/${unitKey}/${sheetIndex}/init`,
+  );
+  return data;
+}
+
+export async function signContractAsStore(unitKey: UnitKey, sheetIndex: number, signatureImage: string) {
+  try {
+    const { data } = await api.post<{ ok: boolean; message: string; assinatura: SignatureProgress }>(
+      `/signatures/${unitKey}/${sheetIndex}/loja-sign`,
+      { signatureImage },
+    );
+    return data;
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      throw new Error(err.response?.data?.error || "Erro ao assinar.");
+    }
+    throw err;
+  }
 }
