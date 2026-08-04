@@ -30,9 +30,16 @@ export function StatusAssinaturaPage() {
   const [signSubmitting, setSignSubmitting] = useState(false);
   const [signError, setSignError] = useState("");
   const [copyFeedback, setCopyFeedback] = useState("");
-  const [linkModal, setLinkModal] = useState<string | null>(null);
+  const [linkModal, setLinkModal] = useState<{ url: string; copied: boolean } | null>(null);
   const [copyingKey, setCopyingKey] = useState<string | null>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
   const [applied, setApplied] = useState({ nome: "", dataInicio: "", dataFim: "", status: "todos" });
+
+  useEffect(() => {
+    if (!linkModal || !linkInputRef.current) return;
+    linkInputRef.current.focus();
+    linkInputRef.current.select();
+  }, [linkModal]);
 
   useEffect(() => {
     return () => {
@@ -124,7 +131,7 @@ export function StatusAssinaturaPage() {
     item.assinatura.signatarios.find((s) => s.papel === "Cliente")?.linkAssinatura ||
     "";
 
-  const copyClientLink = async (item: StatusAssinaturaItem, e: ReactMouseEvent) => {
+  const showClientLink = async (item: StatusAssinaturaItem, e: ReactMouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
 
@@ -133,12 +140,6 @@ export function StatusAssinaturaPage() {
 
     try {
       let link = resolveClientLink(item);
-
-      if (link && copyToClipboardSync(link)) {
-        setCopyFeedback("Link copiado!");
-        setTimeout(() => setCopyFeedback(""), 2000);
-        return;
-      }
 
       if (!link && item.inAppSignature) {
         try {
@@ -158,12 +159,14 @@ export function StatusAssinaturaPage() {
         return;
       }
 
-      const copied = await copyToClipboard(link);
+      const copied =
+        copyToClipboardSync(link) ||
+        (await copyToClipboard(link).catch(() => false));
+
+      setLinkModal({ url: link, copied: Boolean(copied) });
       if (copied) {
         setCopyFeedback("Link copiado!");
         setTimeout(() => setCopyFeedback(""), 2000);
-      } else {
-        setLinkModal(link);
       }
     } finally {
       setCopyingKey(null);
@@ -405,7 +408,10 @@ export function StatusAssinaturaPage() {
                       <tr
                         key={item.id}
                         className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors"
-                        onClick={() => openPreview(item)}
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest("[data-no-preview]")) return;
+                          openPreview(item);
+                        }}
                         title="Clique para visualizar o contrato"
                       >
                         <td className="px-4 py-4 text-sm text-slate-700">{item.id}</td>
@@ -413,27 +419,29 @@ export function StatusAssinaturaPage() {
                           <div className="font-semibold text-slate-800">{item.nome}</div>
                           <span className="text-sm text-slate-500">{item.identificador}</span>
                         </td>
-                        <td className="px-4 py-4 text-center align-top min-w-[280px]">
+                        <td className="px-4 py-4 text-center align-top min-w-[280px]" data-no-preview>
                           <div className={`font-bold mb-2 ${item.status === "assinado" ? "text-green-700" : "text-slate-900"}`}>
                             {item.statusLabel}
                           </div>
                           <SignatureProgressPanel assinatura={item.assinatura} />
                           {item.inAppSignature && item.status !== "assinado" && (
-                            <div className="mt-2 flex flex-wrap gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
+                            <div className="mt-2 flex flex-wrap gap-2 justify-center">
                               <button
                                 type="button"
-                                onClick={(e) => copyClientLink(item, e)}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => showClientLink(item, e)}
                                 disabled={copyingKey === `${item.unitKey}-${item.sheetIndex}`}
                                 className="text-xs px-3 py-1.5 rounded-lg text-white font-semibold disabled:opacity-60"
                                 style={{ background: COLORS.navy2 }}
                               >
                                 {copyingKey === `${item.unitKey}-${item.sheetIndex}`
-                                  ? "Copiando..."
+                                  ? "Abrindo..."
                                   : "Copiar link do cliente"}
                               </button>
                               {item.podeAssinarLoja && (
                                 <button
                                   type="button"
+                                  onMouseDown={(e) => e.stopPropagation()}
                                   onClick={(e) => openStoreSign(item, e)}
                                   className="text-xs px-3 py-1.5 rounded-lg text-white font-semibold"
                                   style={{ background: COLORS.wine }}
@@ -527,23 +535,29 @@ export function StatusAssinaturaPage() {
 
       {linkModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
           onClick={() => setLinkModal(null)}
         >
           <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4"
             onClick={(e) => e.stopPropagation()}
+            data-no-preview
           >
             <div>
               <div className="text-xs uppercase tracking-wide text-slate-500">Link de assinatura</div>
-              <div className="text-lg font-bold text-slate-900">Copie manualmente</div>
+              <div className="text-lg font-bold text-slate-900">
+                {linkModal.copied ? "Link copiado!" : "Envie este link ao cliente"}
+              </div>
             </div>
             <p className="text-sm text-slate-600">
-              O navegador bloqueou a cópia automática. Selecione o link abaixo e use Ctrl+C (ou Cmd+C).
+              {linkModal.copied
+                ? "O link já está na área de transferência. Você também pode copiar novamente abaixo."
+                : "Selecione o link abaixo e use Ctrl+C (ou Cmd+C), ou toque em Copiar."}
             </p>
             <input
+              ref={linkInputRef}
               readOnly
-              value={linkModal}
+              value={linkModal.url}
               onFocus={(e) => e.target.select()}
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm bg-slate-50 text-slate-800"
             />
@@ -557,17 +571,20 @@ export function StatusAssinaturaPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (copyToClipboardSync(linkModal)) {
+                onClick={async () => {
+                  const ok =
+                    copyToClipboardSync(linkModal.url) ||
+                    (await copyToClipboard(linkModal.url).catch(() => false));
+                  if (ok) {
                     setCopyFeedback("Link copiado!");
-                    setLinkModal(null);
+                    setLinkModal({ ...linkModal, copied: true });
                     setTimeout(() => setCopyFeedback(""), 2000);
                   }
                 }}
                 className="flex-1 py-2.5 rounded-xl text-white font-bold"
                 style={{ background: COLORS.navy }}
               >
-                Tentar copiar de novo
+                Copiar link
               </button>
             </div>
           </div>
