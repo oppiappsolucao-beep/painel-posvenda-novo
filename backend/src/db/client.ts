@@ -3,9 +3,22 @@ import pg from "pg";
 const { Pool } = pg;
 
 let pool: pg.Pool | null = null;
+let databaseReady = false;
 
 export function isDatabaseEnabled(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
+  return databaseReady;
+}
+
+export function markDatabaseReady(): void {
+  databaseReady = true;
+}
+
+export function markDatabaseUnavailable(): void {
+  databaseReady = false;
+  if (pool) {
+    void pool.end().catch(() => undefined);
+    pool = null;
+  }
 }
 
 export function getPool(): pg.Pool {

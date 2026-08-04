@@ -69,7 +69,7 @@ async function start() {
     await initDatabase();
   } catch (e) {
     console.error("[db] Falha ao conectar PostgreSQL:", e instanceof Error ? e.message : e);
-    process.exit(1);
+    console.warn("[db] Continuando com arquivos locais em backend/data/.");
   }
 
   app.listen(config.port, "0.0.0.0", () => {
