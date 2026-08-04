@@ -66,3 +66,37 @@ export function formatCpfInput(value: string): string {
 export function isCpfComplete(value: string): boolean {
   return /^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(value.trim());
 }
+
+/** Cópia síncrona — funciona dentro do gesto de clique do usuário. */
+export function copyToClipboardSync(text: string): boolean {
+  if (!text) return false;
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.cssText =
+      "position:fixed;top:0;left:0;width:2em;height:2em;padding:0;border:none;outline:none;background:transparent;";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function copyToClipboard(text: string): Promise<boolean> {
+  if (copyToClipboardSync(text)) return true;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fallback abaixo
+  }
+  return copyToClipboardSync(text);
+}

@@ -6,7 +6,7 @@ import { saveContract } from "../lib/api";
 import { ImageUploadField, compactAnexos, type ContractAnexos } from "../components/ImageUploadField";
 import {
   CIDADES, ESTADOS, RACAS_CANINA, RACAS_FELINA,
-  COLORS, defaultUnitFilter, formatCpfInput, formatDateInput, isCpfComplete, monthKeyNow,
+  COLORS, copyToClipboardSync, defaultUnitFilter, formatCpfInput, formatDateInput, isCpfComplete, monthKeyNow,
 } from "../lib/utils";
 
 export function NovoContratoPage() {
@@ -145,7 +145,7 @@ export function NovoContratoPage() {
               />
               <button
                 type="button"
-                onClick={() => navigator.clipboard.writeText(clientSignUrl)}
+                onClick={() => copyToClipboardSync(clientSignUrl)}
                 className="px-4 py-2 rounded-lg text-white font-semibold text-sm shrink-0"
                 style={{ background: COLORS.navy }}
               >
