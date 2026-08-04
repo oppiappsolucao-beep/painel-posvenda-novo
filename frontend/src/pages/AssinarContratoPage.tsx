@@ -95,7 +95,7 @@ export function AssinarContratoPage() {
         style={{ background: `linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.wine} 100%)` }}
       >
         <div className="max-w-4xl mx-auto flex items-center gap-4">
-          <Logo className="h-10 w-auto brightness-0 invert" />
+          <Logo variant="circle" size={56} className="shrink-0 shadow-lg" />
           <div>
             <div className="text-xs uppercase tracking-wider opacity-80">Assinatura digital</div>
             <h1 className="text-xl font-bold">Contrato SkoobPet</h1>
