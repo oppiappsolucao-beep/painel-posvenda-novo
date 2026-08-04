@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { SheetRow } from "../config.js";
@@ -33,13 +34,23 @@ function formatDataPorExtenso(data: string): string {
 
 type PdfDoc = PDFKit.PDFDocument;
 
+function pngDimensions(filePath: string): { width: number; height: number } {
+  const buf = fs.readFileSync(filePath);
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+}
+
 function addLogo(doc: PdfDoc): void {
   try {
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const logoWidth = 110;
+    const logoWidth = 120;
     const x = doc.page.margins.left + (pageWidth - logoWidth) / 2;
-    doc.image(LOGO_PATH, x, doc.y, { width: logoWidth });
-    doc.moveDown(3.2);
+    const y = doc.y;
+
+    const { width, height } = pngDimensions(LOGO_PATH);
+    const logoHeight = (height / width) * logoWidth;
+
+    doc.image(LOGO_PATH, x, y, { width: logoWidth, height: logoHeight });
+    doc.y = y + logoHeight + 22;
   } catch {
     doc.moveDown(0.5);
   }
