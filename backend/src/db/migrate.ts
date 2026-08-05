@@ -52,4 +52,20 @@ export async function migrateSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_employees_unit_active
     ON employees (unit_key, active)
   `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS breeds (
+      id SERIAL PRIMARY KEY,
+      species TEXT NOT NULL CHECK (species IN ('CANINA', 'FELINA')),
+      name TEXT NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT true,
+      created_at TEXT NOT NULL,
+      UNIQUE (species, name)
+    )
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_breeds_species_active
+    ON breeds (species, active)
+  `);
 }

@@ -9,6 +9,7 @@ import authRoutes from "./routes/auth.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import signatureRoutes from "./routes/signatures.js";
 import employeeRoutes from "./routes/employees.js";
+import breedRoutes from "./routes/breeds.js";
 import { getDatabaseHealth, initDatabase } from "./db/init.js";
 
 const app = express();
@@ -48,6 +49,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/signatures", signatureRoutes);
 app.use("/api/employees", employeeRoutes);
+app.use("/api/breeds", breedRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(publicDir));

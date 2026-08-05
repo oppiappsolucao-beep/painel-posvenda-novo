@@ -5,6 +5,7 @@ import { LoginPage, LoginFinanceiroPage } from "./pages/LoginPage";
 import { OperacaoDashboard } from "./pages/OperacaoDashboard";
 import { FinanceiroDashboard } from "./pages/FinanceiroDashboard";
 import { FuncionariosPage } from "./pages/FuncionariosPage";
+import { RacasPage } from "./pages/RacasPage";
 import { VisaoGeralPage } from "./pages/VisaoGeralPage";
 import { NovoContratoPage } from "./pages/NovoContratoPage";
 import { StatusAssinaturaPage } from "./pages/StatusAssinaturaPage";
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/operacao" element={<ProtectedRoute><OperacaoDashboard /></ProtectedRoute>} />
             <Route path="/financeiro" element={<ProtectedRoute><FinanceiroDashboard /></ProtectedRoute>} />
             <Route path="/funcionarios" element={<ProtectedRoute><FuncionariosPage /></ProtectedRoute>} />
+            <Route path="/racas" element={<ProtectedRoute><RacasPage /></ProtectedRoute>} />
             <Route path="/visao-geral" element={<ProtectedRoute><VisaoGeralPage /></ProtectedRoute>} />
             <Route path="/novo-contrato" element={<ProtectedRoute><NovoContratoPage /></ProtectedRoute>} />
             <Route path="/status-assinatura" element={<ProtectedRoute><StatusAssinaturaPage /></ProtectedRoute>} />

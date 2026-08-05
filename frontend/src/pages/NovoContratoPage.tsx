@@ -1,9 +1,9 @@
-import { FormEvent, useState, useEffect } from "react";
+import { FormEvent, useState, useEffect, useMemo } from "react";
 import { Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "../components/AppLayout";
 import { useAuth } from "../context/AuthContext";
-import { saveContract, fetchEmployees } from "../lib/api";
+import { saveContract, fetchEmployees, fetchBreeds, type PetSpecies } from "../lib/api";
 import { ImageUploadField, compactAnexos, type ContractAnexos } from "../components/ImageUploadField";
 import {
   CIDADES, ESTADOS, RACAS_CANINA, RACAS_FELINA,
@@ -74,11 +74,29 @@ export function NovoContratoPage() {
     if (!stillValid) setVendedora("");
   }, [employees, unidade, vendedora]);
 
+  const { data: breedList = [] } = useQuery({
+    queryKey: ["breeds", especie],
+    queryFn: () => fetchBreeds(especie as PetSpecies),
+    enabled: !!user && (especie === "CANINA" || especie === "FELINA"),
+  });
+
+  const racas = useMemo(() => {
+    const fallback = especie === "CANINA" ? RACAS_CANINA : especie === "FELINA" ? RACAS_FELINA : [];
+    const names = breedList.length > 0
+      ? breedList.map((b) => b.name)
+      : fallback.filter((r) => r !== "Outro");
+    return [...names, "Outro"];
+  }, [breedList, especie]);
+
+  useEffect(() => {
+    setRacaOpcao("");
+    setRacaOutro("");
+  }, [especie]);
+
   if (!loading && !user) return <Navigate to="/login" replace />;
 
   const raca = racaOpcao === "Outro" ? racaOutro : racaOpcao;
   const cidade = cidadeOpcao === "Outro" ? cidadeOutro : cidadeOpcao;
-  const racas = especie === "CANINA" ? RACAS_CANINA : especie === "FELINA" ? RACAS_FELINA : [];
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

@@ -1,10 +1,12 @@
 import { isDatabaseEnabled, markDatabaseReady, markDatabaseUnavailable, query } from "./client.js";
 import { importLegacyFileDataIfNeeded } from "./importLegacy.js";
 import { migrateSchema } from "./migrate.js";
+import { seedDefaultBreedsIfEmpty } from "../services/breeds.js";
 
 export async function initDatabase(): Promise<void> {
   if (!process.env.DATABASE_URL?.trim()) {
     markDatabaseUnavailable();
+    await seedDefaultBreedsIfEmpty();
     console.log("[db] DATABASE_URL não definida — usando arquivos locais em backend/data/");
     return;
   }
@@ -12,6 +14,7 @@ export async function initDatabase(): Promise<void> {
   try {
     await migrateSchema();
     await importLegacyFileDataIfNeeded();
+    await seedDefaultBreedsIfEmpty();
     await query("SELECT 1");
     markDatabaseReady();
     console.log("[db] PostgreSQL conectado — assinaturas e anexos persistidos no banco.");

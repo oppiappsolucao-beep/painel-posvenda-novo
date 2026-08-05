@@ -106,6 +106,36 @@ export async function setEmployeeActive(id: number, active: boolean) {
   return data;
 }
 
+export type PetSpecies = "CANINA" | "FELINA";
+
+export interface Breed {
+  id: number;
+  species: PetSpecies;
+  name: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export async function fetchBreeds(species?: PetSpecies, includeInactive = false) {
+  const params: Record<string, string> = {};
+  if (species) params.species = species;
+  if (includeInactive) params.includeInactive = "true";
+  const { data } = await api.get<{ items: Breed[] }>("/breeds", {
+    params: Object.keys(params).length ? params : undefined,
+  });
+  return data.items;
+}
+
+export async function createBreed(name: string, species: PetSpecies) {
+  const { data } = await api.post<{ item: Breed }>("/breeds", { name, species });
+  return data.item;
+}
+
+export async function setBreedActive(id: number, active: boolean) {
+  const { data } = await api.patch<{ item: Breed; message: string }>(`/breeds/${id}`, { active });
+  return data;
+}
+
 export async function logout() {
   await api.post("/auth/logout");
 }
