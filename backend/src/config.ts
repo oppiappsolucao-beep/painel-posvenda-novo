@@ -80,6 +80,14 @@ export function getUnitByKey(key: UnitKey): UnitConfig | undefined {
   return units.find((unit) => unit.key === key);
 }
 
+export function unitKeyFromLabel(label: string): UnitKey | null {
+  const normalized = label.trim().toLowerCase();
+  const unit = units.find(
+    (u) => u.key === normalized || u.label.toLowerCase() === normalized,
+  );
+  return unit?.key ?? null;
+}
+
 export function getConfiguredUnits(): UnitConfig[] {
   return units;
 }

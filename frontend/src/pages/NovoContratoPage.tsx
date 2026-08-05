@@ -1,8 +1,9 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "../components/AppLayout";
 import { useAuth } from "../context/AuthContext";
-import { saveContract } from "../lib/api";
+import { saveContract, fetchEmployees } from "../lib/api";
 import { ImageUploadField, compactAnexos, type ContractAnexos } from "../components/ImageUploadField";
 import {
   CIDADES, ESTADOS, RACAS_CANINA, RACAS_FELINA,
@@ -60,6 +61,18 @@ export function NovoContratoPage() {
   });
 
   const isCampinas = unidade.toLowerCase().includes("campinas");
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees", unidade],
+    queryFn: () => fetchEmployees(unidade),
+    enabled: !!user,
+  });
+
+  useEffect(() => {
+    if (!vendedora) return;
+    const stillValid = employees.some((e) => e.name === vendedora);
+    if (!stillValid) setVendedora("");
+  }, [employees, unidade, vendedora]);
 
   if (!loading && !user) return <Navigate to="/login" replace />;
 
@@ -206,7 +219,18 @@ export function NovoContratoPage() {
             <Field label="Valor por extenso" value={valorExtenso} onChange={setValorExtenso} />
             <Field label="Forma de pagamento" value={formaPagamento} onChange={setFormaPagamento} />
             <Field label="Quantidade de parcelas" value={parcelas} onChange={setParcelas} />
-            <Field label="Vendedora" value={vendedora} onChange={setVendedora} />
+            {employees.length > 0 ? (
+              <SelectField
+                label="Vendedora"
+                value={vendedora}
+                onChange={setVendedora}
+                options={employees.map((e) => e.name)}
+                placeholder="Selecione a vendedora"
+                required
+              />
+            ) : (
+              <Field label="Vendedora" value={vendedora} onChange={setVendedora} placeholder="Cadastre no acesso Controle" />
+            )}
             <Field label="Mês" value={mes} onChange={setMes} />
             <Field label="Unidade" value={unidade} onChange={setUnidade} readOnly={!!user?.unit} />
           </div>
@@ -291,6 +315,32 @@ function Field({ label, value, onChange, required, placeholder, readOnly }: {
         readOnly={readOnly}
         className={`mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5${readOnly ? " bg-slate-100" : ""}`}
       />
+    </label>
+  );
+}
+
+function SelectField({ label, value, onChange, options, required, placeholder }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  required?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm font-semibold text-slate-600">{label}{required && " *"}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-white"
+      >
+        <option value="">{placeholder || "Selecione"}</option>
+        {options.map((opt) => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
     </label>
   );
 }

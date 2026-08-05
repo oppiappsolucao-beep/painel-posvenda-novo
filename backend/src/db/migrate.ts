@@ -36,4 +36,20 @@ export async function migrateSchema(): Promise<void> {
       PRIMARY KEY (unit_key, sheet_index, kind)
     )
   `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS employees (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      unit_key TEXT NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT true,
+      created_at TEXT NOT NULL,
+      UNIQUE (name, unit_key)
+    )
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_employees_unit_active
+    ON employees (unit_key, active)
+  `);
 }

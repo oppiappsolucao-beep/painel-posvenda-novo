@@ -5,8 +5,8 @@ import { AppLayout, FilterBar } from "../components/AppLayout";
 import { KpiCard } from "../components/KpiCard";
 import { BarChart } from "../components/BarChart";
 import { useAuth } from "../context/AuthContext";
-import { fetchFinanceiro, fetchLockedAccounts, unlockAccount } from "../lib/api";
-import { COLORS, monthKeyNow } from "../lib/utils";
+import { fetchFinanceiro, fetchLockedAccounts, unlockAccount, fetchEmployees, createEmployee, setEmployeeActive, type Employee, type UnitKey } from "../lib/api";
+import { COLORS, monthKeyNow, UNIT_LABELS } from "../lib/utils";
 
 export function FinanceiroDashboard() {
   const { user, loading, hasRole } = useAuth();
@@ -15,6 +15,12 @@ export function FinanceiroDashboard() {
   const [unidade, setUnidade] = useState("Todas");
   const [unlocking, setUnlocking] = useState<string | null>(null);
   const [unlockMessage, setUnlockMessage] = useState("");
+  const [employeeName, setEmployeeName] = useState("");
+  const [employeeUnit, setEmployeeUnit] = useState<UnitKey>("campinas");
+  const [employeeMessage, setEmployeeMessage] = useState("");
+  const [employeeError, setEmployeeError] = useState("");
+  const [employeeSubmitting, setEmployeeSubmitting] = useState(false);
+  const [togglingEmployeeId, setTogglingEmployeeId] = useState<number | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["financeiro", mes, unidade],
@@ -30,6 +36,12 @@ export function FinanceiroDashboard() {
     enabled: !!user && hasRole("financeiro"),
   });
 
+  const { data: employees = [], refetch: refetchEmployees } = useQuery({
+    queryKey: ["employees-all"],
+    queryFn: () => fetchEmployees(undefined, true),
+    enabled: !!user && hasRole("financeiro"),
+  });
+
   const handleUnlock = async (email: string, unitLabel: string) => {
     setUnlocking(email);
     setUnlockMessage("");
@@ -42,6 +54,43 @@ export function FinanceiroDashboard() {
       setUnlockMessage(err instanceof Error ? err.message : "Erro ao desbloquear.");
     } finally {
       setUnlocking(null);
+    }
+  };
+
+  const handleAddEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmployeeError("");
+    setEmployeeMessage("");
+    setEmployeeSubmitting(true);
+    try {
+      await createEmployee(employeeName, employeeUnit);
+      setEmployeeName("");
+      setEmployeeMessage("Funcionário cadastrado com sucesso.");
+      await refetchEmployees();
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    } catch (err: unknown) {
+      setEmployeeError(err instanceof Error ? err.message : "Erro ao cadastrar funcionário.");
+    } finally {
+      setEmployeeSubmitting(false);
+    }
+  };
+
+  const handleToggleEmployee = async (employee: Employee) => {
+    setTogglingEmployeeId(employee.id);
+    setEmployeeError("");
+    setEmployeeMessage("");
+    try {
+      const result = await setEmployeeActive(employee.id, !employee.active);
+      queryClient.setQueryData<Employee[]>(["employees-all"], (old) =>
+        (old ?? []).map((e) => (e.id === employee.id ? { ...e, active: !employee.active } : e)),
+      );
+      setEmployeeMessage(result.message);
+      await refetchEmployees();
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    } catch (err: unknown) {
+      setEmployeeError(err instanceof Error ? err.message : "Erro ao atualizar funcionário.");
+    } finally {
+      setTogglingEmployeeId(null);
     }
   };
 
@@ -88,6 +137,118 @@ export function FinanceiroDashboard() {
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {hasRole("financeiro") && (
+        <div className="bg-white rounded-2xl shadow-md p-5 mb-4 border border-slate-100">
+          <div className="font-black text-slate-900 mb-1">👩‍💼 Funcionários</div>
+          <p className="text-sm text-slate-500 mb-4">
+            Cadastre vendedoras/funcionários por unidade. Ao desativar, o funcionário permanece na lista em cinza para reativação — o histórico na planilha é preservado.
+          </p>
+
+          {employeeMessage && (
+            <div className="mb-3 text-sm text-green-700 bg-green-50 rounded-lg p-3">{employeeMessage}</div>
+          )}
+          {employeeError && (
+            <div className="mb-3 text-sm text-red-700 bg-red-50 rounded-lg p-3">{employeeError}</div>
+          )}
+
+          <form onSubmit={handleAddEmployee} className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 mb-5">
+            <label className="block">
+              <span className="text-sm font-semibold text-slate-600">Nome do funcionário</span>
+              <input
+                type="text"
+                value={employeeName}
+                onChange={(e) => setEmployeeName(e.target.value)}
+                placeholder="Ex: Maria Silva"
+                className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5"
+                required
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-semibold text-slate-600">Unidade</span>
+              <select
+                value={employeeUnit}
+                onChange={(e) => setEmployeeUnit(e.target.value as UnitKey)}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-white min-w-[140px]"
+              >
+                {(Object.entries(UNIT_LABELS) as [UnitKey, string][]).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={employeeSubmitting}
+                className="w-full md:w-auto px-5 py-2.5 rounded-xl text-white font-semibold disabled:opacity-60"
+                style={{ background: COLORS.navy }}
+              >
+                {employeeSubmitting ? "Salvando..." : "Adicionar"}
+              </button>
+            </div>
+          </form>
+
+          {employees.length === 0 ? (
+            <div className="text-sm text-slate-500">Nenhum funcionário cadastrado ainda.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-slate-500 border-b">
+                    <th className="pb-2 pr-4">Nome</th>
+                    <th className="pb-2 pr-4">Unidade</th>
+                    <th className="pb-2 pr-4">Status</th>
+                    <th className="pb-2">Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map((employee) => (
+                    <tr
+                      key={employee.id}
+                      className={`border-b transition-colors ${
+                        employee.active
+                          ? "border-slate-50 bg-white"
+                          : "border-slate-200 bg-slate-200/70 text-slate-500"
+                      }`}
+                    >
+                      <td className={`py-2.5 pr-4 font-medium ${employee.active ? "text-slate-900" : "text-slate-500"}`}>
+                        {employee.name}
+                      </td>
+                      <td className="py-2.5 pr-4">{employee.unitLabel}</td>
+                      <td className="py-2.5 pr-4">
+                        <span
+                          className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            employee.active ? "bg-green-100 text-green-800" : "bg-slate-300 text-slate-600"
+                          }`}
+                        >
+                          {employee.active ? "Ativo" : "Inativo"}
+                        </span>
+                      </td>
+                      <td className="py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleEmployee(employee)}
+                          disabled={togglingEmployeeId === employee.id}
+                          className={`px-3 py-1.5 rounded-lg text-white text-xs font-semibold disabled:opacity-60 ${
+                            employee.active ? "" : "ring-2 ring-white/80"
+                          }`}
+                          style={{ background: employee.active ? COLORS.wine : COLORS.navy2 }}
+                        >
+                          {togglingEmployeeId === employee.id
+                            ? "Aguarde..."
+                            : employee.active
+                              ? "Desativar"
+                              : "Reativar"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

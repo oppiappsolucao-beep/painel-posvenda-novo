@@ -77,6 +77,35 @@ export async function unlockAccount(email: string) {
   return data;
 }
 
+export interface Employee {
+  id: number;
+  name: string;
+  unitKey: UnitKey;
+  unitLabel: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export async function fetchEmployees(unit?: string, includeInactive = false) {
+  const params: Record<string, string> = {};
+  if (unit) params.unit = unit;
+  if (includeInactive) params.includeInactive = "true";
+  const { data } = await api.get<{ items: Employee[] }>("/employees", {
+    params: Object.keys(params).length ? params : undefined,
+  });
+  return data.items;
+}
+
+export async function createEmployee(name: string, unitKey: UnitKey) {
+  const { data } = await api.post<{ item: Employee }>("/employees", { name, unitKey });
+  return data.item;
+}
+
+export async function setEmployeeActive(id: number, active: boolean) {
+  const { data } = await api.patch<{ item: Employee; message: string }>(`/employees/${id}`, { active });
+  return data;
+}
+
 export async function logout() {
   await api.post("/auth/logout");
 }

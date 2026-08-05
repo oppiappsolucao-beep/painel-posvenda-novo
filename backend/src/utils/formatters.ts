@@ -143,6 +143,14 @@ export function formatDateBr(d: Date | null): string {
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
+export function formatDateTimeBr(d: Date): string {
+  const date = formatDateBr(d);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${date} ${hh}:${mi}:${ss}`;
+}
+
 export function countTodayAll(rows: Record<string, string>[], dateCol: string | null): number {
   if (!dateCol) return 0;
   const today = todaySaoPaulo();
