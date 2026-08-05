@@ -178,14 +178,25 @@ function LoginShell({
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center px-4 py-8 bg-cover bg-center bg-no-repeat"
-      style={{
-        backgroundImage: "url('/login-bg.png?v=4')",
-        backgroundColor: "#4a4a52",
-      }}
-    >
-      <div className="w-full max-w-md">
+    <div className="relative min-h-screen flex items-center justify-center px-4 py-8 overflow-hidden">
+      <picture className="absolute inset-0 -z-20" aria-hidden>
+        <source srcSet="/login-bg.webp?v=5" type="image/webp" />
+        <img
+          src="/login-bg.jpg?v=5"
+          alt=""
+          className="h-full w-full object-cover object-center"
+          decoding="async"
+        />
+      </picture>
+      <div
+        className="absolute inset-0 -z-10"
+        style={{
+          background: `linear-gradient(135deg, ${COLORS.navy}cc 0%, ${COLORS.navy}99 45%, ${COLORS.wine}aa 100%)`,
+        }}
+        aria-hidden
+      />
+
+      <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-5">
           <div className="flex justify-center">
             <Logo variant="circle" size={176} />
