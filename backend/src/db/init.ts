@@ -2,7 +2,7 @@ import { isDatabaseEnabled, markDatabaseReady, markDatabaseUnavailable, query } 
 import { importLegacyFileDataIfNeeded } from "./importLegacy.js";
 import { migrateSchema } from "./migrate.js";
 import { seedDefaultBreedsIfEmpty } from "../services/breeds.js";
-import { deactivateExampleEmployees } from "../services/employees.js";
+import { deactivateExampleEmployees, reactivateEmployeeByName } from "../services/employees.js";
 
 export async function initDatabase(): Promise<void> {
   if (!process.env.DATABASE_URL?.trim()) {
@@ -20,6 +20,10 @@ export async function initDatabase(): Promise<void> {
     const deactivatedExamples = await deactivateExampleEmployees();
     if (deactivatedExamples) {
       console.log(`[db] Desativados ${deactivatedExamples} funcionário(s) de exemplo/teste.`);
+    }
+    const restoredFran = await reactivateEmployeeByName("Fran");
+    if (restoredFran) {
+      console.log(`[db] Reativado(s) ${restoredFran} cadastro(s) de Fran.`);
     }
     await query("SELECT 1");
     markDatabaseReady();

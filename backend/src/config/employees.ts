@@ -6,11 +6,9 @@ const EXAMPLE_NAME_PATTERNS = [
   /fict[ií]c/i,
 ];
 
-const DEFAULT_EXAMPLE_NAMES = ["fran"];
-
 function exampleNamesFromEnv(): string[] {
   const raw = process.env.EXAMPLE_EMPLOYEE_NAMES?.trim();
-  if (!raw) return DEFAULT_EXAMPLE_NAMES;
+  if (!raw) return [];
   return raw
     .split(/[,;|]/)
     .map((n) => n.trim().toLowerCase())

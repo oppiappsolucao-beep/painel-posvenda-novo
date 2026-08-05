@@ -158,6 +158,21 @@ export async function deactivateExampleEmployees(): Promise<number> {
   return changed;
 }
 
+/** Reativa cadastros desativados por engano (ex.: filtro antigo de nomes de exemplo). */
+export async function reactivateEmployeeByName(name: string): Promise<number> {
+  if (isExampleEmployeeName(name)) return 0;
+
+  const normalized = normalizeName(name).toLowerCase();
+  const items = await listEmployees({ includeExamples: true });
+  let restored = 0;
+  for (const item of items) {
+    if (item.name.trim().toLowerCase() !== normalized || item.active) continue;
+    await setEmployeeActive(item.id, true);
+    restored += 1;
+  }
+  return restored;
+}
+
 export async function getEmployeesStorageInfo(): Promise<{
   storage: "postgres" | "file";
   active: number;
