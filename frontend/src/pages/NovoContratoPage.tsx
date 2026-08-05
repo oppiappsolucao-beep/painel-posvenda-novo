@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "../components/AppLayout";
 import { useAuth } from "../context/AuthContext";
 import { saveContract, fetchEmployees, fetchBreeds, type PetSpecies } from "../lib/api";
-import { ImageUploadField, compactAnexos, type ContractAnexos } from "../components/ImageUploadField";
 import {
   CIDADES, ESTADOS, RACAS_CANINA, RACAS_FELINA,
   COLORS, copyToClipboardSync, defaultUnitFilter, formatCpfInput, formatDateInput, isCpfComplete, monthKeyNow,
@@ -51,16 +50,6 @@ export function NovoContratoPage() {
   const [vendedora, setVendedora] = useState("");
   const [mes, setMes] = useState(monthKeyNow());
   const [unidade, setUnidade] = useState(() => defaultUnitFilter(user?.unit) === "Todas" ? "Campinas" : defaultUnitFilter(user?.unit));
-
-  const [anexos, setAnexos] = useState<ContractAnexos>({
-    rgFrente: null,
-    rgVerso: null,
-    carteirinha: null,
-    laudo: null,
-    fotoAnimal: null,
-  });
-
-  const isCampinas = unidade.toLowerCase().includes("campinas");
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees", unidade],
@@ -145,8 +134,7 @@ export function NovoContratoPage() {
     };
 
     try {
-      const anexosPayload = isCampinas ? compactAnexos(anexos) : undefined;
-      const result = await saveContract(contrato, anexosPayload);
+      const result = await saveContract(contrato);
       setSuccess("Contrato salvo com sucesso! PDF baixado automaticamente.");
       if (result.clientSignUrl) {
         setClientSignUrl(result.clientSignUrl);
@@ -254,46 +242,6 @@ export function NovoContratoPage() {
             <Field label="Unidade" value={unidade} onChange={setUnidade} readOnly={!!user?.unit} />
           </div>
         </Section>
-
-        {isCampinas && (
-          <Section title="Documentos e fotos (anexos do PDF)" icon="📎">
-            <p className="text-sm text-slate-500 mb-4">
-              Anexe fotos que serão incluídas automaticamente nas últimas páginas do contrato em PDF.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ImageUploadField
-                label="RG — Frente"
-                hint="Foto nítida da frente do documento"
-                value={anexos.rgFrente ?? null}
-                onChange={(v) => setAnexos((prev) => ({ ...prev, rgFrente: v }))}
-              />
-              <ImageUploadField
-                label="RG — Verso"
-                hint="Foto nítida do verso do documento"
-                value={anexos.rgVerso ?? null}
-                onChange={(v) => setAnexos((prev) => ({ ...prev, rgVerso: v }))}
-              />
-              <ImageUploadField
-                label="Carteirinha do filhote"
-                hint="Carteira de vacinação"
-                value={anexos.carteirinha ?? null}
-                onChange={(v) => setAnexos((prev) => ({ ...prev, carteirinha: v }))}
-              />
-              <ImageUploadField
-                label="Laudo de saúde"
-                hint="Atestado ou laudo veterinário"
-                value={anexos.laudo ?? null}
-                onChange={(v) => setAnexos((prev) => ({ ...prev, laudo: v }))}
-              />
-              <ImageUploadField
-                label="Foto do animal"
-                hint="Foto do filhote"
-                value={anexos.fotoAnimal ?? null}
-                onChange={(v) => setAnexos((prev) => ({ ...prev, fotoAnimal: v }))}
-              />
-            </div>
-          </Section>
-        )}
 
         <button
           type="submit"
