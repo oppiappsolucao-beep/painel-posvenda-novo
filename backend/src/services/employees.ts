@@ -128,7 +128,7 @@ export async function setEmployeeActive(id: number, active: boolean): Promise<Em
   return store.items[idx];
 }
 
-async function findEmployeeByNameUnit(name: string, unitKey: UnitKey): Promise<EmployeeRecord | null> {
+export async function findEmployeeByNameUnit(name: string, unitKey: UnitKey): Promise<EmployeeRecord | null> {
   if (isDatabaseEnabled()) {
     return dbFindEmployeeByNameUnit(name, unitKey);
   }

@@ -76,7 +76,8 @@ export function FuncionariosPage() {
       {hasRole("financeiro") && (
         <div className="bg-white rounded-2xl shadow-md p-5 border border-slate-100">
           <p className="text-sm text-slate-500 mb-4">
-            Cadastre vendedoras por unidade. Ao desativar, o funcionário some da lista — o histórico na planilha é preservado.
+            Vendedoras das planilhas entram automaticamente aqui. Você também pode cadastrar manualmente por unidade.
+            Ao desativar, o funcionário some da lista — o histórico na planilha é preservado.
           </p>
 
           {message && (

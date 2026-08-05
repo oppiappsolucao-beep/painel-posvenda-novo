@@ -12,6 +12,7 @@ import employeeRoutes from "./routes/employees.js";
 import breedRoutes from "./routes/breeds.js";
 import { getDatabaseHealth, initDatabase } from "./db/init.js";
 import { getEmployeesStorageInfo } from "./services/employees.js";
+import { maybeSyncEmployeesFromSheets } from "./services/syncEmployeesFromSheets.js";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -78,6 +79,9 @@ if (process.env.NODE_ENV === "production") {
 async function start() {
   try {
     await initDatabase();
+    maybeSyncEmployeesFromSheets(true).catch((e) => {
+      console.warn("[employees] sync inicial:", e instanceof Error ? e.message : e);
+    });
   } catch (e) {
     console.error("[db] Falha ao conectar PostgreSQL:", e instanceof Error ? e.message : e);
     console.warn("[db] Continuando com arquivos locais em backend/data/.");

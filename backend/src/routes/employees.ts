@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getConfiguredUnits, unitKeyFromLabel, UnitKey } from "../config.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middleware/auth.js";
 import { createEmployee, listEmployees, setEmployeeActive } from "../services/employees.js";
+import { maybeSyncEmployeesFromSheets, syncEmployeesFromSheets } from "../services/syncEmployeesFromSheets.js";
 
 const router = Router();
 
@@ -27,12 +28,27 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
   }
 
   try {
+    await maybeSyncEmployeesFromSheets(req.query.sync === "true");
     const includeInactive = req.query.includeInactive === "true";
     const items = await listEmployees({
       unitKey,
       activeOnly: !includeInactive,
     });
     res.json({ items });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.post("/sync-from-sheets", authMiddleware, requireRole("financeiro"), async (_req, res) => {
+  try {
+    const result = await syncEmployeesFromSheets();
+    res.json({
+      ok: true,
+      message: `Sincronizado com a planilha: ${result.created} novo(s), ${result.reactivated} reativado(s).`,
+      ...result,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });
