@@ -1,5 +1,5 @@
 import { unitKeyFromLabel, UnitKey } from "../config.js";
-import { isDemoSheetRow, isExampleEmployeeName } from "../config/employees.js";
+import { isExampleEmployeeName } from "../config/employees.js";
 import { pickFirstExisting } from "../utils/formatters.js";
 import { createEmployee, findEmployeeByNameUnit } from "./employees.js";
 import { loadAllUnitRows } from "./sheets.js";
@@ -42,8 +42,8 @@ export async function syncEmployeesFromSheets(): Promise<SyncEmployeesResult> {
   const seen = new Set<string>();
 
   for (const item of loaded) {
-    if (isDemoSheetRow(item.data)) continue;
-
+    // Não usar isDemoSheetRow aqui: o gráfico conta a vendedora mesmo em contratos
+    // de cliente teste/demo — ignorar a linha inteira deixava Mariana Costa de fora.
     const cols = Object.keys(item.data);
     const vendedorCol = pickFirstExisting(cols, ["Vendedora", "Vendedor", "Atendente"]);
     if (!vendedorCol) continue;
