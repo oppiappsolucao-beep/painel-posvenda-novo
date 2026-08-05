@@ -2,8 +2,10 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { getUnitByKey, UnitKey } from "../config.js";
+import { isExampleEmployeeName } from "../config/employees.js";
 import { isDatabaseEnabled } from "../db/client.js";
 import {
+  dbDeactivateExampleEmployees,
   dbFindEmployeeByNameUnit,
   dbInsertEmployee,
   dbListEmployees,
@@ -53,24 +55,34 @@ function normalizeName(name: string): string {
 export async function listEmployees(opts?: {
   unitKey?: UnitKey;
   activeOnly?: boolean;
+  includeExamples?: boolean;
 }): Promise<EmployeeRecord[]> {
+  let items: EmployeeRecord[];
   if (isDatabaseEnabled()) {
-    return dbListEmployees(opts);
+    items = await dbListEmployees(opts);
+  } else {
+    const store = await readFileStore();
+    items = [...store.items];
+    if (opts?.unitKey) items = items.filter((e) => e.unitKey === opts.unitKey);
+    if (opts?.activeOnly) items = items.filter((e) => e.active);
+    items.sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      return a.name.localeCompare(b.name, "pt-BR");
+    });
   }
 
-  const store = await readFileStore();
-  let items = [...store.items];
-  if (opts?.unitKey) items = items.filter((e) => e.unitKey === opts.unitKey);
-  if (opts?.activeOnly) items = items.filter((e) => e.active);
-  return items.sort((a, b) => {
-    if (a.active !== b.active) return a.active ? -1 : 1;
-    return a.name.localeCompare(b.name, "pt-BR");
-  });
+  if (!opts?.includeExamples) {
+    items = items.filter((e) => !isExampleEmployeeName(e.name));
+  }
+  return items;
 }
 
 export async function createEmployee(name: string, unitKey: UnitKey): Promise<EmployeeRecord> {
   const normalized = normalizeName(name);
   if (!normalized) throw new Error("Informe o nome do funcionário.");
+  if (isExampleEmployeeName(normalized)) {
+    throw new Error("Este nome é reservado para exemplos de teste. Informe o nome real da vendedora.");
+  }
   if (!getUnitByKey(unitKey)) throw new Error("Unidade inválida.");
 
   const existing = await findEmployeeByNameUnit(normalized, unitKey);
@@ -127,4 +139,34 @@ async function findEmployeeByNameUnit(name: string, unitKey: UnitKey): Promise<E
       (e) => e.unitKey === unitKey && e.name.trim().toLowerCase() === normalized,
     ) ?? null
   );
+}
+
+export async function deactivateExampleEmployees(): Promise<number> {
+  if (isDatabaseEnabled()) {
+    return dbDeactivateExampleEmployees();
+  }
+
+  const store = await readFileStore();
+  let changed = 0;
+  for (const item of store.items) {
+    if (item.active && isExampleEmployeeName(item.name)) {
+      item.active = false;
+      changed += 1;
+    }
+  }
+  if (changed) await writeFileStore(store);
+  return changed;
+}
+
+export async function getEmployeesStorageInfo(): Promise<{
+  storage: "postgres" | "file";
+  active: number;
+  total: number;
+}> {
+  const items = await listEmployees({ includeExamples: true });
+  return {
+    storage: isDatabaseEnabled() ? "postgres" : "file",
+    active: items.filter((e) => e.active && !isExampleEmployeeName(e.name)).length,
+    total: items.length,
+  };
 }

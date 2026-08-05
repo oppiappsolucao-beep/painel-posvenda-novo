@@ -1,4 +1,5 @@
 import { getUnitByKey, UnitKey } from "../config.js";
+import { isExampleEmployeeName } from "../config/employees.js";
 import type { EmployeeRecord } from "../services/employees.js";
 import { query } from "./client.js";
 
@@ -75,4 +76,15 @@ export async function dbFindEmployeeByNameUnit(
     [name, unitKey],
   );
   return rows[0] ? mapRow(rows[0]) : null;
+}
+
+export async function dbDeactivateExampleEmployees(): Promise<number> {
+  const { rows } = await query<EmployeeRow>(`SELECT * FROM employees WHERE active = true`);
+  let changed = 0;
+  for (const row of rows) {
+    if (!isExampleEmployeeName(row.name)) continue;
+    await query(`UPDATE employees SET active = false WHERE id = $1`, [row.id]);
+    changed += 1;
+  }
+  return changed;
 }

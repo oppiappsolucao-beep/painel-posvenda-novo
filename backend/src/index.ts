@@ -11,6 +11,7 @@ import signatureRoutes from "./routes/signatures.js";
 import employeeRoutes from "./routes/employees.js";
 import breedRoutes from "./routes/breeds.js";
 import { getDatabaseHealth, initDatabase } from "./db/init.js";
+import { getEmployeesStorageInfo } from "./services/employees.js";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,7 +44,13 @@ app.use(cookieParser());
 
 app.get("/api/health", async (_req, res) => {
   const database = await getDatabaseHealth();
-  res.json({ ok: database.ok, database });
+  let employees: Awaited<ReturnType<typeof getEmployeesStorageInfo>> | null = null;
+  try {
+    employees = await getEmployeesStorageInfo();
+  } catch {
+    employees = null;
+  }
+  res.json({ ok: database.ok, database, employees });
 });
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);

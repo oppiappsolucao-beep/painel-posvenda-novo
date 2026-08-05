@@ -2,11 +2,13 @@ import { isDatabaseEnabled, markDatabaseReady, markDatabaseUnavailable, query } 
 import { importLegacyFileDataIfNeeded } from "./importLegacy.js";
 import { migrateSchema } from "./migrate.js";
 import { seedDefaultBreedsIfEmpty } from "../services/breeds.js";
+import { deactivateExampleEmployees } from "../services/employees.js";
 
 export async function initDatabase(): Promise<void> {
   if (!process.env.DATABASE_URL?.trim()) {
     markDatabaseUnavailable();
     await seedDefaultBreedsIfEmpty();
+    await deactivateExampleEmployees();
     console.log("[db] DATABASE_URL não definida — usando arquivos locais em backend/data/");
     return;
   }
@@ -15,9 +17,13 @@ export async function initDatabase(): Promise<void> {
     await migrateSchema();
     await importLegacyFileDataIfNeeded();
     await seedDefaultBreedsIfEmpty();
+    const deactivatedExamples = await deactivateExampleEmployees();
+    if (deactivatedExamples) {
+      console.log(`[db] Desativados ${deactivatedExamples} funcionário(s) de exemplo/teste.`);
+    }
     await query("SELECT 1");
     markDatabaseReady();
-    console.log("[db] PostgreSQL conectado — assinaturas e anexos persistidos no banco.");
+    console.log("[db] PostgreSQL conectado — assinaturas, anexos e funcionários persistidos no banco.");
   } catch (e) {
     markDatabaseUnavailable();
     throw e;
