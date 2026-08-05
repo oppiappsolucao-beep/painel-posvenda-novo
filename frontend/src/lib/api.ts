@@ -5,6 +5,18 @@ export const api = axios.create({
   withCredentials: true,
 });
 
+function throwApiError(err: unknown, fallback: string): never {
+  if (axios.isAxiosError(err)) {
+    const status = err.response?.status;
+    const msg = (err.response?.data as { error?: string } | undefined)?.error;
+    if (status === 401) {
+      throw new Error("Sessão expirada. Entre novamente pelo login Controle (Financeiro).");
+    }
+    throw new Error(msg || fallback);
+  }
+  throw err instanceof Error ? err : new Error(fallback);
+}
+
 async function readBlobError(data: Blob): Promise<string> {
   const text = await data.text();
   try {
@@ -102,8 +114,14 @@ export async function createEmployee(name: string, unitKey: UnitKey) {
 }
 
 export async function setEmployeeActive(id: number, active: boolean) {
-  const { data } = await api.patch<{ item: Employee; message: string }>(`/employees/${id}`, { active });
-  return data;
+  try {
+    const { data } = await api.post<{ item: Employee; message: string }>(`/employees/${id}/set-active`, {
+      active,
+    });
+    return data;
+  } catch (err) {
+    throwApiError(err, "Erro ao atualizar funcionário.");
+  }
 }
 
 export type PetSpecies = "CANINA" | "FELINA";
@@ -132,8 +150,12 @@ export async function createBreed(name: string, species: PetSpecies) {
 }
 
 export async function setBreedActive(id: number, active: boolean) {
-  const { data } = await api.patch<{ item: Breed; message: string }>(`/breeds/${id}`, { active });
-  return data;
+  try {
+    const { data } = await api.post<{ item: Breed; message: string }>(`/breeds/${id}/set-active`, { active });
+    return data;
+  } catch (err) {
+    throwApiError(err, "Erro ao atualizar raça.");
+  }
 }
 
 export async function logout() {

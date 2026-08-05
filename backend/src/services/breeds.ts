@@ -115,10 +115,11 @@ export async function createBreed(name: string, species: PetSpecies): Promise<Br
 
   const existing = await findBreedByNameSpecies(normalized, species);
   if (existing) {
+    if (!existing.active) {
+      return setBreedActive(existing.id, true);
+    }
     throw new Error(
-      existing.active
-        ? `Já existe uma raça ativa com este nome para ${species === "CANINA" ? "cachorro" : "gato"}.`
-        : "Esta raça já está cadastrada (inativa). Reative-a em vez de criar outra.",
+      `Já existe uma raça ativa com este nome para ${species === "CANINA" ? "cachorro" : "gato"}.`,
     );
   }
 

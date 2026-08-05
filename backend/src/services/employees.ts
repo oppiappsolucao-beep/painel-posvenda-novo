@@ -75,11 +75,10 @@ export async function createEmployee(name: string, unitKey: UnitKey): Promise<Em
 
   const existing = await findEmployeeByNameUnit(normalized, unitKey);
   if (existing) {
-    throw new Error(
-      existing.active
-        ? "Já existe um funcionário ativo com este nome nesta unidade."
-        : "Este funcionário já está cadastrado (inativo). Reative-o em vez de criar outro.",
-    );
+    if (!existing.active) {
+      return setEmployeeActive(existing.id, true);
+    }
+    throw new Error("Já existe um funcionário ativo com este nome nesta unidade.");
   }
 
   const createdAt = formatDateTimeBr(new Date());

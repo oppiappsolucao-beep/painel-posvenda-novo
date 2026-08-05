@@ -13,11 +13,10 @@ function parseSpecies(value: string | undefined): PetSpecies | null {
 }
 
 router.get("/", authMiddleware, async (req: AuthRequest, res) => {
-  const isFinanceiro = req.user!.roles.includes("financeiro");
   const species = parseSpecies(typeof req.query.species === "string" ? req.query.species : undefined);
 
   try {
-    const includeInactive = req.query.includeInactive === "true" || isFinanceiro;
+    const includeInactive = req.query.includeInactive === "true";
     const items = await listBreeds({
       species: species ?? undefined,
       activeOnly: !includeInactive,
@@ -40,6 +39,31 @@ router.post("/", authMiddleware, requireRole("financeiro"), async (req, res) => 
   try {
     const item = await createBreed(name || "", species);
     res.status(201).json({ item });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(400).json({ error: msg });
+  }
+});
+
+router.post("/:id/set-active", authMiddleware, requireRole("financeiro"), async (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    res.status(400).json({ error: "ID inválido." });
+    return;
+  }
+
+  const { active } = req.body as { active?: boolean };
+  if (typeof active !== "boolean") {
+    res.status(400).json({ error: "Informe active: true ou false." });
+    return;
+  }
+
+  try {
+    const item = await setBreedActive(id, active);
+    res.json({
+      item,
+      message: active ? "Raça reativada." : "Raça desativada (histórico preservado).",
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(400).json({ error: msg });

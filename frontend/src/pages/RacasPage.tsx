@@ -25,17 +25,15 @@ export function RacasPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
 
   const { data: breeds = [], refetch } = useQuery({
     queryKey: ["breeds-all"],
-    queryFn: () => fetchBreeds(undefined, true),
+    queryFn: () => fetchBreeds(),
     enabled: !!user && hasRole("financeiro"),
   });
 
   const filtered = breeds.filter((b) => b.species === species);
-  const activeCount = filtered.filter((b) => b.active).length;
-  const inactiveCount = filtered.length - activeCount;
   const currentSpecies = SPECIES.find((s) => s.key === species)!;
 
   const handleAdd = async (e: FormEvent) => {
@@ -56,22 +54,21 @@ export function RacasPage() {
     }
   };
 
-  const handleToggle = async (breed: Breed) => {
-    setTogglingId(breed.id);
+  const handleDeactivate = async (breed: Breed) => {
+    setDeactivatingId(breed.id);
     setError("");
     setMessage("");
     try {
-      const result = await setBreedActive(breed.id, !breed.active);
+      const result = await setBreedActive(breed.id, false);
       queryClient.setQueryData<Breed[]>(["breeds-all"], (old) =>
-        (old ?? []).map((b) => (b.id === breed.id ? { ...b, active: !breed.active } : b)),
+        (old ?? []).filter((b) => b.id !== breed.id),
       );
       setMessage(result.message);
-      await refetch();
       queryClient.invalidateQueries({ queryKey: ["breeds"] });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao atualizar raça.");
+      setError(err instanceof Error ? err.message : "Erro ao desativar raça.");
     } finally {
-      setTogglingId(null);
+      setDeactivatingId(null);
     }
   };
 
@@ -81,13 +78,13 @@ export function RacasPage() {
     <AppLayout
       title="Raças"
       emoji="🐾"
-      caption={`${currentSpecies.emoji} ${activeCount} ativa(s) · ${inactiveCount} inativa(s)`}
+      caption={`${currentSpecies.emoji} ${filtered.length} raça(s) ativa(s)`}
       requireFinance
     >
       {hasRole("financeiro") && (
         <div className="bg-white rounded-2xl shadow-md p-5 border border-slate-100">
           <p className="text-sm text-slate-500 mb-4">
-            Cadastre raças de cachorro ou gato. Ao desativar, a raça permanece na lista em cinza — contratos antigos na planilha são preservados.
+            Cadastre raças de cachorro ou gato. Ao desativar, a raça some da lista — contratos antigos na planilha são preservados.
           </p>
 
           <div className="flex flex-wrap gap-2 mb-5">
@@ -150,50 +147,25 @@ export function RacasPage() {
                   <tr className="text-left text-slate-500 border-b bg-slate-50">
                     <th className="px-4 py-3">Raça</th>
                     <th className="px-4 py-3">Espécie</th>
-                    <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Ação</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((breed) => (
-                    <tr
-                      key={breed.id}
-                      className={`border-b transition-colors ${
-                        breed.active
-                          ? "border-slate-50 bg-white"
-                          : "border-slate-200 bg-slate-200/70 text-slate-500"
-                      }`}
-                    >
-                      <td className={`px-4 py-3 font-medium ${breed.active ? "text-slate-900" : "text-slate-500"}`}>
-                        {breed.name}
-                      </td>
+                    <tr key={breed.id} className="border-b border-slate-50 bg-white">
+                      <td className="px-4 py-3 font-medium text-slate-900">{breed.name}</td>
                       <td className="px-4 py-3">
                         {breed.species === "CANINA" ? "🐶 Cachorro" : "🐱 Gato"}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            breed.active ? "bg-green-100 text-green-800" : "bg-slate-300 text-slate-600"
-                          }`}
-                        >
-                          {breed.active ? "Ativa" : "Inativa"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
                         <button
                           type="button"
-                          onClick={() => handleToggle(breed)}
-                          disabled={togglingId === breed.id}
-                          className={`px-3 py-1.5 rounded-lg text-white text-xs font-semibold disabled:opacity-60 ${
-                            breed.active ? "" : "ring-2 ring-white/80"
-                          }`}
-                          style={{ background: breed.active ? COLORS.wine : COLORS.navy2 }}
+                          onClick={() => handleDeactivate(breed)}
+                          disabled={deactivatingId === breed.id}
+                          className="px-3 py-1.5 rounded-lg text-white text-xs font-semibold disabled:opacity-60"
+                          style={{ background: COLORS.wine }}
                         >
-                          {togglingId === breed.id
-                            ? "Aguarde..."
-                            : breed.active
-                              ? "Desativar"
-                              : "Reativar"}
+                          {deactivatingId === breed.id ? "Aguarde..." : "Desativar"}
                         </button>
                       </td>
                     </tr>

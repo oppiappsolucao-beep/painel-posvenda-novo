@@ -27,7 +27,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
   }
 
   try {
-    const includeInactive = req.query.includeInactive === "true" || isFinanceiro;
+    const includeInactive = req.query.includeInactive === "true";
     const items = await listEmployees({
       unitKey,
       activeOnly: !includeInactive,
@@ -55,6 +55,31 @@ router.post("/", authMiddleware, requireRole("financeiro"), async (req, res) => 
   try {
     const employee = await createEmployee(name || "", unitKey);
     res.status(201).json({ item: employee });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(400).json({ error: msg });
+  }
+});
+
+router.post("/:id/set-active", authMiddleware, requireRole("financeiro"), async (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    res.status(400).json({ error: "ID inválido." });
+    return;
+  }
+
+  const { active } = req.body as { active?: boolean };
+  if (typeof active !== "boolean") {
+    res.status(400).json({ error: "Informe active: true ou false." });
+    return;
+  }
+
+  try {
+    const item = await setEmployeeActive(id, active);
+    res.json({
+      item,
+      message: active ? "Funcionário reativado." : "Funcionário desativado (histórico preservado).",
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(400).json({ error: msg });

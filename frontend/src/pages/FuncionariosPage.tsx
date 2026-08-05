@@ -20,16 +20,13 @@ export function FuncionariosPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
 
   const { data: employees = [], refetch } = useQuery({
     queryKey: ["employees-all"],
-    queryFn: () => fetchEmployees(undefined, true),
+    queryFn: () => fetchEmployees(),
     enabled: !!user && hasRole("financeiro"),
   });
-
-  const activeCount = employees.filter((e) => e.active).length;
-  const inactiveCount = employees.length - activeCount;
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
@@ -49,22 +46,21 @@ export function FuncionariosPage() {
     }
   };
 
-  const handleToggle = async (employee: Employee) => {
-    setTogglingId(employee.id);
+  const handleDeactivate = async (employee: Employee) => {
+    setDeactivatingId(employee.id);
     setError("");
     setMessage("");
     try {
-      const result = await setEmployeeActive(employee.id, !employee.active);
+      const result = await setEmployeeActive(employee.id, false);
       queryClient.setQueryData<Employee[]>(["employees-all"], (old) =>
-        (old ?? []).map((e) => (e.id === employee.id ? { ...e, active: !employee.active } : e)),
+        (old ?? []).filter((e) => e.id !== employee.id),
       );
       setMessage(result.message);
-      await refetch();
       queryClient.invalidateQueries({ queryKey: ["employees"] });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao atualizar funcionário.");
+      setError(err instanceof Error ? err.message : "Erro ao desativar funcionário.");
     } finally {
-      setTogglingId(null);
+      setDeactivatingId(null);
     }
   };
 
@@ -74,13 +70,13 @@ export function FuncionariosPage() {
     <AppLayout
       title="Funcionários"
       emoji="👩‍💼"
-      caption={`${activeCount} ativo(s) · ${inactiveCount} inativo(s)`}
+      caption={`${employees.length} funcionário(s) ativo(s)`}
       requireFinance
     >
       {hasRole("financeiro") && (
         <div className="bg-white rounded-2xl shadow-md p-5 border border-slate-100">
           <p className="text-sm text-slate-500 mb-4">
-            Cadastre vendedoras por unidade. Ao desativar, o funcionário permanece na lista em cinza para reativação — o histórico na planilha é preservado.
+            Cadastre vendedoras por unidade. Ao desativar, o funcionário some da lista — o histórico na planilha é preservado.
           </p>
 
           {message && (
@@ -135,48 +131,23 @@ export function FuncionariosPage() {
                   <tr className="text-left text-slate-500 border-b bg-slate-50">
                     <th className="px-4 py-3">Nome</th>
                     <th className="px-4 py-3">Unidade</th>
-                    <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Ação</th>
                   </tr>
                 </thead>
                 <tbody>
                   {employees.map((employee) => (
-                    <tr
-                      key={employee.id}
-                      className={`border-b transition-colors ${
-                        employee.active
-                          ? "border-slate-50 bg-white"
-                          : "border-slate-200 bg-slate-200/70 text-slate-500"
-                      }`}
-                    >
-                      <td className={`px-4 py-3 font-medium ${employee.active ? "text-slate-900" : "text-slate-500"}`}>
-                        {employee.name}
-                      </td>
+                    <tr key={employee.id} className="border-b border-slate-50 bg-white">
+                      <td className="px-4 py-3 font-medium text-slate-900">{employee.name}</td>
                       <td className="px-4 py-3">{employee.unitLabel}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            employee.active ? "bg-green-100 text-green-800" : "bg-slate-300 text-slate-600"
-                          }`}
-                        >
-                          {employee.active ? "Ativo" : "Inativo"}
-                        </span>
-                      </td>
                       <td className="px-4 py-3">
                         <button
                           type="button"
-                          onClick={() => handleToggle(employee)}
-                          disabled={togglingId === employee.id}
-                          className={`px-3 py-1.5 rounded-lg text-white text-xs font-semibold disabled:opacity-60 ${
-                            employee.active ? "" : "ring-2 ring-white/80"
-                          }`}
-                          style={{ background: employee.active ? COLORS.wine : COLORS.navy2 }}
+                          onClick={() => handleDeactivate(employee)}
+                          disabled={deactivatingId === employee.id}
+                          className="px-3 py-1.5 rounded-lg text-white text-xs font-semibold disabled:opacity-60"
+                          style={{ background: COLORS.wine }}
                         >
-                          {togglingId === employee.id
-                            ? "Aguarde..."
-                            : employee.active
-                              ? "Desativar"
-                              : "Reativar"}
+                          {deactivatingId === employee.id ? "Aguarde..." : "Desativar"}
                         </button>
                       </td>
                     </tr>
