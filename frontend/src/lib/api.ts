@@ -115,7 +115,8 @@ export async function createEmployee(name: string, unitKey: UnitKey) {
 
 export async function setEmployeeActive(id: number, active: boolean) {
   try {
-    const { data } = await api.post<{ item: Employee; message: string }>(`/employees/${id}/set-active`, {
+    const { data } = await api.post<{ item: Employee; message: string }>("/employees/deactivate", {
+      id,
       active,
     });
     return data;
@@ -151,7 +152,7 @@ export async function createBreed(name: string, species: PetSpecies) {
 
 export async function setBreedActive(id: number, active: boolean) {
   try {
-    const { data } = await api.post<{ item: Breed; message: string }>(`/breeds/${id}/set-active`, { active });
+    const { data } = await api.post<{ item: Breed; message: string }>("/breeds/deactivate", { id, active });
     return data;
   } catch (err) {
     throwApiError(err, "Erro ao atualizar raça.");

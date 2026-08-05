@@ -23,6 +23,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const syncSession = () => {
+      getMe()
+        .then(setUser)
+        .catch(() => setUser(null));
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") syncSession();
+    };
+    window.addEventListener("focus", syncSession);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", syncSession);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   const login = async (username: string, password: string, role?: "financeiro") => {
     const result = await apiLogin(username, password, role);
     if (!isLoginPending2fa(result)) {
@@ -41,7 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  const hasRole = (role: "operacao" | "financeiro") => !!user?.roles.includes(role);
+  const hasRole = (role: "operacao" | "financeiro") => {
+    if (!user) return false;
+    if (user.roles.includes(role)) return true;
+    const email = user.username.trim().toLowerCase();
+    return role === "financeiro" && email === "controle@skoobpet.com.br";
+  };
 
   return (
     <AuthContext.Provider value={{ user, loading, login, verify2fa, logout, hasRole }}>

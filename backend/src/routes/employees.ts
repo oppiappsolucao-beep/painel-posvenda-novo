@@ -61,6 +61,30 @@ router.post("/", authMiddleware, requireRole("financeiro"), async (req, res) => 
   }
 });
 
+router.post("/deactivate", authMiddleware, requireRole("financeiro"), async (req, res) => {
+  const { id, active } = req.body as { id?: number | string; active?: boolean };
+  const parsedId = parseInt(String(id), 10);
+  if (!Number.isFinite(parsedId) || parsedId <= 0) {
+    res.status(400).json({ error: "ID inválido." });
+    return;
+  }
+  if (typeof active !== "boolean") {
+    res.status(400).json({ error: "Informe active: true ou false." });
+    return;
+  }
+
+  try {
+    const item = await setEmployeeActive(parsedId, active);
+    res.json({
+      item,
+      message: active ? "Funcionário reativado." : "Funcionário desativado (histórico preservado).",
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(400).json({ error: msg });
+  }
+});
+
 router.post("/:id/set-active", authMiddleware, requireRole("financeiro"), async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (!Number.isFinite(id) || id <= 0) {
