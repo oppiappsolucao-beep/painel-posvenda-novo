@@ -131,7 +131,7 @@ export function LoginFinanceiroPage() {
     <LoginShell
       title="Financeiro SkoobPet"
       subtitle="Acesso restrito à diretoria"
-      placeholder="controle@skoobpet.com.br"
+      placeholder=""
       onSubmit={handleSubmit}
       username={username}
       password={password}
