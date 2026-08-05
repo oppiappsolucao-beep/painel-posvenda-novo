@@ -44,7 +44,10 @@ export function AppLayout({ title, caption, emoji, children, requireFinance }: A
                 <MenuLink to="/novo-contrato" onClick={() => setMenuOpen(false)}>📄 Novo Contrato</MenuLink>
                 <MenuLink to="/status-assinatura" onClick={() => setMenuOpen(false)}>✍️ Status De Assinatura</MenuLink>
                 {hasRole("financeiro") ? (
-                  <MenuLink to="/financeiro" onClick={() => setMenuOpen(false)}>💰 Financeiro</MenuLink>
+                  <>
+                    <MenuLink to="/financeiro" onClick={() => setMenuOpen(false)}>💰 Financeiro</MenuLink>
+                    <MenuLink to="/funcionarios" onClick={() => setMenuOpen(false)}>👩‍💼 Funcionários</MenuLink>
+                  </>
                 ) : (
                   <MenuLink to="/login/financeiro" onClick={() => setMenuOpen(false)}>💰 Financeiro</MenuLink>
                 )}
