@@ -11,7 +11,7 @@ import {
 } from "../lib/utils";
 
 export function NovoContratoPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, hasRole } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -94,6 +94,7 @@ export function NovoContratoPage() {
   }, [especie]);
 
   if (!loading && !user) return <Navigate to="/login" replace />;
+  if (!loading && hasRole("financeiro")) return <Navigate to="/financeiro" replace />;
 
   const raca = racaOpcao === "Outro" ? racaOutro : racaOpcao;
   const cidade = cidadeOpcao === "Outro" ? cidadeOutro : cidadeOpcao;

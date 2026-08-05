@@ -41,7 +41,9 @@ export function AppLayout({ title, caption, emoji, children, requireFinance }: A
               <nav className="flex flex-col gap-1">
                 <MenuLink to="/visao-geral" onClick={() => setMenuOpen(false)}>📊 Visão Geral</MenuLink>
                 <MenuLink to="/operacao" onClick={() => setMenuOpen(false)}>⚙️ Operação</MenuLink>
-                <MenuLink to="/novo-contrato" onClick={() => setMenuOpen(false)}>📄 Novo Contrato</MenuLink>
+                {!hasRole("financeiro") && (
+                  <MenuLink to="/novo-contrato" onClick={() => setMenuOpen(false)}>📄 Novo Contrato</MenuLink>
+                )}
                 <MenuLink to="/status-assinatura" onClick={() => setMenuOpen(false)}>✍️ Status De Assinatura</MenuLink>
                 {hasRole("financeiro") ? (
                   <>
