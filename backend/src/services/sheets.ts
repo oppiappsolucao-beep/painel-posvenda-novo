@@ -309,6 +309,34 @@ export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promis
   return sheetIndex;
 }
 
+export async function updateContractRow(
+  unitKey: UnitKey,
+  sheetIndex: number,
+  updates: SheetRow,
+): Promise<void> {
+  const unit = getUnitByKey(unitKey);
+  if (!unit) throw new Error("Unidade inválida.");
+
+  const resolved = await resolveUnitSheet(unit);
+  assertUnitSheet(resolved);
+  const { headers, rows } = await loadSheetValues(resolved);
+  if (sheetIndex < 0 || sheetIndex >= rows.length) {
+    throw new Error("Contrato não encontrado na planilha.");
+  }
+
+  const merged = { ...rows[sheetIndex], ...updates };
+  const rowNumber = sheetIndex + 2;
+  const values = [headers.map((h) => merged[h] ?? "")];
+
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: resolved.resolvedSheetId,
+    range: `'${resolved.resolvedSheetTab}'!A${rowNumber}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values },
+  });
+}
+
 async function saveContractWindows(contrato: SheetRow, unit: ResolvedUnitConfig): Promise<void> {
   assertUnitSheet(unit);
   const node = join(process.env.ProgramFiles || "C:\\Program Files", "nodejs", "node.exe");

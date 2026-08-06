@@ -1,0 +1,167 @@
+import type { SheetRow } from "../config.js";
+import { parseDate } from "../utils/formatters.js";
+
+const MONTH_NAMES = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
+
+export interface ZapSignTemplateField {
+  variable: string;
+  input_type: string;
+  label: string;
+  help_text?: string;
+  options?: string;
+  required?: boolean;
+  order: number;
+}
+
+/** Campos que o cliente preenche no formulário ZapSign antes de assinar. */
+export const CAMPINAS_CLIENT_FORM_FIELDS: ZapSignTemplateField[] = [
+  {
+    variable: "{{carteirinha}}",
+    input_type: "radio",
+    label: "Você recebeu a carteirinha de vacinação?",
+    help_text: "Carteira de Vacinação atualizada",
+    options: "Sim, recebi !;Não recebi !",
+    required: true,
+    order: 1,
+  },
+  {
+    variable: "{{certificado}}",
+    input_type: "radio",
+    label: "Você recebeu o certificado do microchip?",
+    help_text: "Certificado de Microchip",
+    options: "Sim, recebi !;Não recebi !",
+    required: true,
+    order: 2,
+  },
+  {
+    variable: "{{transferencia}}",
+    input_type: "radio",
+    label: "Deseja transferir o documento para o seu nome? (vem no nome da loja)",
+    help_text: "Pedigree com transferência — taxa R$ 249,90",
+    options:
+      "Sim, desejo o Pedigree com transferência para o meu nome.;Não desejo o Pedigree com transferência para o meu nome.;Vou pensar !",
+    required: true,
+    order: 3,
+  },
+  {
+    variable: "{{pedigree}}",
+    input_type: "radio",
+    label: "O pedigree será entregue via correios pela taxa de 35,00 reais",
+    help_text: "AR — Carta Registrada via Correios",
+    options: "Sim, aceito pagar pela taxa !;Não aceito pagar pela taxa !;Vou pensar !",
+    required: true,
+    order: 4,
+  },
+  {
+    variable: "{{atestado}}",
+    input_type: "radio",
+    label: "Você recebeu o atestado de saúde do filhote?",
+    help_text: "Atestado de Saúde",
+    options: "Sim, recebi !;Não recebi !",
+    required: true,
+    order: 5,
+  },
+  {
+    variable: "{{contratante-cpf}}",
+    input_type: "cpf",
+    label: "Contratante CPF",
+    help_text: "Preencha seu CPF",
+    required: true,
+    order: 6,
+  },
+  {
+    variable: "{{celular}}",
+    input_type: "phone_br",
+    label: "Celular",
+    help_text: "Insira seu contato principal",
+    required: true,
+    order: 7,
+  },
+  {
+    variable: "{{e-mail}}",
+    input_type: "email",
+    label: "E-mail",
+    help_text: "Insira seu e-mail",
+    required: true,
+    order: 8,
+  },
+];
+
+function pick(contrato: SheetRow, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = String(contrato[key] ?? "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function splitPurchaseDate(dataCompra: string): { day: string; monthName: string; year: string } {
+  const parsed = parseDate(dataCompra);
+  if (!parsed) {
+    return { day: "", monthName: "", year: "" };
+  }
+  return {
+    day: String(parsed.getDate()),
+    monthName: MONTH_NAMES[parsed.getMonth()] ?? "",
+    year: String(parsed.getFullYear()),
+  };
+}
+
+/** Variáveis preenchidas pela loja ao criar o documento no ZapSign. */
+export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: string; para: string }> {
+  const dataCompra = pick(contrato, "Data Compra");
+  const { day, monthName, year } = splitPurchaseDate(dataCompra);
+  const nome = pick(contrato, "Nome");
+
+  const entries: Array<[string, string]> = [
+    ["{{nome-completo}}", nome],
+    ["{{endereco}}", pick(contrato, "Endereço", "Endereco")],
+    ["{{numero}}", pick(contrato, "Número", "Numero")],
+    ["{{complemento}}", pick(contrato, "Complemento")],
+    ["{{bairro}}", pick(contrato, "Bairro")],
+    ["{{cidade}}", pick(contrato, "Cidade")],
+    ["{{uf}}", pick(contrato, "Estado")],
+    ["{{cep}}", pick(contrato, "CEP")],
+    ["{{rg}}", pick(contrato, "RG")],
+    ["{{data}}", dataCompra],
+    ["{{nome-animal}}", pick(contrato, "Nome do animal")],
+    ["{{raca}}", pick(contrato, "Raça", "Raca")],
+    ["{{cor}}", pick(contrato, "Cor")],
+    ["{{data-nasc}}", pick(contrato, "Nascimento filhote")],
+    ["{{sexo}}", pick(contrato, "Sexo")],
+    ["{{microchip}}", pick(contrato, "Microchip")],
+    ["{{especie}}", pick(contrato, "Espécie", "Especie")],
+    ["{{pelagem}}", pick(contrato, "Pelagem")],
+    ["{{observacoes}}", pick(contrato, "Observações", "Observacoes")],
+    ["{{valor}}", pick(contrato, "Valor Filhote")],
+    ["{{ex-cinco-mil-reais}}", pick(contrato, "Valor por extenso")],
+    ["{{forma-de-pag}}", pick(contrato, "Forma de pagamento")],
+    ["{{parcela}}", pick(contrato, "Quantidade de parcelas")],
+    ["{{nome-sobrenome}}", pick(contrato, "Vendedora")],
+    ["{{contratante-nome-completo}}", nome],
+    ["{{exemplo-18}}", day],
+    ["{{fevereiro}}", monthName],
+    ["{{cpf}}", pick(contrato, "CPF")],
+  ];
+
+  if (year) {
+    entries.push(["{{ano}}", year]);
+  }
+
+  return entries
+    .filter(([, para]) => para)
+    .map(([de, para]) => ({ de, para }));
+}

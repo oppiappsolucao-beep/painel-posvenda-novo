@@ -135,7 +135,11 @@ export function NovoContratoPage() {
 
     try {
       const result = await saveContract(contrato);
-      setSuccess("Contrato salvo com sucesso! PDF baixado automaticamente.");
+      if (result.provider === "zapsign") {
+        setSuccess(result.message || "Contrato enviado ao ZapSign. Compartilhe o link abaixo com o cliente.");
+      } else {
+        setSuccess("Contrato salvo com sucesso! PDF baixado automaticamente.");
+      }
       if (result.clientSignUrl) {
         setClientSignUrl(result.clientSignUrl);
       }
@@ -153,9 +157,13 @@ export function NovoContratoPage() {
         {success && <div className="text-green-700 bg-green-50 rounded-xl p-3 text-sm">{success}</div>}
         {clientSignUrl && (
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
-            <div className="font-semibold text-blue-900">Link para o cliente assinar</div>
+            <div className="font-semibold text-blue-900">
+              {clientSignUrl.includes("zapsign") ? "Link ZapSign para o cliente" : "Link para o cliente assinar"}
+            </div>
             <p className="text-sm text-blue-800">
-              Envie este link por WhatsApp ou e-mail para o cliente assinar o contrato no celular.
+              {clientSignUrl.includes("zapsign")
+                ? "Envie este link por WhatsApp ou e-mail. O cliente responderá sobre a documentação do filhote e assinará no ZapSign."
+                : "Envie este link por WhatsApp ou e-mail para o cliente assinar o contrato no celular."}
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
               <input

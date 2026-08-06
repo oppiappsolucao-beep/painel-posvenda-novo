@@ -254,13 +254,40 @@ export async function fetchContractPreview(unitKey: UnitKey, sheetIndex: number)
 export async function saveContract(
   contrato: Record<string, string>,
   anexos?: Record<string, string>,
-): Promise<{ clientSignUrl?: string; sheetIndex?: number }> {
+): Promise<{
+  clientSignUrl?: string;
+  sheetIndex?: number;
+  provider?: "zapsign" | "internal";
+  message?: string;
+}> {
   const response = await api.post("/dashboard/contracts", { contrato, anexos }, {
     responseType: "blob",
     validateStatus: () => true,
   });
 
   const contentType = String(response.headers["content-type"] ?? "");
+
+  if (contentType.includes("application/json")) {
+    const text = await (response.data as Blob).text();
+    const payload = JSON.parse(text) as {
+      ok?: boolean;
+      error?: string;
+      signUrl?: string;
+      sheetIndex?: number;
+      provider?: "zapsign";
+      message?: string;
+    };
+    if (response.status >= 400 || !payload.ok) {
+      throw new Error(payload.error || "Erro ao salvar contrato.");
+    }
+    return {
+      clientSignUrl: payload.signUrl,
+      sheetIndex: payload.sheetIndex,
+      provider: payload.provider ?? "zapsign",
+      message: payload.message,
+    };
+  }
+
   if (response.status >= 400 || !contentType.includes("pdf")) {
     throw new Error(await readBlobError(response.data as Blob));
   }
@@ -283,6 +310,7 @@ export async function saveContract(
   return {
     clientSignUrl,
     sheetIndex: sheetIndexHeader ? parseInt(sheetIndexHeader, 10) : undefined,
+    provider: "internal",
   };
 }
 

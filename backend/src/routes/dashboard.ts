@@ -28,6 +28,7 @@ import {
   loadRowsForUser,
   pruneAllSheetsToDemo,
   saveContractForUser,
+  updateContractRow,
 } from "../services/sheets.js";
 import { generateContractPdf } from "../services/pdf.js";
 import { buildSignatureProgress, isContratoAssinadoInApp } from "../services/signatureStatus.js";
@@ -39,6 +40,11 @@ import {
   signatureImages,
   SignatureRecord,
 } from "../services/signatures.js";
+import {
+  buildZapSignSheetPatch,
+  createCampinasContractDocument,
+  isZapSignCampinasEnabled,
+} from "../services/zapsign.js";
 import {
   getContractAttachmentBuffers,
   saveContractAttachments,
@@ -451,6 +457,24 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
 
     const sheetIndex = await saveContractForUser(contrato, req.user!);
     const unitKey = req.user!.unit || getUnitByEmail(req.user!.username)?.key;
+
+    if (unitKey === "campinas" && isZapSignCampinasEnabled()) {
+      const zapsignDoc = await createCampinasContractDocument(
+        contrato,
+        `campinas:${sheetIndex}`,
+      );
+      await updateContractRow(unitKey, sheetIndex, buildZapSignSheetPatch(zapsignDoc));
+
+      res.json({
+        ok: true,
+        provider: "zapsign",
+        signUrl: zapsignDoc.signUrl,
+        docToken: zapsignDoc.docToken,
+        sheetIndex,
+        message: "Contrato enviado ao ZapSign. Compartilhe o link com o cliente.",
+      });
+      return;
+    }
 
     let record = null;
     let clientSignUrlHeader = "";
