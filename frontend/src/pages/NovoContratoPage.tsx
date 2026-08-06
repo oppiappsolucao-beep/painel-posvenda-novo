@@ -1,5 +1,5 @@
-import { FormEvent, useState, useEffect, useMemo } from "react";
-import { Navigate } from "react-router-dom";
+import { FormEvent, useState, useEffect, useMemo, useCallback } from "react";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "../components/AppLayout";
 import { useAuth } from "../context/AuthContext";
@@ -51,6 +51,9 @@ export function NovoContratoPage() {
   const [mes, setMes] = useState(monthKeyNow());
   const [unidade, setUnidade] = useState(() => defaultUnitFilter(user?.unit) === "Todas" ? "Campinas" : defaultUnitFilter(user?.unit));
 
+  const [searchParams] = useSearchParams();
+  const testePrefill = searchParams.get("teste") === "1";
+
   const { data: employees = [] } = useQuery({
     queryKey: ["employees", unidade],
     queryFn: () => fetchEmployees(unidade),
@@ -81,6 +84,45 @@ export function NovoContratoPage() {
     setRacaOpcao("");
     setRacaOutro("");
   }, [especie]);
+
+  const applyTestePrefill = useCallback(() => {
+    setNome("Ana Clara Mendes");
+    setEmail("ana.clara.teste@email.com");
+    setEndereco("Rua das Palmeiras");
+    setCpf(formatCpfInput("52998224725"));
+    setNumero("128");
+    setTelefone("(19) 99887-7665");
+    setComplemento("Apto 12");
+    setRg("45.678.901-2");
+    setCep("13087-654");
+    setEstado("SP");
+    setCidadeOpcao("Campinas");
+    setNomeAnimal("Mel");
+    setSexo("FÊMEA");
+    setEspecie("CANINA");
+    setPelagem("LONGA");
+    setRacaOpcao("Shih Tzu");
+    setMicrochip("985112004567890");
+    setNascimento("15/03/2026");
+    setCor("Branco e marrom");
+    setObservacoes("Filhote teste ZapSign — sem valor comercial");
+    setValorFilhote("4.500,00");
+    setValorExtenso("quatro mil e quinhentos reais");
+    setFormaPagamento("Cartão de crédito");
+    setParcelas("3");
+    setMes(monthKeyNow());
+    setUnidade(defaultUnitFilter(user?.unit) === "Todas" ? "Campinas" : defaultUnitFilter(user?.unit));
+  }, [user?.unit]);
+
+  useEffect(() => {
+    if (!testePrefill || !user) return;
+    applyTestePrefill();
+  }, [testePrefill, user, applyTestePrefill]);
+
+  useEffect(() => {
+    if (!testePrefill || !employees.length || vendedora) return;
+    setVendedora(employees[0].name);
+  }, [testePrefill, employees, vendedora]);
 
   if (!loading && !user) return <Navigate to="/login" replace />;
   if (!loading && hasRole("financeiro")) return <Navigate to="/financeiro" replace />;
