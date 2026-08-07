@@ -6,7 +6,7 @@ import { isZapSignSandbox } from "../config/zapsignEnv.js";
 import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders } from "../utils/docxStripHighlights.js";
 import { applyCampinasClientForm, syncCampinasStoreSignerFromSource, templateHasStoreUploadWorkflow } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 6;
+const CACHE_VERSION = 7;
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -48,6 +48,14 @@ function sha256(buf: Buffer): string {
   return crypto.createHash("sha256").update(buf).digest("hex");
 }
 
+async function downloadTemplateDocx(templateFile: string): Promise<Buffer> {
+  const docxRes = await fetch(templateFile);
+  if (!docxRes.ok) {
+    throw new Error(`Falha ao baixar template ZapSign (${docxRes.status}).`);
+  }
+  return Buffer.from(await docxRes.arrayBuffer());
+}
+
 async function readCache(): Promise<CleanTemplateCache | null> {
   try {
     const raw = await fs.readFile(CACHE_FILE, "utf8");
@@ -75,14 +83,6 @@ export async function resolveCampinasProductionTemplateId(
     return sourceTemplateId;
   }
 
-  const sourceDetail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${sourceTemplateId}/`);
-  if (templateHasStoreUploadWorkflow(sourceDetail)) {
-    console.log(
-      "[zapsign] Usando template original (anexos da loja e signatário lojista já configurados).",
-    );
-    return sourceTemplateId;
-  }
-
   const cache = await readCache();
   if (
     memoryCleanToken &&
@@ -100,12 +100,7 @@ export async function resolveCampinasProductionTemplateId(
     return sourceTemplateId;
   }
 
-  const docxRes = await fetch(templateFile);
-  if (!docxRes.ok) {
-    throw new Error(`Falha ao baixar template ZapSign (${docxRes.status}).`);
-  }
-
-  const docxBuffer = Buffer.from(await docxRes.arrayBuffer());
+  const docxBuffer = await downloadTemplateDocx(templateFile);
   const fileHash = sha256(docxBuffer);
 
   const zipPreview = await (await import("jszip")).default.loadAsync(docxBuffer);
@@ -164,12 +159,10 @@ export async function resolveCampinasProductionTemplateId(
     await syncCampinasStoreSignerFromSource(sourceTemplateId, cleanToken, zapsignRequest);
     await applyCampinasClientForm(cleanToken, zapsignRequest);
     const verified = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${cleanToken}/`);
-    if (!templateHasStoreUploadWorkflow(verified)) {
+    if (templateHasStoreUploadWorkflow(detail) && !templateHasStoreUploadWorkflow(verified)) {
       console.warn(
-        "[zapsign] Template limpo sem anexos da loja; usando template original com formulário completo.",
+        `[zapsign] Anexos da loja (fotos + CNPJ) precisam ficar em Opções avançadas do signatário lojista no modelo limpo: https://app.zapsign.com.br/conta/modelos/${cleanToken}`,
       );
-      await applyCampinasClientForm(sourceTemplateId, zapsignRequest);
-      return sourceTemplateId;
     }
 
     await writeCache({

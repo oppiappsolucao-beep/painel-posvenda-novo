@@ -377,7 +377,7 @@ export async function createCampinasContractDocument(
   }>(`/templates/${templateId}/`);
   if (!templateHasStoreUploadWorkflow(templateDetail)) {
     console.warn(
-      "[zapsign] Template sem anexos da loja — o link do lojista não exibirá upload de fotos/CNPJ.",
+      "[zapsign] Template sem anexos de foto da loja — o link do lojista não exibirá upload de documentos.",
     );
   }
 

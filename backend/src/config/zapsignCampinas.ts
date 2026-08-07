@@ -224,6 +224,8 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
 
   const entries: Array<[string, string]> = [
     ["{{nome-completo}}", nome],
+    // Placeholder quebrado no DOCX de produção (faltava "{{" no início).
+    ["nome-completo}}", nome],
     ["{{endereco}}", pick(contrato, "Endereço", "Endereco")],
     ["{{numero}}", pick(contrato, "Número", "Numero")],
     ["{{complemento}}", pick(contrato, "Complemento")],
