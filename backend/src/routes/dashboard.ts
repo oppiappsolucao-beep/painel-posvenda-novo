@@ -24,6 +24,7 @@ import {
 } from "../utils/formatters.js";
 import { getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } from "../config.js";
 import {
+  deleteContractRows,
   getContractRow,
   loadRowsForUser,
   pruneAllSheetsToDemo,
@@ -295,6 +296,7 @@ function buildStatusAssinaturaData(
       atualizadoEm: atualizadoEm || "—",
       dataCompra: String(row["Data Compra"] || "").trim() || "—",
       linkAssinatura,
+      docToken: String(row["Documento ZapSign"] || "").trim(),
       email: String(row["E-mail"] || "").trim(),
       telefone: String(row["Telefone"] || "").trim(),
       referenciaData: getReferenciaData(row),
@@ -625,6 +627,27 @@ router.post("/contracts/:unitKey/:sheetIndex/attachments", authMiddleware, requi
 
     await saveContractAttachments(unitKey, sheetIndex, anexos);
     res.json({ ok: true, message: "Anexos salvos com sucesso." });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.delete("/contracts/:unitKey/:sheetIndex", authMiddleware, requireRole("financeiro"), async (req, res) => {
+  try {
+    const unitKey = String(req.params.unitKey) as UnitKey;
+    const sheetIndex = parseInt(String(req.params.sheetIndex), 10);
+    if (!getUnitByKey(unitKey)) {
+      res.status(400).json({ error: "Unidade inválida." });
+      return;
+    }
+    if (!Number.isFinite(sheetIndex) || sheetIndex < 0) {
+      res.status(400).json({ error: "Índice de contrato inválido." });
+      return;
+    }
+
+    const deleted = await deleteContractRows(unitKey, [sheetIndex]);
+    res.json({ ok: true, deleted, unitKey, sheetIndex });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });

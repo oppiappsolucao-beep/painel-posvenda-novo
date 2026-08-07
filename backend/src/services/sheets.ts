@@ -356,6 +356,42 @@ export async function getContractRow(unitKey: UnitKey, sheetIndex: number): Prom
   return row ? withUnitLabel(row, unit) : null;
 }
 
+export async function deleteContractRows(unitKey: UnitKey, sheetIndices: number[]): Promise<number> {
+  const unit = getUnitByKey(unitKey);
+  if (!unit) throw new Error("Unidade inválida.");
+
+  const unique = [...new Set(sheetIndices.filter((i) => Number.isFinite(i) && i >= 0))];
+  if (!unique.length) return 0;
+
+  const resolved = await resolveUnitSheet(unit);
+  assertUnitSheet(resolved);
+  const sheets = getSheets();
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: resolved.resolvedSheetId });
+  const tab = meta.data.sheets?.find((s) => s.properties?.title === resolved.resolvedSheetTab);
+  const sheetGid = tab?.properties?.sheetId;
+  if (sheetGid == null) throw new Error(`Aba "${resolved.resolvedSheetTab}" não encontrada.`);
+
+  const requests = unique
+    .sort((a, b) => b - a)
+    .map((sheetIndex) => ({
+      deleteDimension: {
+        range: {
+          sheetId: sheetGid,
+          dimension: "ROWS" as const,
+          startIndex: sheetIndex + 1,
+          endIndex: sheetIndex + 2,
+        },
+      },
+    }));
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: resolved.resolvedSheetId,
+    requestBody: { requests },
+  });
+
+  return unique.length;
+}
+
 async function loadSheetValues(unit: ResolvedUnitConfig): Promise<{ headers: string[]; rows: SheetRow[] }> {
   assertUnitSheet(unit);
   const sheets = getSheets();
