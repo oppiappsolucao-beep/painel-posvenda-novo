@@ -3,6 +3,7 @@ import {
   CAMPINAS_CLIENT_FORM_VARIABLES,
   CAMPINAS_STORE_FORM_FIELDS,
   CAMPINAS_STORE_FORM_LABELS,
+  CAMPINAS_STORE_CNPJ_FIELD,
 } from "../config/zapsignCampinas.js";
 
 type ZapSignRequest = <T>(
@@ -126,9 +127,23 @@ export async function applyCampinasClientForm(
 
   const template = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
   const existing = template.inputs || [];
+  const sourceTemplateId = process.env.ZAPSIGN_TEMPLATE_ID_CAMPINAS?.trim();
+
+  let sourceUploads: ZapSignTemplateInput[] = [];
+  if (sourceTemplateId && sourceTemplateId !== templateId) {
+    try {
+      const source = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${sourceTemplateId}/`);
+      sourceUploads = (source.inputs || []).filter((input) => input.input_type === "upload");
+    } catch {
+      /* template original indisponível */
+    }
+  }
 
   const clientInputs = CAMPINAS_CLIENT_FORM_FIELDS.map(mapFormField);
-  const storeInputs = CAMPINAS_STORE_FORM_FIELDS.map(mapFormField);
+  const storeInputs =
+    sourceUploads.length > 0
+      ? [mapFormField(CAMPINAS_STORE_CNPJ_FIELD)]
+      : CAMPINAS_STORE_FORM_FIELDS.map(mapFormField);
   const clientVariables = new Set(CAMPINAS_CLIENT_FORM_VARIABLES);
 
   const prefilledInputs = existing

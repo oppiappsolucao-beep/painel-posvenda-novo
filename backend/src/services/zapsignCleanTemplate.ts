@@ -12,6 +12,7 @@ export interface ZapSignTemplateDetail {
   template_file?: string;
   last_update_at?: string;
   name?: string;
+  inputs?: Array<{ input_type?: string; label?: string; required?: boolean; order?: number }>;
 }
 
 interface CleanTemplateCache {
@@ -146,6 +147,15 @@ export async function resolveCampinasProductionTemplateId(
   try {
     await syncCampinasStoreSignerFromSource(sourceTemplateId, cleanToken, zapsignRequest);
     await applyCampinasClientForm(cleanToken, zapsignRequest);
+    const verified = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${cleanToken}/`);
+    const hasStoreUploads = (verified.inputs || []).some((input) => input.input_type === "upload");
+    if (!hasStoreUploads) {
+      console.warn(
+        "[zapsign] Template limpo sem anexos da loja; usando template original com formulário completo.",
+      );
+      await applyCampinasClientForm(sourceTemplateId, zapsignRequest);
+      return sourceTemplateId;
+    }
     console.log(`[zapsign] Formulário e signatário loja aplicados ao template limpo ${cleanToken}`);
   } catch (e) {
     console.warn(
