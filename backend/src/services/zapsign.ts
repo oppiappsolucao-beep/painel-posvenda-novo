@@ -4,7 +4,7 @@ import {
 } from "../config/zapsignCampinas.js";
 import type { SheetRow } from "../config.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
-import { resolveCampinasProductionTemplateId } from "./zapsignCleanTemplate.js";
+import { resolveCampinasProductionTemplateId, resetCleanTemplateCache } from "./zapsignCleanTemplate.js";
 
 const API_BASE = "https://api.zapsign.com.br/api/v1";
 
@@ -56,6 +56,11 @@ export function isZapSignCampinasEnabled(): boolean {
 }
 
 let cachedProductionTemplateId: string | null = null;
+
+export async function resetCampinasProductionTemplateCache(): Promise<void> {
+  cachedProductionTemplateId = null;
+  await resetCleanTemplateCache();
+}
 
 async function getCampinasProductionTemplateId(): Promise<string> {
   const { templateId } = getConfig();

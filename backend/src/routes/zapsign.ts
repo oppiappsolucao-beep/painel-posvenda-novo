@@ -4,6 +4,7 @@ import {
   configureCampinasTemplateForm,
   ensureCampinasProductionTemplate,
   isZapSignCampinasEnabled,
+  resetCampinasProductionTemplateCache,
 } from "../services/zapsign.js";
 import { updateContractRow } from "../services/sheets.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
@@ -18,9 +19,14 @@ router.post("/configure-campinas", authMiddleware, requireRole("financeiro"), as
   }
 
   try {
-    await ensureCampinasProductionTemplate();
+    await resetCampinasProductionTemplateCache();
+    const templateId = await ensureCampinasProductionTemplate();
     await configureCampinasTemplateForm();
-    res.json({ ok: true, message: "Template de produção (sem destaque) e formulário Campinas configurados." });
+    res.json({
+      ok: true,
+      templateId,
+      message: "Template de produção (sem destaque) recriado e formulário configurado.",
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });

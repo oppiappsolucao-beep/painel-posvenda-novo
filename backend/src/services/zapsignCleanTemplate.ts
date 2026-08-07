@@ -2,7 +2,9 @@ import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { stripDocxHighlights } from "../utils/docxStripHighlights.js";
+import { stripDocxHighlightsVerified } from "../utils/docxStripHighlights.js";
+
+const CACHE_VERSION = 3;
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -12,16 +14,27 @@ export interface ZapSignTemplateDetail {
 }
 
 interface CleanTemplateCache {
+  version: number;
   sourceToken: string;
   sourceUpdatedAt: string;
   sourceFileHash: string;
   cleanToken: string;
+  shadingRemoved?: number;
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_FILE = path.join(__dirname, "../../data/zapsign-clean-template.json");
+const CACHE_FILE = path.join(__dirname, "../../data/zapsign-clean-template-v2.json");
 
 let memoryCleanToken: string | null = null;
+
+export async function resetCleanTemplateCache(): Promise<void> {
+  memoryCleanToken = null;
+  try {
+    await fs.unlink(CACHE_FILE);
+  } catch {
+    /* cache inexistente */
+  }
+}
 
 function sha256(buf: Buffer): string {
   return crypto.createHash("sha256").update(buf).digest("hex");
@@ -80,6 +93,7 @@ export async function resolveCampinasProductionTemplateId(
 
   if (
     cache &&
+    cache.version === CACHE_VERSION &&
     cache.sourceToken === sourceTemplateId &&
     cache.sourceFileHash === fileHash &&
     cache.cleanToken
@@ -88,7 +102,15 @@ export async function resolveCampinasProductionTemplateId(
     return cache.cleanToken;
   }
 
-  const cleanDocx = await stripDocxHighlights(docxBuffer);
+  const { buffer: cleanDocx, before, after, fixed } = await stripDocxHighlightsVerified(docxBuffer);
+  console.log(`[zapsign] neutralizar destaque: before=${before} after=${after} fixed=${fixed}`);
+
+  if (before > 0 && !fixed) {
+    console.warn("[zapsign] Não foi possível neutralizar destaque do template; usando original.");
+    return sourceTemplateId;
+  }
+
+  const shadingRemoved = Math.max(0, before - after);
   const base64Docx = cleanDocx.toString("base64");
 
   const created = await zapsignRequest<ZapSignTemplateDetail>("/templates/create/", {
@@ -112,10 +134,12 @@ export async function resolveCampinasProductionTemplateId(
   }
 
   await writeCache({
+    version: CACHE_VERSION,
     sourceToken: sourceTemplateId,
     sourceUpdatedAt: detail.last_update_at || "",
     sourceFileHash: fileHash,
     cleanToken,
+    shadingRemoved,
   });
 
   console.log(
