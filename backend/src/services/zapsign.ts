@@ -15,6 +15,7 @@ import {
   campinasClientAuthMode,
   campinasStoreAuthMode,
   syncCampinasStoreSignerFromSource,
+  templateHasStoreUploadWorkflow,
 } from "./zapsignFormConfig.js";
 
 export interface ZapSignConfig {
@@ -369,6 +370,16 @@ export async function createCampinasContractDocument(
     );
   }
   await ensureCampinasClientFormConfigured(templateId);
+
+  const templateDetail = await zapsignRequest<{
+    signers?: Array<{ qualification?: string }>;
+    inputs?: Array<{ input_type?: string; label?: string }>;
+  }>(`/templates/${templateId}/`);
+  if (!templateHasStoreUploadWorkflow(templateDetail)) {
+    console.warn(
+      "[zapsign] Template sem anexos da loja — o link do lojista não exibirá upload de fotos/CNPJ.",
+    );
+  }
 
   const nome = String(contrato.Nome || "").trim() || "Cliente";
   const email = String(contrato["E-mail"] || "").trim();

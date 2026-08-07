@@ -4,9 +4,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { isZapSignSandbox } from "../config/zapsignEnv.js";
 import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders } from "../utils/docxStripHighlights.js";
-import { applyCampinasClientForm, syncCampinasStoreSignerFromSource } from "./zapsignFormConfig.js";
+import { applyCampinasClientForm, syncCampinasStoreSignerFromSource, templateHasStoreUploadWorkflow } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 5;
+const CACHE_VERSION = 6;
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -72,6 +72,14 @@ export async function resolveCampinasProductionTemplateId(
   zapsignRequest: <T>(path: string, init?: RequestInit & { json?: unknown }) => Promise<T>,
 ): Promise<string> {
   if (process.env.ZAPSIGN_STRIP_HIGHLIGHTS === "false") {
+    return sourceTemplateId;
+  }
+
+  const sourceDetail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${sourceTemplateId}/`);
+  if (templateHasStoreUploadWorkflow(sourceDetail)) {
+    console.log(
+      "[zapsign] Usando template original (anexos da loja e signatário lojista já configurados).",
+    );
     return sourceTemplateId;
   }
 
@@ -152,34 +160,34 @@ export async function resolveCampinasProductionTemplateId(
     throw new Error("ZapSign não retornou token do template de produção.");
   }
 
-  await writeCache({
-    version: CACHE_VERSION,
-    sandbox: isZapSignSandbox(),
-    sourceToken: sourceTemplateId,
-    sourceUpdatedAt: detail.last_update_at || "",
-    sourceFileHash: fileHash,
-    cleanToken,
-    shadingRemoved,
-  });
-
   try {
     await syncCampinasStoreSignerFromSource(sourceTemplateId, cleanToken, zapsignRequest);
     await applyCampinasClientForm(cleanToken, zapsignRequest);
     const verified = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${cleanToken}/`);
-    const hasStoreUploads = (verified.inputs || []).some((input) => input.input_type === "upload");
-    if (!hasStoreUploads) {
+    if (!templateHasStoreUploadWorkflow(verified)) {
       console.warn(
         "[zapsign] Template limpo sem anexos da loja; usando template original com formulário completo.",
       );
       await applyCampinasClientForm(sourceTemplateId, zapsignRequest);
       return sourceTemplateId;
     }
+
+    await writeCache({
+      version: CACHE_VERSION,
+      sandbox: isZapSignSandbox(),
+      sourceToken: sourceTemplateId,
+      sourceUpdatedAt: detail.last_update_at || "",
+      sourceFileHash: fileHash,
+      cleanToken,
+      shadingRemoved,
+    });
     console.log(`[zapsign] Formulário e signatário loja aplicados ao template limpo ${cleanToken}`);
   } catch (e) {
     console.warn(
       "[zapsign] Falha ao configurar formulário no template limpo:",
       e instanceof Error ? e.message : e,
     );
+    return sourceTemplateId;
   }
 
   console.log(

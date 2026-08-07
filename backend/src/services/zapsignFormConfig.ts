@@ -1,5 +1,6 @@
 import {
   CAMPINAS_CLIENT_FORM_FIELDS,
+  CAMPINAS_STORE_FORM_LABELS,
   CAMPINAS_STORE_FORM_FIELDS,
 } from "../config/zapsignCampinas.js";
 
@@ -71,6 +72,38 @@ function mapFormField(field: {
   };
 }
 
+function mapExistingTemplateInput(input: ZapSignTemplateInput) {
+  return {
+    variable: input.variable ?? "",
+    input_type: input.input_type ?? "input",
+    label: input.label ?? "",
+    help_text: input.help_text ?? "",
+    options: input.options ?? "",
+    required: input.required ?? true,
+    order: input.order ?? 0,
+  };
+}
+
+function isStoreTemplateInput(input: ZapSignTemplateInput): boolean {
+  const type = String(input.input_type || "").trim().toLowerCase();
+  if (type === "upload" || type === "cnpj") return true;
+  const label = String(input.label || "").trim().toLowerCase();
+  return CAMPINAS_STORE_FORM_LABELS.has(label);
+}
+
+/** Anexos/CNPJ da loja já configurados no modelo ZapSign (via painel web). */
+export function getPreservedStoreInputs(detail: ZapSignTemplateDetail) {
+  return (detail.inputs || []).filter(isStoreTemplateInput).map(mapExistingTemplateInput);
+}
+
+export function templateHasStoreUploadWorkflow(detail: ZapSignTemplateDetail): boolean {
+  const uploads = (detail.inputs || []).some((input) => input.input_type === "upload");
+  const lojista =
+    (detail.signers || []).length >= 2 ||
+    (detail.signers || []).some((signer) => signer.qualification === "lojista");
+  return uploads && lojista;
+}
+
 /** Copia signatário lojista do template original (sem assinatura na tela). */
 export async function syncCampinasStoreSignerFromSource(
   sourceTemplateId: string,
@@ -104,16 +137,21 @@ export async function syncCampinasStoreSignerFromSource(
   }
 }
 
-/** Formulário cliente + anexos/CNPJ da loja; campos da planilha não aparecem no form. */
+/** Formulário do cliente; preserva anexos/CNPJ da loja já existentes no modelo. */
 export async function applyCampinasClientForm(
   templateId: string,
   zapsignRequest: ZapSignRequest,
 ): Promise<void> {
   if (!templateId) return;
 
+  const detail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
   const clientInputs = CAMPINAS_CLIENT_FORM_FIELDS.map(mapFormField);
-  // Sempre incluir CNPJ + 4 anexos da loja (frente/verso carteirinha, foto, atestado).
-  const storeInputs = CAMPINAS_STORE_FORM_FIELDS.map(mapFormField);
+  const preservedStoreInputs = getPreservedStoreInputs(detail);
+  // upload não é suportado em update-form — só reaplicamos o que já existe no modelo.
+  const storeInputs =
+    preservedStoreInputs.length > 0
+      ? preservedStoreInputs
+      : CAMPINAS_STORE_FORM_FIELDS.filter((field) => field.input_type === "cnpj").map(mapFormField);
 
   // Campos da planilha (endereço, complemento, bairro, etc.) vêm preenchidos via
   // buildCampinasTemplateData ao criar o documento — não entram no form do cliente.

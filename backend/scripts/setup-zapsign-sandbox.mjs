@@ -73,13 +73,6 @@ async function api(base, token, pathname, init = {}) {
   return data;
 }
 
-function fixDocxPlaceholders(buf) {
-  let xml = buf.toString("utf8");
-  const fixed = xml.replace(/nome-completo\}\}/g, "{{contratante-nome-completo}}");
-  if (fixed === xml) return buf;
-  return Buffer.from(fixed, "utf8");
-}
-
 async function downloadAndPrepareDocx(templateFileUrl) {
   const { default: JSZip } = await import("jszip");
   const res = await fetch(templateFileUrl);
@@ -87,13 +80,25 @@ async function downloadAndPrepareDocx(templateFileUrl) {
   let docx = Buffer.from(await res.arrayBuffer());
 
   const zip = await JSZip.loadAsync(docx);
-  const docPath = "word/document.xml";
-  const xml = await zip.file(docPath).async("string");
-  const fixedXml = xml.replace(/nome-completo\}\}/g, "{{contratante-nome-completo}}");
-  if (fixedXml !== xml) {
-    zip.file(docPath, fixedXml);
+  let fixedCount = 0;
+  for (const name of Object.keys(zip.files)) {
+    const file = zip.files[name];
+    if (!file || file.dir || !/\.xml$/i.test(name)) continue;
+    const xml = await file.async("string");
+    const fixedXml = xml.replace(
+      /(<w:t(?:\s[^>]*)?>)\s*nome-completo\}\}(\s*<\/w:t>)/g,
+      "$1{{contratante-nome-completo}}$2",
+    );
+    if (fixedXml !== xml) {
+      fixedCount += (xml.match(/(<w:t(?:\s[^>]*)?>)\s*nome-completo\}\}(\s*<\/w:t>)/g) || []).length;
+      zip.file(name, fixedXml);
+    }
+  }
+  if (fixedCount > 0) {
     docx = Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
-    console.log("Corrigido placeholder nome-completo}} → {{contratante-nome-completo}}");
+    console.log(
+      `Corrigido placeholder nome-completo}} → {{contratante-nome-completo}} (${fixedCount}x)`,
+    );
   }
   return docx;
 }
@@ -136,17 +141,11 @@ async function main() {
   const sandboxTemplateId = created.token;
   if (!sandboxTemplateId) throw new Error("Sandbox não retornou token do template");
 
-  console.log("3) Configurando formulário...");
-  await api(SANDBOX_API, sandboxToken, "/templates/update-form/", {
-    method: "POST",
-    json: {
-      template_id: sandboxTemplateId,
-      custom_intro:
-        "Confirme seus dados e responda sobre a documentação do filhote antes de assinar o contrato.",
-      youtube_video_code: "",
-      inputs: [...CLIENT_FORM, ...STORE_FORM],
-    },
-  });
+  console.log("3) IMPORTANTE: anexos da loja (upload) não podem ser criados via API.");
+  console.log("   Abra https://sandbox.app.zapsign.com.br/conta/modelos/" + sandboxTemplateId);
+  console.log("   e configure manualmente os campos de upload/CNPJ do lojista,");
+  console.log("   copiando do modelo de produção Campinas.");
+  console.log("   (update-form da API remove uploads — não usamos aqui.)");
 
   const verified = await api(SANDBOX_API, sandboxToken, `/templates/${sandboxTemplateId}/`);
   const uploads = (verified.inputs || []).filter((i) => i.input_type === "upload").length;
