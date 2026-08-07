@@ -204,7 +204,7 @@ export function NovoContratoPage() {
             </div>
             <p className="text-sm text-blue-800">
               {clientSignUrl.includes("zapsign")
-                ? "Envie este link por WhatsApp ou e-mail. O cliente responderá sobre a documentação do filhote e assinará no ZapSign."
+                ? "O link também foi enviado ao e-mail do cliente (se cadastrado). Você pode reenviar por WhatsApp abaixo, se quiser."
                 : "Envie este link por WhatsApp ou e-mail para o cliente assinar o contrato no celular."}
             </p>
             <div className="flex flex-col sm:flex-row gap-2">

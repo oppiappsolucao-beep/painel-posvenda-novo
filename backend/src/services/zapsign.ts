@@ -20,6 +20,8 @@ export interface ZapSignCreatedDocument {
   signUrl: string;
   status: string;
   originalFile?: string;
+  emailSent: boolean;
+  clientEmail?: string;
 }
 
 export interface ZapSignSigner {
@@ -159,6 +161,9 @@ export async function createCampinasContractDocument(
   const nome = String(contrato.Nome || "").trim() || "Cliente";
   const email = String(contrato["E-mail"] || "").trim();
   const telefone = String(contrato.Telefone || "").replace(/\D/g, "");
+  const sendEmail = process.env.ZAPSIGN_SEND_EMAIL !== "false" && Boolean(email);
+  const sendWhatsapp =
+    process.env.ZAPSIGN_SEND_WHATSAPP === "true" && Boolean(telefone);
 
   const payload = {
     template_id: templateId,
@@ -171,8 +176,11 @@ export async function createCampinasContractDocument(
     external_id: externalId,
     folder_path: "/campinas/",
     signer_has_incomplete_fields: true,
-    send_automatic_email: process.env.ZAPSIGN_SEND_EMAIL === "true",
-    send_automatic_whatsapp: process.env.ZAPSIGN_SEND_WHATSAPP === "true",
+    send_automatic_email: sendEmail,
+    send_automatic_whatsapp: sendWhatsapp,
+    custom_message: sendEmail
+      ? `Olá ${nome},\n\nSeu contrato de compra do filhote está pronto para revisão e assinatura.\n\nAbra o link abaixo, confirme seus dados e responda sobre a documentação do filhote.\n\nAbraços,\nEquipe SkoobPet Campinas`
+      : "",
     data: buildCampinasTemplateData(contrato),
   };
 
@@ -191,6 +199,8 @@ export async function createCampinasContractDocument(
     signUrl: signer.sign_url,
     status: doc.status,
     originalFile: doc.original_file,
+    emailSent: sendEmail,
+    clientEmail: email || undefined,
   };
 }
 
