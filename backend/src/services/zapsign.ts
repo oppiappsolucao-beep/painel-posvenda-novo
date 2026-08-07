@@ -257,13 +257,13 @@ async function ensureStoreSigner(
   docToken: string,
   contrato: SheetRow,
   sendAutomaticEmail: boolean,
-): Promise<{ signUrl?: string; emailSent: boolean; email?: string }> {
+): Promise<{ signUrl?: string; emailSent: boolean; email?: string; whatsappLinkSent: boolean }> {
   const lojaNome = String(contrato.Vendedora || process.env.ZAPSIGN_LOJA_NAME || "Loja Campinas").trim();
   const lojaEmail = String(contrato["E-mail Loja"] || process.env.ZAPSIGN_LOJA_EMAIL || "").trim();
   const lojaPhone = String(
     contrato["Telefone Loja"] || process.env.ZAPSIGN_LOJA_PHONE || "",
   ).replace(/\D/g, "");
-  if (!lojaEmail) return { emailSent: false };
+  if (!lojaEmail) return { emailSent: false, whatsappLinkSent: false };
 
   const storeWhatsapp = isWhatsappDeliveryEnabled(lojaPhone);
   const signerPayload = buildStoreSignerPayload(
@@ -271,7 +271,7 @@ async function ensureStoreSigner(
     lojaEmail,
     lojaPhone,
     sendAutomaticEmail,
-    storeWhatsapp,
+    false,
   );
 
   const detail = await zapsignRequest<{ signers?: ZapSignSignerResponse[] }>(`/docs/${docToken}/`);
@@ -281,20 +281,39 @@ async function ensureStoreSigner(
     signers.find((s) => s.email === lojaEmail) ||
     signers[1];
 
+  let updated: ZapSignSignerResponse;
   if (lojaSigner?.token) {
-    const updated = await zapsignRequest<ZapSignSignerResponse>(`/signers/${lojaSigner.token}/`, {
+    updated = await zapsignRequest<ZapSignSignerResponse>(`/signers/${lojaSigner.token}/`, {
       method: "POST",
       json: signerPayload,
     });
-    return { signUrl: updated.sign_url, emailSent: sendAutomaticEmail, email: lojaEmail };
+  } else {
+    updated = await zapsignRequest<ZapSignSignerResponse>(`/docs/${docToken}/add-signer/`, {
+      method: "POST",
+      json: signerPayload,
+    });
   }
 
-  const added = await zapsignRequest<ZapSignSignerResponse>(`/docs/${docToken}/add-signer/`, {
-    method: "POST",
-    json: signerPayload,
-  });
+  let whatsappLinkSent = false;
+  if (storeWhatsapp && lojaPhone && updated.token) {
+    await zapsignRequest<ZapSignSignerResponse>(`/signers/${updated.token}/`, {
+      method: "POST",
+      json: {
+        phone_country: "55",
+        phone_number: lojaPhone,
+        send_automatic_whatsapp: true,
+        send_automatic_email: false,
+      },
+    });
+    whatsappLinkSent = true;
+  }
 
-  return { signUrl: added.sign_url, emailSent: sendAutomaticEmail, email: lojaEmail };
+  return {
+    signUrl: updated.sign_url,
+    emailSent: sendAutomaticEmail,
+    email: lojaEmail,
+    whatsappLinkSent,
+  };
 }
 
 export async function ensureCampinasProductionTemplate(): Promise<string> {
@@ -377,11 +396,14 @@ export async function createCampinasContractDocument(
     clientEmailSent = true;
   }
 
-  const storeSendViaZapSign = shouldSendSignEmails() && !emailViaSmtp && !whatsappEnabled;
+  const storeSendViaZapSign =
+    shouldSendSignEmails() && !emailViaSmtp && !isWhatsappDeliveryEnabled(
+      String(contrato["Telefone Loja"] || process.env.ZAPSIGN_LOJA_PHONE || "").replace(/\D/g, ""),
+    );
   const store = await ensureStoreSigner(doc.token, contrato, storeSendViaZapSign);
 
   let storeEmailSent = store.emailSent;
-  if (emailViaSmtp && store.signUrl && store.email) {
+  if (shouldUseSmtpForSignEmails() && store.signUrl && store.email) {
     const lojaNome = String(contrato.Vendedora || process.env.ZAPSIGN_LOJA_NAME || "Loja Campinas").trim();
     await sendContractSignEmail({
       to: store.email,
