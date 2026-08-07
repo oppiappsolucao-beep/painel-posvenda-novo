@@ -3,7 +3,12 @@ import type { SheetRow } from "../config.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
 import { isSmtpConfigured, sendContractSignEmail } from "./email.js";
 import { resolveCampinasProductionTemplateId, resetCleanTemplateCache } from "./zapsignCleanTemplate.js";
-import { applyCampinasClientForm, campinasStoreAuthMode, syncCampinasStoreSignerFromSource } from "./zapsignFormConfig.js";
+import {
+  applyCampinasClientForm,
+  campinasClientAuthMode,
+  campinasStoreAuthMode,
+  syncCampinasStoreSignerFromSource,
+} from "./zapsignFormConfig.js";
 
 const API_BASE = "https://api.zapsign.com.br/api/v1";
 
@@ -149,6 +154,65 @@ function shouldUseSmtpForSignEmails(): boolean {
   );
 }
 
+function isWhatsappDeliveryEnabled(telefone: string): boolean {
+  return process.env.ZAPSIGN_SEND_WHATSAPP === "true" && Boolean(telefone);
+}
+
+function buildClientSignerPayload(
+  telefone: string,
+  email: string,
+  sendAutomaticEmail: boolean,
+  sendAutomaticWhatsapp: boolean,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    auth_mode: campinasClientAuthMode(),
+    send_automatic_email: sendAutomaticEmail,
+    send_automatic_whatsapp: sendAutomaticWhatsapp,
+    lock_name: true,
+    blank_email: false,
+    phone_country: "55",
+    require_selfie_photo: false,
+    require_document_photo: false,
+  };
+
+  if (email) {
+    payload.email = email;
+    payload.lock_email = true;
+  } else {
+    payload.lock_email = false;
+  }
+
+  if (telefone) {
+    payload.phone_number = telefone;
+    payload.lock_phone = true;
+    payload.blank_phone = false;
+  } else {
+    payload.lock_phone = false;
+    payload.blank_phone = true;
+  }
+
+  return payload;
+}
+
+async function ensureClientSigner(
+  docToken: string,
+  contrato: SheetRow,
+  sendAutomaticEmail: boolean,
+  sendAutomaticWhatsapp: boolean,
+): Promise<void> {
+  const telefone = String(contrato.Telefone || "").replace(/\D/g, "");
+  const email = String(contrato["E-mail"] || "").trim();
+
+  const detail = await zapsignRequest<{ signers?: ZapSignSignerResponse[] }>(`/docs/${docToken}/`);
+  const clientSigner = detail.signers?.[0];
+  if (!clientSigner?.token) return;
+
+  await zapsignRequest<ZapSignSignerResponse>(`/signers/${clientSigner.token}/`, {
+    method: "POST",
+    json: buildClientSignerPayload(telefone, email, sendAutomaticEmail, sendAutomaticWhatsapp),
+  });
+}
+
 function zapsignBrandSettings(): { brand_name: string; created_by: string } {
   return {
     brand_name: (process.env.ZAPSIGN_BRAND_NAME || "SkoobPet Campinas").trim(),
@@ -161,11 +225,13 @@ function buildStoreSignerPayload(
   lojaEmail: string,
   lojaPhone: string,
   sendAutomaticEmail: boolean,
+  sendAutomaticWhatsapp: boolean,
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     name: lojaNome,
     email: lojaEmail,
     send_automatic_email: sendAutomaticEmail,
+    send_automatic_whatsapp: sendAutomaticWhatsapp,
     auth_mode: campinasStoreAuthMode(),
     qualification: "lojista",
     lock_email: true,
@@ -199,7 +265,14 @@ async function ensureStoreSigner(
   ).replace(/\D/g, "");
   if (!lojaEmail) return { emailSent: false };
 
-  const signerPayload = buildStoreSignerPayload(lojaNome, lojaEmail, lojaPhone, sendAutomaticEmail);
+  const storeWhatsapp = isWhatsappDeliveryEnabled(lojaPhone);
+  const signerPayload = buildStoreSignerPayload(
+    lojaNome,
+    lojaEmail,
+    lojaPhone,
+    sendAutomaticEmail,
+    storeWhatsapp,
+  );
 
   const detail = await zapsignRequest<{ signers?: ZapSignSignerResponse[] }>(`/docs/${docToken}/`);
   const signers = detail.signers || [];
@@ -255,11 +328,11 @@ export async function createCampinasContractDocument(
   const nome = String(contrato.Nome || "").trim() || "Cliente";
   const email = String(contrato["E-mail"] || "").trim();
   const telefone = String(contrato.Telefone || "").replace(/\D/g, "");
+  const whatsappEnabled = isWhatsappDeliveryEnabled(telefone);
   const emailEnabled = shouldSendSignEmails() && Boolean(email);
-  const emailViaSmtp = shouldUseSmtpForSignEmails();
-  const sendViaZapSign = emailEnabled && !emailViaSmtp;
-  const sendWhatsapp =
-    process.env.ZAPSIGN_SEND_WHATSAPP === "true" && Boolean(telefone);
+  const emailViaSmtp = shouldUseSmtpForSignEmails() && !whatsappEnabled;
+  const sendViaZapSign = emailEnabled && !emailViaSmtp && !whatsappEnabled;
+  const sendWhatsapp = whatsappEnabled;
 
   const payload = {
     template_id: templateId,
@@ -291,6 +364,8 @@ export async function createCampinasContractDocument(
     throw new Error("ZapSign não retornou link de assinatura.");
   }
 
+  await ensureClientSigner(doc.token, contrato, sendViaZapSign, sendWhatsapp);
+
   let clientEmailSent = sendViaZapSign;
   if (emailViaSmtp && email) {
     await sendContractSignEmail({
@@ -302,7 +377,7 @@ export async function createCampinasContractDocument(
     clientEmailSent = true;
   }
 
-  const storeSendViaZapSign = shouldSendSignEmails() && !emailViaSmtp;
+  const storeSendViaZapSign = shouldSendSignEmails() && !emailViaSmtp && !whatsappEnabled;
   const store = await ensureStoreSigner(doc.token, contrato, storeSendViaZapSign);
 
   let storeEmailSent = store.emailSent;

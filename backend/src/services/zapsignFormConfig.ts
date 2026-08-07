@@ -44,6 +44,14 @@ export function campinasStoreAuthMode(): string {
   return (process.env.ZAPSIGN_LOJA_AUTH_MODE || "tokenWhatsapp").trim();
 }
 
+/** Autenticação do cliente ao assinar (token do código). */
+export function campinasClientAuthMode(): string {
+  const explicit = process.env.ZAPSIGN_CLIENT_AUTH_MODE?.trim();
+  if (explicit) return explicit;
+  if (process.env.ZAPSIGN_SEND_WHATSAPP === "true") return "tokenWhatsapp";
+  return "tokenEmail";
+}
+
 function mapFormField(field: {
   variable: string;
   input_type: string;
