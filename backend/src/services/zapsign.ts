@@ -141,7 +141,7 @@ function shouldSendSignEmails(): boolean {
   return process.env.ZAPSIGN_SEND_EMAIL !== "false";
 }
 
-function shouldUseSmtpForClientEmail(): boolean {
+function shouldUseSmtpForSignEmails(): boolean {
   return (
     shouldSendSignEmails() &&
     process.env.ZAPSIGN_EMAIL_VIA_SMTP !== "false" &&
@@ -256,7 +256,7 @@ export async function createCampinasContractDocument(
   const email = String(contrato["E-mail"] || "").trim();
   const telefone = String(contrato.Telefone || "").replace(/\D/g, "");
   const emailEnabled = shouldSendSignEmails() && Boolean(email);
-  const emailViaSmtp = shouldUseSmtpForClientEmail();
+  const emailViaSmtp = shouldUseSmtpForSignEmails();
   const sendViaZapSign = emailEnabled && !emailViaSmtp;
   const sendWhatsapp =
     process.env.ZAPSIGN_SEND_WHATSAPP === "true" && Boolean(telefone);
@@ -302,8 +302,20 @@ export async function createCampinasContractDocument(
     clientEmailSent = true;
   }
 
-  const storeSendViaZapSign = shouldSendSignEmails();
+  const storeSendViaZapSign = shouldSendSignEmails() && !emailViaSmtp;
   const store = await ensureStoreSigner(doc.token, contrato, storeSendViaZapSign);
+
+  let storeEmailSent = store.emailSent;
+  if (emailViaSmtp && store.signUrl && store.email) {
+    const lojaNome = String(contrato.Vendedora || process.env.ZAPSIGN_LOJA_NAME || "Loja Campinas").trim();
+    await sendContractSignEmail({
+      to: store.email,
+      nome: lojaNome,
+      signUrl: store.signUrl,
+      papel: "loja",
+    });
+    storeEmailSent = true;
+  }
 
   return {
     docToken: doc.token,
@@ -313,7 +325,7 @@ export async function createCampinasContractDocument(
     emailSent: clientEmailSent,
     clientEmail: email || undefined,
     storeSignUrl: store.signUrl,
-    storeEmailSent: store.emailSent,
+    storeEmailSent,
     storeEmail: store.email,
   };
 }
