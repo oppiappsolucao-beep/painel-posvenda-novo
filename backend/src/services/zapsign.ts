@@ -1,11 +1,9 @@
-import {
-  buildCampinasTemplateData,
-  CAMPINAS_CLIENT_FORM_FIELDS,
-} from "../config/zapsignCampinas.js";
+import { buildCampinasTemplateData } from "../config/zapsignCampinas.js";
 import type { SheetRow } from "../config.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
 import { isSmtpConfigured, sendContractSignEmail } from "./email.js";
 import { resolveCampinasProductionTemplateId, resetCleanTemplateCache } from "./zapsignCleanTemplate.js";
+import { applyCampinasClientForm } from "./zapsignFormConfig.js";
 
 const API_BASE = "https://api.zapsign.com.br/api/v1";
 
@@ -62,10 +60,18 @@ export function isZapSignCampinasEnabled(): boolean {
 }
 
 let cachedProductionTemplateId: string | null = null;
+let formConfiguredForTemplateId: string | null = null;
 
 export async function resetCampinasProductionTemplateCache(): Promise<void> {
   cachedProductionTemplateId = null;
+  formConfiguredForTemplateId = null;
   await resetCleanTemplateCache();
+}
+
+async function ensureCampinasClientFormConfigured(templateId: string): Promise<void> {
+  if (!templateId || formConfiguredForTemplateId === templateId) return;
+  await applyCampinasClientForm(templateId, zapsignRequest);
+  formConfiguredForTemplateId = templateId;
 }
 
 async function getCampinasProductionTemplateId(): Promise<string> {
@@ -205,25 +211,8 @@ export async function ensureCampinasProductionTemplate(): Promise<string> {
 export async function configureCampinasTemplateForm(): Promise<void> {
   const templateId = await getCampinasProductionTemplateId();
   if (!templateId) return;
-
-  await zapsignRequest("/templates/update-form/", {
-    method: "POST",
-    json: {
-      template_id: templateId,
-      custom_intro:
-        "Confirme seus dados e responda sobre a documentação do filhote antes de assinar o contrato.",
-      youtube_video_code: "",
-      inputs: CAMPINAS_CLIENT_FORM_FIELDS.map((field) => ({
-        variable: field.variable,
-        input_type: field.input_type,
-        label: field.label,
-        help_text: field.help_text ?? "",
-        options: field.options ?? "",
-        required: field.required ?? true,
-        order: field.order,
-      })),
-    },
-  });
+  await applyCampinasClientForm(templateId, zapsignRequest);
+  formConfiguredForTemplateId = templateId;
 }
 
 export async function createCampinasContractDocument(
@@ -235,6 +224,7 @@ export async function createCampinasContractDocument(
   if (!templateId) {
     throw new Error("ZAPSIGN_TEMPLATE_ID_CAMPINAS não configurado.");
   }
+  await ensureCampinasClientFormConfigured(templateId);
 
   const nome = String(contrato.Nome || "").trim() || "Cliente";
   const email = String(contrato["E-mail"] || "").trim();

@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { stripDocxHighlightsVerified } from "../utils/docxStripHighlights.js";
+import { applyCampinasClientForm } from "./zapsignFormConfig.js";
 
 const CACHE_VERSION = 3;
 
@@ -141,6 +142,16 @@ export async function resolveCampinasProductionTemplateId(
     cleanToken,
     shadingRemoved,
   });
+
+  try {
+    await applyCampinasClientForm(cleanToken, zapsignRequest);
+    console.log(`[zapsign] Formulário cliente aplicado ao template limpo ${cleanToken}`);
+  } catch (e) {
+    console.warn(
+      "[zapsign] Falha ao configurar formulário no template limpo:",
+      e instanceof Error ? e.message : e,
+    );
+  }
 
   console.log(
     `[zapsign] Template de produção (sem destaque) criado: ${cleanToken} ← ${sourceTemplateId}`,
