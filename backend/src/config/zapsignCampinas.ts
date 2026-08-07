@@ -100,6 +100,43 @@ export const CAMPINAS_CLIENT_FORM_FIELDS: ZapSignTemplateField[] = [
   },
 ];
 
+/** Variáveis preenchidas pela loja — não devem ser obrigatórias para o cliente no ZapSign. */
+export const CAMPINAS_STORE_PREFILLED_VARIABLES = [
+  "{{nome-completo}}",
+  "{{endereco}}",
+  "{{numero}}",
+  "{{complemento}}",
+  "{{bairro}}",
+  "{{cidade}}",
+  "{{uf}}",
+  "{{cep}}",
+  "{{rg}}",
+  "{{data}}",
+  "{{nome-animal}}",
+  "{{raca}}",
+  "{{cor}}",
+  "{{data-nasc}}",
+  "{{sexo}}",
+  "{{microchip}}",
+  "{{especie}}",
+  "{{pelagem}}",
+  "{{observacoes}}",
+  "{{valor}}",
+  "{{ex-cinco-mil-reais}}",
+  "{{forma-de-pag}}",
+  "{{parcela}}",
+  "{{nome-sobrenome}}",
+  "{{contratante-nome-completo}}",
+  "{{exemplo-18}}",
+  "{{fevereiro}}",
+  "{{cpf}}",
+  "{{ano}}",
+] as const;
+
+export const CAMPINAS_CLIENT_FORM_VARIABLES = new Set(
+  CAMPINAS_CLIENT_FORM_FIELDS.map((field) => field.variable),
+);
+
 function pick(contrato: SheetRow, ...keys: string[]): string {
   for (const key of keys) {
     const value = String(contrato[key] ?? "").trim();
