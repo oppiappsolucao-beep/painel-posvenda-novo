@@ -209,15 +209,54 @@ async function ensureClientSigner(
 
   await zapsignRequest<ZapSignSignerResponse>(`/signers/${clientSigner.token}/`, {
     method: "POST",
-    json: buildClientSignerPayload(telefone, email, sendAutomaticEmail, sendAutomaticWhatsapp),
+    json: buildClientSignerPayload(telefone, email, false, false),
   });
+
+  if (sendAutomaticWhatsapp && telefone) {
+    await zapsignRequest<ZapSignSignerResponse>(`/signers/${clientSigner.token}/`, {
+      method: "POST",
+      json: {
+        phone_country: "55",
+        phone_number: telefone,
+        auth_mode: campinasClientAuthMode(),
+        send_automatic_whatsapp: true,
+        send_automatic_email: false,
+      },
+    });
+    return;
+  }
+
+  if (sendAutomaticEmail) {
+    await zapsignRequest<ZapSignSignerResponse>(`/signers/${clientSigner.token}/`, {
+      method: "POST",
+      json: {
+        email,
+        send_automatic_email: true,
+        send_automatic_whatsapp: false,
+      },
+    });
+  }
 }
 
 function zapsignBrandSettings(): { brand_name: string; created_by: string } {
   return {
-    brand_name: (process.env.ZAPSIGN_BRAND_NAME || "SkoobPet Campinas").trim(),
+    brand_name: (process.env.ZAPSIGN_BRAND_NAME || "SkoobPet").trim(),
     created_by: (process.env.ZAPSIGN_CREATED_BY || "contato@skoobpet.com.br").trim().toLowerCase(),
   };
+}
+
+function zapsignCustomMessage(nome: string): string {
+  const brand = (process.env.ZAPSIGN_BRAND_NAME || "SkoobPet").trim();
+  return [
+    `Olá ${nome},`,
+    "",
+    `Seu contrato de compra do filhote está pronto para revisão e assinatura.`,
+    "",
+    `Abra o link abaixo, confirme seus dados e responda sobre a documentação do filhote.`,
+    "",
+    `Abraços,`,
+    `Equipe ${brand}`,
+  ].join("\n");
 }
 
 function buildStoreSignerPayload(
@@ -301,6 +340,7 @@ async function ensureStoreSigner(
       json: {
         phone_country: "55",
         phone_number: lojaPhone,
+        auth_mode: campinasStoreAuthMode(),
         send_automatic_whatsapp: true,
         send_automatic_email: false,
       },
@@ -366,10 +406,10 @@ export async function createCampinasContractDocument(
     signer_has_incomplete_fields: true,
     ...zapsignBrandSettings(),
     send_automatic_email: sendViaZapSign,
-    send_automatic_whatsapp: sendWhatsapp,
-    custom_message: sendViaZapSign
-      ? `Olá ${nome},\n\nSeu contrato de compra do filhote está pronto para revisão e assinatura.\n\nAbra o link abaixo, confirme seus dados e responda sobre a documentação do filhote.\n\nAbraços,\nEquipe SkoobPet Campinas`
-      : "",
+    // WhatsApp só após ensureClientSigner configurar tokenWhatsapp + brand_name.
+    send_automatic_whatsapp: false,
+    custom_message:
+      sendViaZapSign || sendWhatsapp ? zapsignCustomMessage(nome) : "",
     data: buildCampinasTemplateData(contrato),
   };
 

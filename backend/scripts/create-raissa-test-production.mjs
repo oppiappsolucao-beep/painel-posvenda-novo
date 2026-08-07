@@ -19,7 +19,7 @@ const FIN_PASS = process.env.FIN_PASS || "skoobdiretoria123";
 
 const contrato = {
   Nome: "Raissa",
-  Telefone: "(19) 98765-4321",
+  Telefone: "(11) 96848-2180",
   CPF: "529.982.247-25",
   "E-mail": "kaineenetwork@gmail.com",
   Endereço: "Rua das Flores",
@@ -47,7 +47,7 @@ const contrato = {
   "Quantidade de parcelas": "1",
   Vendedora: "Higo",
   "E-mail Loja": "silvaphigo@gmail.com",
-  "Telefone Loja": process.env.ZAPSIGN_LOJA_PHONE || "19991833826",
+  "Telefone Loja": "11999251024",
   Unidade: "Campinas",
 };
 

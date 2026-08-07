@@ -2,17 +2,30 @@
  * Deploy em produção: apaga contratos Raissa (planilha + ZapSign) e cria um novo.
  *
  * Uso:
- *   FIN_PASS=... node scripts/reset-raissa-production.mjs
+ *   node scripts/reset-raissa-production.mjs
  */
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, "../.env") });
+
 const BASE = (process.env.PRODUCTION_API_URL || "https://skoobpet.oppitech.com.br/api").replace(/\/$/, "");
 const FIN_USER = process.env.FIN_USER || "controle@skoobpet.com.br";
 const FIN_PASS = process.env.FIN_PASS || "skoobdiretoria123";
 const ZAPSIGN_API = "https://api.zapsign.com.br/api/v1";
 const zapsignToken = process.env.ZAPSIGN_API_TOKEN?.trim();
 
+process.env.ZAPSIGN_SEND_EMAIL = process.env.ZAPSIGN_SEND_EMAIL || "true";
+process.env.ZAPSIGN_EMAIL_VIA_SMTP = process.env.ZAPSIGN_EMAIL_VIA_SMTP || "true";
+process.env.ZAPSIGN_SEND_WHATSAPP = process.env.ZAPSIGN_SEND_WHATSAPP || "true";
+process.env.ZAPSIGN_CLIENT_AUTH_MODE = process.env.ZAPSIGN_CLIENT_AUTH_MODE || "tokenWhatsapp";
+process.env.ZAPSIGN_LOJA_AUTH_MODE = process.env.ZAPSIGN_LOJA_AUTH_MODE || "tokenWhatsapp";
+
 const contrato = {
   Nome: "Raissa",
-  Telefone: "(19) 98765-4321",
+  Telefone: "(11) 96848-2180",
   CPF: "529.982.247-25",
   "E-mail": "kaineenetwork@gmail.com",
   Endereço: "Rua das Flores",
@@ -40,6 +53,7 @@ const contrato = {
   "Quantidade de parcelas": "1",
   Vendedora: "Higo",
   "E-mail Loja": "silvaphigo@gmail.com",
+  "Telefone Loja": "11999251024",
   Unidade: "Campinas",
 };
 
@@ -69,28 +83,16 @@ async function api(path, init = {}, cookie = "") {
   return { data, cookie: parseCookies(res.headers.getSetCookie?.() || res.headers.get("set-cookie")) };
 }
 
-async function zapsign(pathname, init = {}) {
+async function zapsignDelete(docToken) {
   if (!zapsignToken) throw new Error("ZAPSIGN_API_TOKEN ausente");
-  const res = await fetch(`${ZAPSIGN_API}${pathname}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${zapsignToken}`,
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
-    body: init.body ? JSON.stringify(init.body) : undefined,
+  const res = await fetch(`${ZAPSIGN_API}/docs/${docToken}/`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${zapsignToken}` },
   });
-  const text = await res.text();
   if (!res.ok && res.status !== 404) {
-    let detail = text;
-    try {
-      detail = JSON.parse(text).detail || text;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail || res.statusText);
+    const text = await res.text();
+    throw new Error(text || res.statusText);
   }
-  return res.ok;
 }
 
 console.log("Login financeiro...");
@@ -111,7 +113,7 @@ console.log(`Encontrados: ${items.length}`);
 for (const item of items) {
   if (item.docToken) {
     console.log(`Apagando ZapSign ${item.docToken}...`);
-    await zapsign(`/docs/${item.docToken}/`, { method: "DELETE" });
+    await zapsignDelete(item.docToken);
   }
 }
 
@@ -121,33 +123,18 @@ for (const sheetIndex of indices) {
   try {
     await api(`/dashboard/contracts/campinas/${sheetIndex}`, { method: "DELETE" }, cookie);
   } catch (e) {
-    console.warn(`  DELETE falhou (deploy pendente?): ${e.message}`);
+    console.warn(`  DELETE falhou: ${e instanceof Error ? e.message : e}`);
   }
+}
+
+if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  console.warn("SMTP não configurado localmente — link da loja pode ir só por WhatsApp.");
 }
 
 console.log("Criando novo contrato ZapSign...");
 const { createCampinasContractDocument } = await import("../dist/services/zapsign.js");
 const externalId = `campinas:raissa-${Date.now()}`;
 const doc = await createCampinasContractDocument(contrato, externalId);
-
-const detailRes = await fetch(`${ZAPSIGN_API}/docs/${doc.docToken}/`, {
-  headers: { Authorization: `Bearer ${zapsignToken}` },
-});
-const detail = await detailRes.json();
-const lojaSigner = (detail.signers || []).find((s) => s.qualification === "lojista") || detail.signers?.[1];
-if (lojaSigner?.token) {
-  await fetch(`${ZAPSIGN_API}/signers/${lojaSigner.token}/`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${zapsignToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: "Higo",
-      email: "silvaphigo@gmail.com",
-      send_automatic_email: true,
-      auth_mode: "assinaturaTela",
-      qualification: "lojista",
-    }),
-  });
-}
 
 console.log("Registrando na planilha via produção...");
 const registered = await api(
@@ -161,7 +148,7 @@ const registered = await api(
         docToken: doc.docToken,
         signUrl: doc.signUrl,
         storeSignUrl: doc.storeSignUrl,
-        storeEmail: doc.storeEmail || "silvaphigo@gmail.com",
+        storeEmail: doc.storeEmail || contrato["E-mail Loja"],
       },
     },
   },
@@ -169,7 +156,10 @@ const registered = await api(
 );
 
 console.log("\n=== Pronto ===");
-console.log("Planilha:", registered.data);
+console.log("Planilha:", registered.data.message || registered.data);
 console.log("Documento:", doc.docToken);
-console.log("Cliente:", doc.signUrl);
-console.log("E-mail:", doc.emailSent ? doc.clientEmail : "não enviado");
+console.log("Cliente (Raissa):", doc.signUrl);
+console.log("WhatsApp cliente:", contrato.Telefone);
+console.log("Loja (Higo):", doc.storeSignUrl);
+console.log("WhatsApp loja:", contrato["Telefone Loja"]);
+console.log("E-mail loja backup:", doc.storeEmailSent ? doc.storeEmail : "não");
