@@ -14,7 +14,11 @@ import zapsignRoutes from "./routes/zapsign.js";
 import { getDatabaseHealth, initDatabase } from "./db/init.js";
 import { getEmployeesStorageInfo } from "./services/employees.js";
 import { maybeSyncEmployeesFromSheets } from "./services/syncEmployeesFromSheets.js";
-import { configureCampinasTemplateForm, isZapSignCampinasEnabled } from "./services/zapsign.js";
+import {
+  configureCampinasTemplateForm,
+  ensureCampinasProductionTemplate,
+  isZapSignCampinasEnabled,
+} from "./services/zapsign.js";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -86,10 +90,11 @@ async function start() {
       console.warn("[employees] sync inicial:", e instanceof Error ? e.message : e);
     });
     if (isZapSignCampinasEnabled() && process.env.ZAPSIGN_CONFIGURE_FORM !== "false") {
-      configureCampinasTemplateForm()
-        .then(() => console.log("[zapsign] Formulário Campinas configurado no template."))
+      ensureCampinasProductionTemplate()
+        .then(() => configureCampinasTemplateForm())
+        .then(() => console.log("[zapsign] Template de produção e formulário Campinas prontos."))
         .catch((e) => {
-          console.warn("[zapsign] configure form:", e instanceof Error ? e.message : e);
+          console.warn("[zapsign] template/form:", e instanceof Error ? e.message : e);
         });
     }
   } catch (e) {

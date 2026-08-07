@@ -4,6 +4,7 @@ import {
 } from "../config/zapsignCampinas.js";
 import type { SheetRow } from "../config.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
+import { resolveCampinasProductionTemplateId } from "./zapsignCleanTemplate.js";
 
 const API_BASE = "https://api.zapsign.com.br/api/v1";
 
@@ -54,6 +55,20 @@ export function isZapSignCampinasEnabled(): boolean {
   return getConfig().enabled;
 }
 
+let cachedProductionTemplateId: string | null = null;
+
+async function getCampinasProductionTemplateId(): Promise<string> {
+  const { templateId } = getConfig();
+  if (!templateId) return "";
+  if (cachedProductionTemplateId) return cachedProductionTemplateId;
+
+  cachedProductionTemplateId = await resolveCampinasProductionTemplateId(
+    templateId,
+    zapsignRequest,
+  );
+  return cachedProductionTemplateId;
+}
+
 async function zapsignRequest<T>(
   path: string,
   init: RequestInit & { json?: unknown } = {},
@@ -98,8 +113,12 @@ async function zapsignRequest<T>(
   return payload as T;
 }
 
+export async function ensureCampinasProductionTemplate(): Promise<string> {
+  return getCampinasProductionTemplateId();
+}
+
 export async function configureCampinasTemplateForm(): Promise<void> {
-  const { templateId } = getConfig();
+  const templateId = await getCampinasProductionTemplateId();
   if (!templateId) return;
 
   await zapsignRequest("/templates/update-form/", {
@@ -126,7 +145,8 @@ export async function createCampinasContractDocument(
   contrato: SheetRow,
   externalId: string,
 ): Promise<ZapSignCreatedDocument> {
-  const { templateId, sandbox } = getConfig();
+  const { sandbox } = getConfig();
+  const templateId = await getCampinasProductionTemplateId();
   if (!templateId) {
     throw new Error("ZAPSIGN_TEMPLATE_ID_CAMPINAS não configurado.");
   }

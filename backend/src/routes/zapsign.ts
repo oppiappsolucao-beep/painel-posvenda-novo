@@ -2,6 +2,7 @@ import { Router } from "express";
 import { UnitKey } from "../config.js";
 import {
   configureCampinasTemplateForm,
+  ensureCampinasProductionTemplate,
   isZapSignCampinasEnabled,
 } from "../services/zapsign.js";
 import { updateContractRow } from "../services/sheets.js";
@@ -17,8 +18,9 @@ router.post("/configure-campinas", authMiddleware, requireRole("financeiro"), as
   }
 
   try {
+    await ensureCampinasProductionTemplate();
     await configureCampinasTemplateForm();
-    res.json({ ok: true, message: "Formulário do template Campinas configurado no ZapSign." });
+    res.json({ ok: true, message: "Template de produção (sem destaque) e formulário Campinas configurados." });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });
