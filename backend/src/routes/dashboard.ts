@@ -27,6 +27,7 @@ import {
   getContractRow,
   loadRowsForUser,
   pruneAllSheetsToDemo,
+  saveContract,
   saveContractForUser,
   updateContractRow,
 } from "../services/sheets.js";
@@ -300,7 +301,7 @@ function buildStatusAssinaturaData(
       sortTimestamp: getSortTimestamp(row),
       assinatura,
       podeAssinarLoja,
-      inAppSignature: item.unitKey === "campinas",
+      inAppSignature: item.unitKey === "campinas" && Boolean(record),
     };
   });
 
@@ -431,6 +432,91 @@ router.get("/contracts/preview/:unitKey/:sheetIndex", authMiddleware, requireRol
   }
 });
 
+router.post("/contracts/register-zapsign", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
+  try {
+    const body = req.body as {
+      unitKey?: UnitKey;
+      contrato?: Record<string, string>;
+      zapsign?: {
+        docToken?: string;
+        signUrl?: string;
+        storeSignUrl?: string;
+        storeEmail?: string;
+      };
+    };
+
+    const contrato = (body.contrato && typeof body.contrato === "object" ? body.contrato : {}) as Record<string, string>;
+    const zapsign = body.zapsign || {};
+    const docToken = String(zapsign.docToken || "").trim();
+    const signUrl = String(zapsign.signUrl || "").trim();
+
+    if (!docToken || !signUrl) {
+      res.status(400).json({ error: "Informe docToken e signUrl do ZapSign." });
+      return;
+    }
+
+    const obrigatorios = ["Nome", "Telefone", "CPF", "E-mail", "Raça", "Sexo", "Cor", "Pelagem", "Data Compra", "Valor Filhote"];
+    const faltando = obrigatorios.filter((k) => !String(contrato[k] || "").trim());
+    if (faltando.length) {
+      res.status(400).json({ error: `Preencha: ${faltando.join(", ")}` });
+      return;
+    }
+
+    if (!isCpfComplete(contrato["CPF"])) {
+      res.status(400).json({ error: "CPF obrigatório no formato 123.456.789-00 (11 dígitos)." });
+      return;
+    }
+
+    const unitKey =
+      body.unitKey ||
+      req.user!.unit ||
+      getUnitByEmail(req.user!.username)?.key;
+    if (!unitKey) {
+      res.status(400).json({ error: "Unidade não informada." });
+      return;
+    }
+
+    const unit = getUnitByKey(unitKey);
+    if (!unit) {
+      res.status(400).json({ error: "Unidade inválida." });
+      return;
+    }
+
+    if (req.user!.unit && req.user!.unit !== unitKey) {
+      res.status(403).json({ error: "Acesso negado para esta unidade." });
+      return;
+    }
+
+    const now = todaySaoPaulo();
+    contrato["Data preenchimento"] = `${formatDateBr(now)} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+    contrato["Unidade"] = contrato["Unidade"] || unit.label;
+
+    const sheetIndex = await saveContract(contrato, unit);
+    const patch = buildZapSignSheetPatch(
+      {
+        docToken,
+        signUrl,
+        status: "pending",
+        emailSent: false,
+        storeSignUrl: String(zapsign.storeSignUrl || "").trim() || undefined,
+        storeEmail: String(zapsign.storeEmail || contrato["E-mail Loja"] || "").trim() || undefined,
+      },
+      contrato,
+    );
+    await updateContractRow(unitKey, sheetIndex, patch);
+
+    res.json({
+      ok: true,
+      sheetIndex,
+      unitKey,
+      message: `Contrato ${contrato.Nome} registrado na planilha com links ZapSign.`,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
+  }
+});
+
 router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
   try {
     const body = req.body as {
@@ -463,7 +549,7 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
         contrato,
         `campinas:${sheetIndex}`,
       );
-      await updateContractRow(unitKey, sheetIndex, buildZapSignSheetPatch(zapsignDoc));
+      await updateContractRow(unitKey, sheetIndex, buildZapSignSheetPatch(zapsignDoc, contrato));
 
       const message = zapsignDoc.emailSent && zapsignDoc.clientEmail
         ? `Contrato enviado ao ZapSign. Link de assinatura enviado para ${zapsignDoc.clientEmail}.`

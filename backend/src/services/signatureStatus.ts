@@ -112,6 +112,53 @@ function buildCampinasEmpty(row: SheetRow, unitKey: UnitKey): SignatureProgress 
   return { signatarios, progresso: 0, inApp: true };
 }
 
+function buildFromZapSignRow(row: SheetRow, unitKey: UnitKey): SignatureProgress {
+  const enviado = Boolean(String(row["Data Envio"] || row["Documento ZapSign"] || "").trim());
+  const dataCliente = String(row["Data Assinatura Cliente"] || "").trim();
+  const dataLoja = String(row["Data Assinatura Loja"] || "").trim();
+  const linkCliente = String(row["Link Assinatura"] || "").trim();
+  const linkLoja = String(row["Link Assinatura Loja"] || "").trim();
+  const loja = lojaSignatario(unitKey);
+  const lojaNome = String(row["Vendedora"] || loja.nome).trim() || loja.nome;
+  const lojaEmail = String(row["E-mail Loja"] || loja.email).trim();
+
+  const clienteStatus = inferStatusFromDate(dataCliente, enviado);
+  const lojaStatus = dataCliente
+    ? inferStatusFromDate(dataLoja, enviado)
+    : enviado
+      ? "aguardando"
+      : "nao_enviado";
+
+  const signatarios: SignatarioItem[] = [
+    {
+      papel: "Cliente",
+      nome: String(row["Nome"] || "Cliente").trim() || "Cliente",
+      email: String(row["E-mail"] || "").trim(),
+      status: clienteStatus,
+      statusLabel: statusLabel(clienteStatus),
+      assinadoEm: dataCliente || "—",
+      linkAssinatura: linkCliente || undefined,
+    },
+    {
+      papel: "Loja",
+      nome: lojaNome,
+      email: lojaEmail,
+      status: lojaStatus,
+      statusLabel: statusLabel(lojaStatus),
+      assinadoEm: dataLoja || "—",
+      linkAssinatura: linkLoja || undefined,
+    },
+  ];
+
+  const assinados = signatarios.filter((s) => s.status === "assinado").length;
+
+  return {
+    signatarios,
+    progresso: Math.round((assinados / signatarios.length) * 100),
+    inApp: false,
+  };
+}
+
 export function buildSignatureProgress(
   row: SheetRow,
   unitKey: UnitKey,
@@ -119,6 +166,13 @@ export function buildSignatureProgress(
 ): SignatureProgress {
   if (unitKey === "campinas") {
     if (record) return buildFromRecord(record, row, unitKey);
+
+    const zapsignDoc = String(row["Documento ZapSign"] || "").trim();
+    const linkZapSign = String(row["Link Assinatura"] || "").trim();
+    if (zapsignDoc || linkZapSign) {
+      return buildFromZapSignRow(row, unitKey);
+    }
+
     return buildCampinasEmpty(row, unitKey);
   }
 

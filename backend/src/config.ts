@@ -138,11 +138,13 @@ export const DEFAULT_HEADERS = [
 
 export const SIGNATURE_HEADERS = [
   "Link Assinatura",
+  "Link Assinatura Loja",
   "Data Envio",
   "Documento ZapSign",
   "Data Assinatura Cliente",
   "Data Assinatura Loja",
   "Status Assinatura",
+  "E-mail Loja",
 ];
 
 export type UserRole = "operacao" | "financeiro";

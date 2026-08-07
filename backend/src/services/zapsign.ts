@@ -22,6 +22,9 @@ export interface ZapSignCreatedDocument {
   originalFile?: string;
   emailSent: boolean;
   clientEmail?: string;
+  storeSignUrl?: string;
+  storeEmailSent?: boolean;
+  storeEmail?: string;
 }
 
 export interface ZapSignSigner {
@@ -120,6 +123,62 @@ async function zapsignRequest<T>(
   return payload as T;
 }
 
+interface ZapSignSignerResponse {
+  token: string;
+  sign_url: string;
+  qualification?: string;
+  email?: string;
+}
+
+async function ensureStoreSigner(
+  docToken: string,
+  contrato: SheetRow,
+): Promise<{ signUrl?: string; emailSent: boolean; email?: string }> {
+  const lojaNome = String(contrato.Vendedora || process.env.ZAPSIGN_LOJA_NAME || "Loja Campinas").trim();
+  const lojaEmail = String(contrato["E-mail Loja"] || process.env.ZAPSIGN_LOJA_EMAIL || "").trim();
+  if (!lojaEmail) return { emailSent: false };
+
+  const detail = await zapsignRequest<{ signers?: ZapSignSignerResponse[] }>(`/docs/${docToken}/`);
+  const signers = detail.signers || [];
+  const lojaSigner =
+    signers.find((s) => s.qualification === "lojista") ||
+    signers.find((s) => s.email === lojaEmail) ||
+    signers[1];
+
+  const sendEmail = process.env.ZAPSIGN_SEND_EMAIL !== "false";
+
+  if (lojaSigner?.token) {
+    const updated = await zapsignRequest<ZapSignSignerResponse>(`/signers/${lojaSigner.token}/`, {
+      method: "POST",
+      json: {
+        name: lojaNome,
+        email: lojaEmail,
+        send_automatic_email: sendEmail,
+        auth_mode: "assinaturaTela",
+        qualification: "lojista",
+        lock_email: true,
+        lock_name: true,
+      },
+    });
+    return { signUrl: updated.sign_url, emailSent: sendEmail, email: lojaEmail };
+  }
+
+  const added = await zapsignRequest<ZapSignSignerResponse>(`/docs/${docToken}/add-signer/`, {
+    method: "POST",
+    json: {
+      name: lojaNome,
+      email: lojaEmail,
+      send_automatic_email: sendEmail,
+      auth_mode: "assinaturaTela",
+      qualification: "lojista",
+      lock_email: true,
+      lock_name: true,
+    },
+  });
+
+  return { signUrl: added.sign_url, emailSent: sendEmail, email: lojaEmail };
+}
+
 export async function ensureCampinasProductionTemplate(): Promise<string> {
   return getCampinasProductionTemplateId();
 }
@@ -194,6 +253,8 @@ export async function createCampinasContractDocument(
     throw new Error("ZapSign não retornou link de assinatura.");
   }
 
+  const store = await ensureStoreSigner(doc.token, contrato);
+
   return {
     docToken: doc.token,
     signUrl: signer.sign_url,
@@ -201,15 +262,25 @@ export async function createCampinasContractDocument(
     originalFile: doc.original_file,
     emailSent: sendEmail,
     clientEmail: email || undefined,
+    storeSignUrl: store.signUrl,
+    storeEmailSent: store.emailSent,
+    storeEmail: store.email,
   };
 }
 
-export function buildZapSignSheetPatch(doc: ZapSignCreatedDocument): Record<string, string> {
+export function buildZapSignSheetPatch(
+  doc: ZapSignCreatedDocument,
+  contrato?: SheetRow,
+): Record<string, string> {
   const now = formatDateTimeBr(todaySaoPaulo());
-  return {
+  const patch: Record<string, string> = {
     "Link Assinatura": doc.signUrl,
     "Documento ZapSign": doc.docToken,
     "Data Envio": now,
     "Status Assinatura": "Aguardando cliente (ZapSign)",
   };
+  if (doc.storeSignUrl) patch["Link Assinatura Loja"] = doc.storeSignUrl;
+  if (doc.storeEmail) patch["E-mail Loja"] = doc.storeEmail;
+  else if (contrato?.["E-mail Loja"]) patch["E-mail Loja"] = String(contrato["E-mail Loja"]);
+  return patch;
 }
