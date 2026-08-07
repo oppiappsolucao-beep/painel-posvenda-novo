@@ -1,4 +1,11 @@
 import { buildCampinasTemplateData } from "../config/zapsignCampinas.js";
+import {
+  getZapSignApiBase,
+  getZapSignApiToken,
+  getZapSignTemplateIdCampinas,
+  isZapSignSandbox,
+  zapSignEnvironmentLabel,
+} from "../config/zapsignEnv.js";
 import type { SheetRow } from "../config.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
 import { isSmtpConfigured, sendContractSignEmail } from "./email.js";
@@ -9,8 +16,6 @@ import {
   campinasStoreAuthMode,
   syncCampinasStoreSignerFromSource,
 } from "./zapsignFormConfig.js";
-
-const API_BASE = "https://api.zapsign.com.br/api/v1";
 
 export interface ZapSignConfig {
   enabled: boolean;
@@ -47,8 +52,8 @@ export interface ZapSignDocResponse {
 }
 
 function getConfig(): ZapSignConfig {
-  const apiToken = process.env.ZAPSIGN_API_TOKEN?.trim() || "";
-  const templateId = process.env.ZAPSIGN_TEMPLATE_ID_CAMPINAS?.trim() || "";
+  const apiToken = getZapSignApiToken();
+  const templateId = getZapSignTemplateIdCampinas();
   const enabled =
     process.env.ZAPSIGN_ENABLED !== "false" && Boolean(apiToken && templateId);
 
@@ -56,7 +61,7 @@ function getConfig(): ZapSignConfig {
     enabled,
     apiToken,
     templateId,
-    sandbox: process.env.ZAPSIGN_SANDBOX === "true",
+    sandbox: isZapSignSandbox(),
   };
 }
 
@@ -105,7 +110,7 @@ async function zapsignRequest<T>(
     ...(init.json ? { "Content-Type": "application/json" } : {}),
   };
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${getZapSignApiBase()}${path}`, {
     ...init,
     headers: { ...headers, ...(init.headers as Record<string, string> | undefined) },
     body: init.json ? JSON.stringify(init.json) : init.body,
@@ -202,40 +207,27 @@ async function ensureClientSigner(
 ): Promise<void> {
   const telefone = String(contrato.Telefone || "").replace(/\D/g, "");
   const email = String(contrato["E-mail"] || "").trim();
+  const nome = String(contrato.Nome || "").trim() || "Cliente";
 
   const detail = await zapsignRequest<{ signers?: ZapSignSignerResponse[] }>(`/docs/${docToken}/`);
   const clientSigner = detail.signers?.[0];
   if (!clientSigner?.token) return;
 
-  await zapsignRequest<ZapSignSignerResponse>(`/signers/${clientSigner.token}/`, {
-    method: "POST",
-    json: buildClientSignerPayload(telefone, email, false, false),
-  });
-
   if (sendAutomaticWhatsapp && telefone) {
     await zapsignRequest<ZapSignSignerResponse>(`/signers/${clientSigner.token}/`, {
       method: "POST",
       json: {
-        phone_country: "55",
-        phone_number: telefone,
-        auth_mode: campinasClientAuthMode(),
-        send_automatic_whatsapp: true,
-        send_automatic_email: false,
+        ...buildClientSignerPayload(telefone, email, false, true),
+        custom_message: zapsignCustomMessage(nome),
       },
     });
     return;
   }
 
-  if (sendAutomaticEmail) {
-    await zapsignRequest<ZapSignSignerResponse>(`/signers/${clientSigner.token}/`, {
-      method: "POST",
-      json: {
-        email,
-        send_automatic_email: true,
-        send_automatic_whatsapp: false,
-      },
-    });
-  }
+  await zapsignRequest<ZapSignSignerResponse>(`/signers/${clientSigner.token}/`, {
+    method: "POST",
+    json: buildClientSignerPayload(telefone, email, sendAutomaticEmail, false),
+  });
 }
 
 function zapsignBrandSettings(): { brand_name: string; created_by: string } {
@@ -310,8 +302,11 @@ async function ensureStoreSigner(
     lojaEmail,
     lojaPhone,
     sendAutomaticEmail,
-    false,
+    storeWhatsapp,
   );
+  if (storeWhatsapp) {
+    (signerPayload as Record<string, unknown>).custom_message = zapsignCustomMessage(lojaNome);
+  }
 
   const detail = await zapsignRequest<{ signers?: ZapSignSignerResponse[] }>(`/docs/${docToken}/`);
   const signers = detail.signers || [];
@@ -333,21 +328,7 @@ async function ensureStoreSigner(
     });
   }
 
-  let whatsappLinkSent = false;
-  if (storeWhatsapp && lojaPhone && updated.token) {
-    await zapsignRequest<ZapSignSignerResponse>(`/signers/${updated.token}/`, {
-      method: "POST",
-      json: {
-        phone_country: "55",
-        phone_number: lojaPhone,
-        auth_mode: campinasStoreAuthMode(),
-        send_automatic_whatsapp: true,
-        send_automatic_email: false,
-      },
-    });
-    whatsappLinkSent = true;
-  }
-
+  let whatsappLinkSent = storeWhatsapp && Boolean(lojaPhone);
   return {
     signUrl: updated.sign_url,
     emailSent: sendAutomaticEmail,
@@ -381,6 +362,11 @@ export async function createCampinasContractDocument(
   const templateId = await getCampinasProductionTemplateId();
   if (!templateId) {
     throw new Error("ZAPSIGN_TEMPLATE_ID_CAMPINAS não configurado.");
+  }
+  if (sandbox) {
+    console.log(
+      `[zapsign] Ambiente ${zapSignEnvironmentLabel()} (${getZapSignApiBase()}) — testes sem validade jurídica.`,
+    );
   }
   await ensureCampinasClientFormConfigured(templateId);
 

@@ -2,10 +2,11 @@ import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { isZapSignSandbox } from "../config/zapsignEnv.js";
 import { stripDocxHighlightsVerified } from "../utils/docxStripHighlights.js";
 import { applyCampinasClientForm, syncCampinasStoreSignerFromSource } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -17,6 +18,7 @@ export interface ZapSignTemplateDetail {
 
 interface CleanTemplateCache {
   version: number;
+  sandbox: boolean;
   sourceToken: string;
   sourceUpdatedAt: string;
   sourceFileHash: string;
@@ -25,7 +27,11 @@ interface CleanTemplateCache {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_FILE = path.join(__dirname, "../../data/zapsign-clean-template-v2.json");
+const CACHE_FILE = path.join(
+  __dirname,
+  "../../data",
+  isZapSignSandbox() ? "zapsign-clean-template-sandbox.json" : "zapsign-clean-template-v2.json",
+);
 
 let memoryCleanToken: string | null = null;
 
@@ -72,6 +78,7 @@ export async function resolveCampinasProductionTemplateId(
   const cache = await readCache();
   if (
     memoryCleanToken &&
+    cache?.sandbox === isZapSignSandbox() &&
     cache?.sourceToken === sourceTemplateId &&
     cache.cleanToken === memoryCleanToken
   ) {
@@ -96,6 +103,7 @@ export async function resolveCampinasProductionTemplateId(
   if (
     cache &&
     cache.version === CACHE_VERSION &&
+    cache.sandbox === isZapSignSandbox() &&
     cache.sourceToken === sourceTemplateId &&
     cache.sourceFileHash === fileHash &&
     cache.cleanToken
@@ -137,6 +145,7 @@ export async function resolveCampinasProductionTemplateId(
 
   await writeCache({
     version: CACHE_VERSION,
+    sandbox: isZapSignSandbox(),
     sourceToken: sourceTemplateId,
     sourceUpdatedAt: detail.last_update_at || "",
     sourceFileHash: fileHash,
