@@ -3,7 +3,7 @@ import type { SheetRow } from "../config.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
 import { isSmtpConfigured, sendContractSignEmail } from "./email.js";
 import { resolveCampinasProductionTemplateId, resetCleanTemplateCache } from "./zapsignCleanTemplate.js";
-import { applyCampinasClientForm } from "./zapsignFormConfig.js";
+import { applyCampinasClientForm, campinasStoreAuthMode, syncCampinasStoreSignerFromSource } from "./zapsignFormConfig.js";
 
 const API_BASE = "https://api.zapsign.com.br/api/v1";
 
@@ -156,6 +156,37 @@ function zapsignBrandSettings(): { brand_name: string; created_by: string } {
   };
 }
 
+function buildStoreSignerPayload(
+  lojaNome: string,
+  lojaEmail: string,
+  lojaPhone: string,
+  sendAutomaticEmail: boolean,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    name: lojaNome,
+    email: lojaEmail,
+    send_automatic_email: sendAutomaticEmail,
+    auth_mode: campinasStoreAuthMode(),
+    qualification: "lojista",
+    lock_email: true,
+    lock_name: true,
+    blank_phone: false,
+    blank_email: false,
+    phone_country: "55",
+    require_selfie_photo: false,
+    require_document_photo: false,
+  };
+
+  if (lojaPhone) {
+    payload.phone_number = lojaPhone;
+    payload.lock_phone = true;
+  } else {
+    payload.lock_phone = false;
+  }
+
+  return payload;
+}
+
 async function ensureStoreSigner(
   docToken: string,
   contrato: SheetRow,
@@ -163,7 +194,12 @@ async function ensureStoreSigner(
 ): Promise<{ signUrl?: string; emailSent: boolean; email?: string }> {
   const lojaNome = String(contrato.Vendedora || process.env.ZAPSIGN_LOJA_NAME || "Loja Campinas").trim();
   const lojaEmail = String(contrato["E-mail Loja"] || process.env.ZAPSIGN_LOJA_EMAIL || "").trim();
+  const lojaPhone = String(
+    contrato["Telefone Loja"] || process.env.ZAPSIGN_LOJA_PHONE || "",
+  ).replace(/\D/g, "");
   if (!lojaEmail) return { emailSent: false };
+
+  const signerPayload = buildStoreSignerPayload(lojaNome, lojaEmail, lojaPhone, sendAutomaticEmail);
 
   const detail = await zapsignRequest<{ signers?: ZapSignSignerResponse[] }>(`/docs/${docToken}/`);
   const signers = detail.signers || [];
@@ -175,30 +211,14 @@ async function ensureStoreSigner(
   if (lojaSigner?.token) {
     const updated = await zapsignRequest<ZapSignSignerResponse>(`/signers/${lojaSigner.token}/`, {
       method: "POST",
-      json: {
-        name: lojaNome,
-        email: lojaEmail,
-        send_automatic_email: sendAutomaticEmail,
-        auth_mode: "assinaturaTela",
-        qualification: "lojista",
-        lock_email: true,
-        lock_name: true,
-      },
+      json: signerPayload,
     });
     return { signUrl: updated.sign_url, emailSent: sendAutomaticEmail, email: lojaEmail };
   }
 
   const added = await zapsignRequest<ZapSignSignerResponse>(`/docs/${docToken}/add-signer/`, {
     method: "POST",
-    json: {
-      name: lojaNome,
-      email: lojaEmail,
-      send_automatic_email: sendAutomaticEmail,
-      auth_mode: "assinaturaTela",
-      qualification: "lojista",
-      lock_email: true,
-      lock_name: true,
-    },
+    json: signerPayload,
   });
 
   return { signUrl: added.sign_url, emailSent: sendAutomaticEmail, email: lojaEmail };
@@ -211,6 +231,12 @@ export async function ensureCampinasProductionTemplate(): Promise<string> {
 export async function configureCampinasTemplateForm(): Promise<void> {
   const templateId = await getCampinasProductionTemplateId();
   if (!templateId) return;
+
+  const sourceTemplateId = getConfig().templateId;
+  if (sourceTemplateId && sourceTemplateId !== templateId) {
+    await syncCampinasStoreSignerFromSource(sourceTemplateId, templateId, zapsignRequest);
+  }
+
   await applyCampinasClientForm(templateId, zapsignRequest);
   formConfiguredForTemplateId = templateId;
 }

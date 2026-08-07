@@ -100,6 +100,61 @@ export const CAMPINAS_CLIENT_FORM_FIELDS: ZapSignTemplateField[] = [
   },
 ];
 
+/** Anexos que somente a loja envia ao concluir o contrato. */
+export const CAMPINAS_STORE_UPLOAD_FIELDS: ZapSignTemplateField[] = [
+  {
+    variable: "",
+    input_type: "upload",
+    label: "Comprovante de vacina - frente",
+    help_text: "Carteirinha de vacinação (frente)",
+    required: true,
+    order: 50,
+  },
+  {
+    variable: "",
+    input_type: "upload",
+    label: "Comprovante de vacina - verso",
+    help_text: "Carteirinha de vacinação (verso)",
+    required: true,
+    order: 51,
+  },
+  {
+    variable: "",
+    input_type: "upload",
+    label: "Foto do filhote",
+    help_text: "Foto do filhote adquirido",
+    required: true,
+    order: 52,
+  },
+  {
+    variable: "",
+    input_type: "upload",
+    label: "Atestado de saúde",
+    help_text: "Atestado de saúde do filhote",
+    required: true,
+    order: 53,
+  },
+];
+
+/** CNPJ informado pela loja (sem assinatura na tela). */
+export const CAMPINAS_STORE_CNPJ_FIELD: ZapSignTemplateField = {
+  variable: "",
+  input_type: "cnpj",
+  label: "CNPJ da loja",
+  help_text: "Informe o CNPJ da loja",
+  required: true,
+  order: 49,
+};
+
+export const CAMPINAS_STORE_FORM_FIELDS: ZapSignTemplateField[] = [
+  CAMPINAS_STORE_CNPJ_FIELD,
+  ...CAMPINAS_STORE_UPLOAD_FIELDS,
+];
+
+export const CAMPINAS_STORE_FORM_LABELS = new Set(
+  CAMPINAS_STORE_FORM_FIELDS.map((field) => field.label.trim().toLowerCase()),
+);
+
 /** Variáveis preenchidas pela loja — não devem ser obrigatórias para o cliente no ZapSign. */
 export const CAMPINAS_STORE_PREFILLED_VARIABLES = [
   "{{nome-completo}}",
