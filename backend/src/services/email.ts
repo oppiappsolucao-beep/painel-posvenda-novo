@@ -3,6 +3,10 @@ import { config } from "../config.js";
 
 let transporter: nodemailer.Transporter | null = null;
 
+export function isSmtpConfigured(): boolean {
+  return Boolean(config.smtp.host && config.smtp.user && config.smtp.pass);
+}
+
 function getTransporter(): nodemailer.Transporter | null {
   if (!config.smtp.host || !config.smtp.user || !config.smtp.pass) {
     return null;
@@ -89,6 +93,64 @@ export async function sendTwoFactorCode(params: {
   try {
     await mail.sendMail({
       from: config.smtp.from,
+      to,
+      subject,
+      text,
+      html,
+    });
+  } catch (error) {
+    throw new Error(friendlySmtpError(error));
+  }
+}
+
+export async function sendContractSignEmail(params: {
+  to: string;
+  nome: string;
+  signUrl: string;
+  papel?: "cliente" | "loja";
+}): Promise<void> {
+  const { to, nome, signUrl, papel = "cliente" } = params;
+  const brand = "SkoobPet Campinas";
+  const subject =
+    papel === "loja"
+      ? `${brand} — contrato aguardando assinatura da loja`
+      : `${brand} — seu contrato está pronto para assinatura`;
+
+  const intro =
+    papel === "loja"
+      ? `Olá ${nome},\n\nO cliente já assinou (ou o contrato está pronto). Sua assinatura como loja é necessária para concluir o documento.`
+      : `Olá ${nome},\n\nSeu contrato de compra do filhote está pronto para revisão e assinatura.\n\nAbra o link abaixo, confirme seus dados e responda sobre a documentação do filhote.`;
+
+  const text = [
+    intro,
+    "",
+    signUrl,
+    "",
+    "Abraços,",
+    `Equipe ${brand}`,
+  ].join("\n");
+
+  const html = `
+    <p>Olá <strong>${nome}</strong>,</p>
+    <p>${intro.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p>
+    <p style="margin:24px 0">
+      <a href="${signUrl}" style="display:inline-block;background:#1e3a5f;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
+        Abrir contrato para assinar
+      </a>
+    </p>
+    <p style="color:#64748b;font-size:13px">Ou copie e cole este link no navegador:<br>${signUrl}</p>
+    <p>Abraços,<br><strong>Equipe ${brand}</strong></p>
+  `;
+
+  const mail = getTransporter();
+  if (!mail) {
+    throw new Error("Servidor de e-mail não configurado. Defina SMTP_HOST, SMTP_USER e SMTP_PASS.");
+  }
+
+  try {
+    await mail.sendMail({
+      from: config.smtp.from,
+      replyTo: config.smtp.from,
       to,
       subject,
       text,

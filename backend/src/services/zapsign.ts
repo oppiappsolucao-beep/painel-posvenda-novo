@@ -4,6 +4,7 @@ import {
 } from "../config/zapsignCampinas.js";
 import type { SheetRow } from "../config.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
+import { isSmtpConfigured, sendContractSignEmail } from "./email.js";
 import { resolveCampinasProductionTemplateId, resetCleanTemplateCache } from "./zapsignCleanTemplate.js";
 
 const API_BASE = "https://api.zapsign.com.br/api/v1";
@@ -130,9 +131,29 @@ interface ZapSignSignerResponse {
   email?: string;
 }
 
+function shouldSendSignEmails(): boolean {
+  return process.env.ZAPSIGN_SEND_EMAIL !== "false";
+}
+
+function shouldUseSmtpForClientEmail(): boolean {
+  return (
+    shouldSendSignEmails() &&
+    process.env.ZAPSIGN_EMAIL_VIA_SMTP !== "false" &&
+    isSmtpConfigured()
+  );
+}
+
+function zapsignBrandSettings(): { brand_name: string; created_by: string } {
+  return {
+    brand_name: (process.env.ZAPSIGN_BRAND_NAME || "SkoobPet Campinas").trim(),
+    created_by: (process.env.ZAPSIGN_CREATED_BY || "contato@skoobpet.com.br").trim().toLowerCase(),
+  };
+}
+
 async function ensureStoreSigner(
   docToken: string,
   contrato: SheetRow,
+  sendAutomaticEmail: boolean,
 ): Promise<{ signUrl?: string; emailSent: boolean; email?: string }> {
   const lojaNome = String(contrato.Vendedora || process.env.ZAPSIGN_LOJA_NAME || "Loja Campinas").trim();
   const lojaEmail = String(contrato["E-mail Loja"] || process.env.ZAPSIGN_LOJA_EMAIL || "").trim();
@@ -145,22 +166,20 @@ async function ensureStoreSigner(
     signers.find((s) => s.email === lojaEmail) ||
     signers[1];
 
-  const sendEmail = process.env.ZAPSIGN_SEND_EMAIL !== "false";
-
   if (lojaSigner?.token) {
     const updated = await zapsignRequest<ZapSignSignerResponse>(`/signers/${lojaSigner.token}/`, {
       method: "POST",
       json: {
         name: lojaNome,
         email: lojaEmail,
-        send_automatic_email: sendEmail,
+        send_automatic_email: sendAutomaticEmail,
         auth_mode: "assinaturaTela",
         qualification: "lojista",
         lock_email: true,
         lock_name: true,
       },
     });
-    return { signUrl: updated.sign_url, emailSent: sendEmail, email: lojaEmail };
+    return { signUrl: updated.sign_url, emailSent: sendAutomaticEmail, email: lojaEmail };
   }
 
   const added = await zapsignRequest<ZapSignSignerResponse>(`/docs/${docToken}/add-signer/`, {
@@ -168,7 +187,7 @@ async function ensureStoreSigner(
     json: {
       name: lojaNome,
       email: lojaEmail,
-      send_automatic_email: sendEmail,
+      send_automatic_email: sendAutomaticEmail,
       auth_mode: "assinaturaTela",
       qualification: "lojista",
       lock_email: true,
@@ -176,7 +195,7 @@ async function ensureStoreSigner(
     },
   });
 
-  return { signUrl: added.sign_url, emailSent: sendEmail, email: lojaEmail };
+  return { signUrl: added.sign_url, emailSent: sendAutomaticEmail, email: lojaEmail };
 }
 
 export async function ensureCampinasProductionTemplate(): Promise<string> {
@@ -220,7 +239,9 @@ export async function createCampinasContractDocument(
   const nome = String(contrato.Nome || "").trim() || "Cliente";
   const email = String(contrato["E-mail"] || "").trim();
   const telefone = String(contrato.Telefone || "").replace(/\D/g, "");
-  const sendEmail = process.env.ZAPSIGN_SEND_EMAIL !== "false" && Boolean(email);
+  const emailEnabled = shouldSendSignEmails() && Boolean(email);
+  const emailViaSmtp = shouldUseSmtpForClientEmail();
+  const sendViaZapSign = emailEnabled && !emailViaSmtp;
   const sendWhatsapp =
     process.env.ZAPSIGN_SEND_WHATSAPP === "true" && Boolean(telefone);
 
@@ -235,9 +256,10 @@ export async function createCampinasContractDocument(
     external_id: externalId,
     folder_path: "/campinas/",
     signer_has_incomplete_fields: true,
-    send_automatic_email: sendEmail,
+    ...zapsignBrandSettings(),
+    send_automatic_email: sendViaZapSign,
     send_automatic_whatsapp: sendWhatsapp,
-    custom_message: sendEmail
+    custom_message: sendViaZapSign
       ? `Olá ${nome},\n\nSeu contrato de compra do filhote está pronto para revisão e assinatura.\n\nAbra o link abaixo, confirme seus dados e responda sobre a documentação do filhote.\n\nAbraços,\nEquipe SkoobPet Campinas`
       : "",
     data: buildCampinasTemplateData(contrato),
@@ -253,14 +275,26 @@ export async function createCampinasContractDocument(
     throw new Error("ZapSign não retornou link de assinatura.");
   }
 
-  const store = await ensureStoreSigner(doc.token, contrato);
+  let clientEmailSent = sendViaZapSign;
+  if (emailViaSmtp && email) {
+    await sendContractSignEmail({
+      to: email,
+      nome,
+      signUrl: signer.sign_url,
+      papel: "cliente",
+    });
+    clientEmailSent = true;
+  }
+
+  const storeSendViaZapSign = shouldSendSignEmails();
+  const store = await ensureStoreSigner(doc.token, contrato, storeSendViaZapSign);
 
   return {
     docToken: doc.token,
     signUrl: signer.sign_url,
     status: doc.status,
     originalFile: doc.original_file,
-    emailSent: sendEmail,
+    emailSent: clientEmailSent,
     clientEmail: email || undefined,
     storeSignUrl: store.signUrl,
     storeEmailSent: store.emailSent,

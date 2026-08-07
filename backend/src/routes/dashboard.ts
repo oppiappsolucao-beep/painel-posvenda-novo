@@ -552,7 +552,7 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
       await updateContractRow(unitKey, sheetIndex, buildZapSignSheetPatch(zapsignDoc, contrato));
 
       const message = zapsignDoc.emailSent && zapsignDoc.clientEmail
-        ? `Contrato enviado ao ZapSign. Link de assinatura enviado para ${zapsignDoc.clientEmail}.`
+        ? `Contrato enviado ao ZapSign. Link de assinatura enviado de contato@skoobpet.com.br para ${zapsignDoc.clientEmail}.`
         : "Contrato enviado ao ZapSign. Compartilhe o link com o cliente.";
 
       res.json({
