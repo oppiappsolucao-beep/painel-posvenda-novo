@@ -182,6 +182,8 @@ export const CAMPINAS_STORE_PREFILLED_VARIABLES = [
   "{{parcela}}",
   "{{nome-sobrenome}}",
   "{{contratante-nome-completo}}",
+  "{{celular}}",
+  "{{e-mail}}",
   "{{exemplo-18}}",
   "{{fevereiro}}",
   "{{cpf}}",
@@ -217,6 +219,8 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
   const dataCompra = pick(contrato, "Data Compra");
   const { day, monthName, year } = splitPurchaseDate(dataCompra);
   const nome = pick(contrato, "Nome");
+  const telefone = pick(contrato, "Telefone");
+  const email = pick(contrato, "E-mail", "Email");
 
   const entries: Array<[string, string]> = [
     ["{{nome-completo}}", nome],
@@ -244,6 +248,8 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
     ["{{parcela}}", pick(contrato, "Quantidade de parcelas")],
     ["{{nome-sobrenome}}", pick(contrato, "Vendedora")],
     ["{{contratante-nome-completo}}", nome],
+    ["{{celular}}", telefone],
+    ["{{e-mail}}", email],
     ["{{exemplo-18}}", day],
     ["{{fevereiro}}", monthName],
     ["{{cpf}}", pick(contrato, "CPF")],

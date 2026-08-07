@@ -3,10 +3,10 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { isZapSignSandbox } from "../config/zapsignEnv.js";
-import { stripDocxHighlightsVerified } from "../utils/docxStripHighlights.js";
+import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders } from "../utils/docxStripHighlights.js";
 import { applyCampinasClientForm, syncCampinasStoreSignerFromSource } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -99,6 +99,15 @@ export async function resolveCampinasProductionTemplateId(
 
   const docxBuffer = Buffer.from(await docxRes.arrayBuffer());
   const fileHash = sha256(docxBuffer);
+
+  const zipPreview = await (await import("jszip")).default.loadAsync(docxBuffer);
+  const previewXml = (await zipPreview.file("word/document.xml")?.async("string")) || "";
+  const brokenPlaceholders = countBrokenCampinasPlaceholders(previewXml);
+  if (brokenPlaceholders > 0) {
+    console.log(
+      `[zapsign] Corrigindo ${brokenPlaceholders} placeholder(s) quebrado(s) nome-completo}} no template.`,
+    );
+  }
 
   if (
     cache &&

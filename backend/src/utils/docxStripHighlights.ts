@@ -1,6 +1,18 @@
 import JSZip from "jszip";
 
 const SHADING_PATTERN = /<w:(?:highlight|shd)\b/gi;
+/** Só o placeholder quebrado no <w:t> (faltava "{{" no início). Não altera {{contratante-nome-completo}}. */
+const BROKEN_NOME_WT_PATTERN =
+  /(<w:t(?:\s[^>]*)?>)\s*nome-completo\}\}(\s*<\/w:t>)/g;
+
+/** Corrige placeholder quebrado no DOCX original (faltava "{{" no início). */
+export function fixCampinasPlaceholdersInXml(xml: string): string {
+  return xml.replace(BROKEN_NOME_WT_PATTERN, "$1{{contratante-nome-completo}}$2");
+}
+
+export function countBrokenCampinasPlaceholders(docxXml: string): number {
+  return docxXml.match(BROKEN_NOME_WT_PATTERN)?.length ?? 0;
+}
 
 function countShadingTags(xml: string): number {
   return xml.match(SHADING_PATTERN)?.length ?? 0;
@@ -80,7 +92,7 @@ export async function stripDocxHighlights(docxBuffer: Buffer): Promise<Buffer> {
     if (!file || file.dir || !/\.xml$/i.test(name)) continue;
 
     const content = await file.async("string");
-    const cleaned = neutralizeHighlightFromXml(content);
+    const cleaned = fixCampinasPlaceholdersInXml(neutralizeHighlightFromXml(content));
     if (cleaned !== content) {
       zip.file(name, cleaned);
     }
