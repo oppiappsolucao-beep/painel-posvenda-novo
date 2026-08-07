@@ -155,7 +155,7 @@ export const CAMPINAS_STORE_FORM_LABELS = new Set(
   CAMPINAS_STORE_FORM_FIELDS.map((field) => field.label.trim().toLowerCase()),
 );
 
-/** Variáveis preenchidas pela loja — não devem ser obrigatórias para o cliente no ZapSign. */
+/** Variáveis preenchidas no painel — não exibidas no formulário do cliente ZapSign. */
 export const CAMPINAS_STORE_PREFILLED_VARIABLES = [
   "{{nome-completo}}",
   "{{endereco}}",

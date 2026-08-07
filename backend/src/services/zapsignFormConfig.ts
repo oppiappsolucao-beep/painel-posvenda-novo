@@ -1,8 +1,6 @@
 import {
   CAMPINAS_CLIENT_FORM_FIELDS,
-  CAMPINAS_CLIENT_FORM_VARIABLES,
   CAMPINAS_STORE_FORM_FIELDS,
-  CAMPINAS_STORE_FORM_LABELS,
   CAMPINAS_STORE_CNPJ_FIELD,
 } from "../config/zapsignCampinas.js";
 
@@ -66,25 +64,6 @@ function mapFormField(field: {
   };
 }
 
-function mapStorePrefilledInput(input: ZapSignTemplateInput) {
-  const variable = String(input.variable || "").trim();
-  return {
-    variable,
-    input_type: input.input_type || "input",
-    label: input.label || variable.replace(/[{}]/g, ""),
-    help_text: input.help_text ?? "",
-    options: input.options ?? "",
-    required: false,
-    order: (input.order ?? 0) + 100,
-  };
-}
-
-function isStoreFormInput(input: ZapSignTemplateInput): boolean {
-  const label = String(input.label || "").trim().toLowerCase();
-  if (label && CAMPINAS_STORE_FORM_LABELS.has(label)) return true;
-  return input.input_type === "upload";
-}
-
 /** Copia signatário lojista do template original (sem assinatura na tela). */
 export async function syncCampinasStoreSignerFromSource(
   sourceTemplateId: string,
@@ -118,15 +97,13 @@ export async function syncCampinasStoreSignerFromSource(
   }
 }
 
-/** Formulário cliente + anexos/CNPJ da loja; campos da planilha ficam opcionais. */
+/** Formulário cliente + anexos/CNPJ da loja; campos da planilha não aparecem no form. */
 export async function applyCampinasClientForm(
   templateId: string,
   zapsignRequest: ZapSignRequest,
 ): Promise<void> {
   if (!templateId) return;
 
-  const template = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
-  const existing = template.inputs || [];
   const sourceTemplateId = process.env.ZAPSIGN_TEMPLATE_ID_CAMPINAS?.trim();
 
   let sourceUploads: ZapSignTemplateInput[] = [];
@@ -144,17 +121,9 @@ export async function applyCampinasClientForm(
     sourceUploads.length > 0
       ? [mapFormField(CAMPINAS_STORE_CNPJ_FIELD)]
       : CAMPINAS_STORE_FORM_FIELDS.map(mapFormField);
-  const clientVariables = new Set(CAMPINAS_CLIENT_FORM_VARIABLES);
 
-  const prefilledInputs = existing
-    .filter((input) => {
-      const variable = String(input.variable || "").trim();
-      if (!variable) return false;
-      if (clientVariables.has(variable)) return false;
-      if (isStoreFormInput(input)) return false;
-      return true;
-    })
-    .map(mapStorePrefilledInput);
+  // Campos da planilha (endereço, complemento, bairro, etc.) vêm preenchidos via
+  // buildCampinasTemplateData ao criar o documento — não entram no form do cliente.
 
   await zapsignRequest("/templates/update-form/", {
     method: "POST",
@@ -163,7 +132,7 @@ export async function applyCampinasClientForm(
       custom_intro:
         "Confirme seus dados e responda sobre a documentação do filhote antes de assinar o contrato.",
       youtube_video_code: "",
-      inputs: [...clientInputs, ...storeInputs, ...prefilledInputs],
+      inputs: [...clientInputs, ...storeInputs],
     },
   });
 }
