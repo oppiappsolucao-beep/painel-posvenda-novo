@@ -317,6 +317,7 @@ function buildStatusAssinaturaData(
       atualizadoEm: atualizadoEm || "—",
       dataCompra: String(row["Data Compra"] || "").trim() || "—",
       linkAssinatura,
+      linkAssinaturaLoja: String(row["Link Assinatura Loja"] || "").trim(),
       docToken: String(row["Documento ZapSign"] || "").trim(),
       email: String(row["E-mail"] || "").trim(),
       telefone: String(row["Telefone"] || "").trim(),
@@ -418,7 +419,7 @@ router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async 
     const loaded = await loadRowsForUser(req.user!);
     const signatures = await loadSignaturesMap();
     const docFormMap = await loadDocFormStatusMap(
-      loaded.map((item) => ({ unitKey: item.unitKey, sheetIndex: item.sheetIndex })),
+      loaded.map((item) => ({ unitKey: item.unitKey, sheetIndex: item.sheetIndex, contrato: item.data })),
     );
     res.json(buildStatusAssinaturaData(loaded, nome, dataInicio, dataFim, status, signatures, docFormMap));
   } catch (e) {
@@ -680,7 +681,7 @@ router.get("/contracts/:unitKey/:sheetIndex/doc-form", authMiddleware, requireRo
       return;
     }
 
-    const status = await getDocFormStatus(unitKey, sheetIndex);
+    const status = await getDocFormStatus(unitKey, sheetIndex, contrato);
     res.json({ ok: true, status });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -712,16 +713,31 @@ router.post("/contracts/:unitKey/:sheetIndex/doc-form", authMiddleware, requireR
     }
 
     const result = await saveDocFormAttachments(unitKey, sheetIndex, contrato, anexos || {});
+
+    let message = result.emailSent
+      ? "Anexos salvos e e-mail enviado para loja e cliente (contato@skoobpet.com.br)."
+      : result.status.completo
+        ? "Anexos salvos. E-mail será enviado quando o SMTP estiver configurado."
+        : "Anexos salvos. Envie todos os documentos para concluir.";
+
+    if (result.zapsignSync?.disponivel) {
+      if (result.zapsignSync.completo) {
+        message += " Documentação sincronizada com o ZapSign.";
+      } else if (result.zapsignSync.sincronizados > 0) {
+        message += ` ${result.zapsignSync.sincronizados}/${result.zapsignSync.total} anexo(s) enviado(s) ao ZapSign.`;
+      }
+      if (result.zapsignSync.erro) {
+        message += ` Aviso ZapSign: ${result.zapsignSync.erro}`;
+      }
+    }
+
     res.json({
       ok: true,
-      message: result.emailSent
-        ? "Anexos salvos e e-mail enviado para loja e cliente (contato@skoobpet.com.br)."
-        : result.status.completo
-          ? "Anexos salvos. E-mail será enviado quando o SMTP estiver configurado."
-          : "Anexos salvos. Envie todos os documentos para concluir.",
+      message,
       status: result.status,
       emailSent: result.emailSent,
       emailError: result.emailError,
+      zapsignSync: result.zapsignSync,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

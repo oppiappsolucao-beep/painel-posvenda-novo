@@ -213,6 +213,13 @@ export interface DocFormStatus {
   emailEnviado: boolean;
   emailEnviadoEm?: string;
   statusLabel: string;
+  zapsign?: {
+    disponivel: boolean;
+    sincronizados: number;
+    total: number;
+    completo: boolean;
+    erro?: string;
+  };
 }
 
 export interface StatusAssinaturaItem {
@@ -227,6 +234,8 @@ export interface StatusAssinaturaItem {
   atualizadoEm: string;
   dataCompra: string;
   linkAssinatura: string;
+  linkAssinaturaLoja?: string;
+  docToken?: string;
   email: string;
   telefone: string;
   assinatura: SignatureProgress;
@@ -269,6 +278,7 @@ export async function submitDocFormAttachments(
     status: DocFormStatus;
     emailSent: boolean;
     emailError?: string;
+    zapsignSync?: DocFormStatus["zapsign"];
   }>(`/dashboard/contracts/${unitKey}/${sheetIndex}/doc-form`, { anexos });
   return data;
 }

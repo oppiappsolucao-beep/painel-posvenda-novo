@@ -1,6 +1,13 @@
 import { UnitKey } from "../config.js";
 import { formatDateBr, todaySaoPaulo } from "../utils/formatters.js";
 import { query } from "./client.js";
+import type { DocFormKind } from "../services/contractAttachments.js";
+
+export interface ZapsignKindSyncRecord {
+  hash: string;
+  extraDocToken: string;
+  syncedAt: string;
+}
 
 export async function dbGetDocFormEmailSentAt(
   unitKey: UnitKey,
@@ -44,4 +51,40 @@ export async function dbLoadDocFormEmailMap(
     }
   }
   return map;
+}
+
+function parseZapsignSyncJson(raw: string | null | undefined): Partial<Record<DocFormKind, ZapsignKindSyncRecord>> {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Partial<Record<DocFormKind, ZapsignKindSyncRecord>>;
+  } catch {
+    return {};
+  }
+}
+
+export async function dbGetZapsignSyncMap(
+  unitKey: UnitKey,
+  sheetIndex: number,
+): Promise<Partial<Record<DocFormKind, ZapsignKindSyncRecord>>> {
+  const { rows } = await query<{ zapsign_sync_json: string | null }>(
+    "SELECT zapsign_sync_json FROM contract_doc_form WHERE unit_key = $1 AND sheet_index = $2",
+    [unitKey, sheetIndex],
+  );
+  return parseZapsignSyncJson(rows[0]?.zapsign_sync_json);
+}
+
+export async function dbSetZapsignSyncKind(
+  unitKey: UnitKey,
+  sheetIndex: number,
+  kind: DocFormKind,
+  record: ZapsignKindSyncRecord,
+): Promise<void> {
+  const current = await dbGetZapsignSyncMap(unitKey, sheetIndex);
+  current[kind] = record;
+  await query(
+    `INSERT INTO contract_doc_form (unit_key, sheet_index, zapsign_sync_json)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (unit_key, sheet_index) DO UPDATE SET zapsign_sync_json = EXCLUDED.zapsign_sync_json`,
+    [unitKey, sheetIndex, JSON.stringify(current)],
+  );
 }

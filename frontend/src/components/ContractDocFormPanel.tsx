@@ -107,6 +107,15 @@ export function ContractDocFormPanel({
             {status.emailEnviadoEm ? ` em ${status.emailEnviadoEm}` : ""}.
           </p>
         )}
+        {status?.zapsign?.disponivel && (
+          <p className={`text-sm mt-2 ${status.zapsign.completo ? "text-green-700" : "text-slate-600"}`}>
+            ZapSign:{" "}
+            {status.zapsign.completo
+              ? "todos os anexos foram incluídos no contrato para assinatura."
+              : `${status.zapsign.sincronizados}/${status.zapsign.total} anexo(s) já enviado(s) ao ZapSign.`}
+            {status.zapsign.erro ? ` (${status.zapsign.erro})` : ""}
+          </p>
+        )}
       </div>
 
       <div className={`${compact ? "px-4 py-3" : "px-5 py-4"} space-y-3 max-h-[42vh] overflow-y-auto`}>
@@ -159,6 +168,7 @@ export function ContractDocFormPanel({
         </button>
         <p className="text-xs text-slate-500 text-center">
           Ao completar os 4 documentos, um e-mail sai de contato@skoobpet.com.br para a loja e o cliente com os anexos.
+          Contratos ZapSign também recebem os PDFs automaticamente.
         </p>
       </div>
     </div>

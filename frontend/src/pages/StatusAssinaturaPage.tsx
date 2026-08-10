@@ -485,15 +485,35 @@ export function StatusAssinaturaPage() {
                             </div>
                           )}
                           {!item.inAppSignature && item.linkAssinatura && (
-                            <a
-                              href={item.linkAssinatura}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-block mt-2 text-xs text-blue-600 hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Acompanhar documento
-                            </a>
+                            <div className="mt-2 flex flex-col items-center gap-1">
+                              <a
+                                href={item.linkAssinatura}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-block text-xs text-blue-600 hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Acompanhar documento
+                              </a>
+                              {item.linkAssinaturaLoja && (
+                                item.docForm.completo ? (
+                                  <a
+                                    href={item.linkAssinaturaLoja}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-block text-xs px-3 py-1.5 rounded-lg text-white font-semibold"
+                                    style={{ background: COLORS.wine }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    Assinar como loja (ZapSign)
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-center leading-snug">
+                                    Envie os 4 anexos antes de assinar como loja no ZapSign
+                                  </span>
+                                )
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-4 text-sm text-slate-600 leading-6">

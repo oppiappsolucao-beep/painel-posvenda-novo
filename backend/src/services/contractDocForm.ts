@@ -17,6 +17,11 @@ import {
   getContractAttachmentBuffers,
   saveContractAttachments,
 } from "./contractAttachments.js";
+import {
+  getZapsignAttachmentSyncStatus,
+  syncDocFormAttachmentsToZapSign,
+  ZapsignAttachmentSyncStatus,
+} from "./zapsignAttachmentSync.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "../../data");
@@ -37,6 +42,7 @@ export interface DocFormStatus {
   emailEnviado: boolean;
   emailEnviadoEm?: string;
   statusLabel: string;
+  zapsign?: ZapsignAttachmentSyncStatus;
 }
 
 function recordKey(unitKey: UnitKey, sheetIndex: number): string {
@@ -84,6 +90,7 @@ export function resolveClientEmail(contrato: SheetRow): string {
 function buildStatusFromBuffers(
   buffers: Partial<Record<DocFormKind, Buffer>>,
   emailSentAt: string | null,
+  zapsign?: ZapsignAttachmentSyncStatus,
 ): DocFormStatus {
   const anexos = {} as Record<DocFormKind, DocFormKindStatus>;
   const pendentes: DocFormKind[] = [];
@@ -112,17 +119,25 @@ function buildStatusFromBuffers(
     emailEnviado,
     emailEnviadoEm: emailSentAt || undefined,
     statusLabel,
+    zapsign,
   };
 }
 
-export async function getDocFormStatus(unitKey: UnitKey, sheetIndex: number): Promise<DocFormStatus> {
+export async function getDocFormStatus(
+  unitKey: UnitKey,
+  sheetIndex: number,
+  contrato?: SheetRow,
+): Promise<DocFormStatus> {
   const buffers = await getContractAttachmentBuffers(unitKey, sheetIndex);
   const emailSentAt = await getEmailSentAt(unitKey, sheetIndex);
-  return buildStatusFromBuffers(buffers as Partial<Record<DocFormKind, Buffer>>, emailSentAt);
+  const zapsign = contrato
+    ? await getZapsignAttachmentSyncStatus(unitKey, sheetIndex, contrato)
+    : undefined;
+  return buildStatusFromBuffers(buffers as Partial<Record<DocFormKind, Buffer>>, emailSentAt, zapsign);
 }
 
 export async function loadDocFormStatusMap(
-  items: Array<{ unitKey: UnitKey; sheetIndex: number }>,
+  items: Array<{ unitKey: UnitKey; sheetIndex: number; contrato?: SheetRow }>,
 ): Promise<Map<string, DocFormStatus>> {
   const map = new Map<string, DocFormStatus>();
   if (!items.length) return map;
@@ -145,7 +160,10 @@ export async function loadDocFormStatusMap(
       const key = recordKey(item.unitKey, item.sheetIndex);
       const buffers = await getContractAttachmentBuffers(item.unitKey, item.sheetIndex);
       const emailSentAt = emailMap.get(key) ?? null;
-      map.set(key, buildStatusFromBuffers(buffers as Partial<Record<DocFormKind, Buffer>>, emailSentAt));
+      const zapsign = item.contrato
+        ? await getZapsignAttachmentSyncStatus(item.unitKey, item.sheetIndex, item.contrato)
+        : undefined;
+      map.set(key, buildStatusFromBuffers(buffers as Partial<Record<DocFormKind, Buffer>>, emailSentAt, zapsign));
     }),
   );
 
@@ -197,7 +215,7 @@ export async function saveDocFormAttachments(
   sheetIndex: number,
   contrato: SheetRow,
   anexos: Partial<Record<DocFormKind, string>>,
-): Promise<{ status: DocFormStatus; emailSent: boolean; emailError?: string }> {
+): Promise<{ status: DocFormStatus; emailSent: boolean; emailError?: string; zapsignSync?: ZapsignAttachmentSyncStatus }> {
   const entries = Object.entries(anexos).filter(
     ([kind, value]) =>
       DOC_FORM_KINDS.includes(kind as DocFormKind) && String(value || "").startsWith("data:image/"),
@@ -209,6 +227,19 @@ export async function saveDocFormAttachments(
 
   await saveContractAttachments(unitKey, sheetIndex, Object.fromEntries(entries));
 
+  let zapsignSync: ZapsignAttachmentSyncStatus | undefined;
+  try {
+    zapsignSync = await syncDocFormAttachmentsToZapSign(unitKey, sheetIndex, contrato);
+  } catch (e) {
+    zapsignSync = {
+      disponivel: true,
+      sincronizados: 0,
+      total: DOC_FORM_KINDS.length,
+      completo: false,
+      erro: e instanceof Error ? e.message : String(e),
+    };
+  }
+
   let emailSent = false;
   let emailError: string | undefined;
   try {
@@ -219,6 +250,6 @@ export async function saveDocFormAttachments(
     emailError = e instanceof Error ? e.message : String(e);
   }
 
-  const status = await getDocFormStatus(unitKey, sheetIndex);
-  return { status, emailSent, emailError };
+  const status = await getDocFormStatus(unitKey, sheetIndex, contrato);
+  return { status, emailSent, emailError, zapsignSync };
 }

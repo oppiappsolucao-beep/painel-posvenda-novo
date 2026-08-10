@@ -520,6 +520,17 @@ export async function createCampinasContractDocument(
   };
 }
 
+export async function uploadZapSignExtraDoc(
+  docToken: string,
+  name: string,
+  base64Pdf: string,
+): Promise<{ token: string; name: string }> {
+  return zapsignRequest<{ token: string; name: string }>(`/docs/${docToken}/upload-extra-doc/`, {
+    method: "POST",
+    json: { name, base64_pdf: base64Pdf },
+  });
+}
+
 export function buildZapSignSheetPatch(
   doc: ZapSignCreatedDocument,
   contrato?: SheetRow,

@@ -74,8 +74,14 @@ export async function migrateSchema(): Promise<void> {
       unit_key TEXT NOT NULL,
       sheet_index INTEGER NOT NULL,
       email_sent_at TEXT,
+      zapsign_sync_json TEXT,
       PRIMARY KEY (unit_key, sheet_index)
     )
+  `);
+
+  await query(`
+    ALTER TABLE contract_doc_form
+    ADD COLUMN IF NOT EXISTS zapsign_sync_json TEXT
   `);
 
   await query(`
