@@ -163,6 +163,65 @@ interface ZapSignSignerResponse {
   email?: string;
 }
 
+/** Campos aceitos em POST /signers/{token}/ (atualizar signatário). */
+const SIGNER_UPDATE_KEYS = new Set([
+  "redirect_link",
+  "name",
+  "email",
+  "phone_country",
+  "phone_number",
+  "auth_mode",
+  "lock_name",
+  "lock_email",
+  "lock_phone",
+  "qualification",
+  "external_id",
+  "send_automatic_whatsapp",
+  "send_automatic_email",
+  "send_automatic_whatsapp_signed_file",
+  "selfie_validation_type",
+  "require_document_photo",
+  "require_selfie_photo",
+  "require_cpf",
+  "cpf",
+  "validate_cpf",
+  "signature_placement",
+  "custom_message",
+]);
+
+function sanitizeSignerUpdatePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (SIGNER_UPDATE_KEYS.has(key) && value !== undefined) {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+function isSignerNoChangeError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.includes("Nenhuma alteração efetuada");
+}
+
+async function updateSigner(
+  signerToken: string,
+  payload: Record<string, unknown>,
+  fallback?: Pick<ZapSignSignerResponse, "sign_url" | "token">,
+): Promise<ZapSignSignerResponse> {
+  try {
+    return await zapsignRequest<ZapSignSignerResponse>(`/signers/${signerToken}/`, {
+      method: "POST",
+      json: sanitizeSignerUpdatePayload(payload),
+    });
+  } catch (error) {
+    if (isSignerNoChangeError(error) && fallback?.sign_url) {
+      return { token: fallback.token || signerToken, sign_url: fallback.sign_url };
+    }
+    throw error;
+  }
+}
+
 function shouldSendSignEmails(): boolean {
   return process.env.ZAPSIGN_SEND_EMAIL !== "false";
 }
@@ -190,7 +249,6 @@ function buildClientSignerPayload(
     send_automatic_email: sendAutomaticEmail,
     send_automatic_whatsapp: sendAutomaticWhatsapp,
     lock_name: true,
-    blank_email: false,
     phone_country: "55",
     require_selfie_photo: false,
     require_document_photo: false,
@@ -206,10 +264,8 @@ function buildClientSignerPayload(
   if (telefone) {
     payload.phone_number = telefone;
     payload.lock_phone = true;
-    payload.blank_phone = false;
   } else {
     payload.lock_phone = false;
-    payload.blank_phone = true;
   }
 
   return payload;
@@ -236,7 +292,6 @@ async function ensureClientSigner(
     email: email || undefined,
     ...buildClientSignerPayload(telefone, email, sendAutomaticEmail, sendAutomaticWhatsapp),
     qualification: "cliente",
-    signer_has_incomplete_fields: true,
   };
 
   if (sendAutomaticWhatsapp && telefone) {
@@ -245,9 +300,9 @@ async function ensureClientSigner(
     (payload as Record<string, unknown>).send_automatic_email = false;
   }
 
-  const updated = await zapsignRequest<ZapSignSignerResponse>(`/signers/${clientSigner.token}/`, {
-    method: "POST",
-    json: payload,
+  const updated = await updateSigner(clientSigner.token, payload as Record<string, unknown>, {
+    token: clientSigner.token,
+    sign_url: clientSigner.sign_url,
   });
 
   return { signUrl: updated.sign_url };
@@ -291,13 +346,9 @@ function buildStoreSignerPayload(
     qualification: "lojista",
     lock_email: true,
     lock_name: true,
-    blank_phone: false,
-    blank_email: false,
     phone_country: "55",
     require_selfie_photo: false,
     require_document_photo: false,
-    // Exibe anexos pendentes da loja (signatário 1).
-    signer_has_incomplete_fields: true,
   };
 
   if (lojaPhone) {
@@ -360,9 +411,9 @@ async function ensureStoreSigner(
     (signerPayload as Record<string, unknown>).custom_message = zapsignCustomMessage(lojaNome);
   }
 
-  const updated = await zapsignRequest<ZapSignSignerResponse>(`/signers/${lojaSigner.token}/`, {
-    method: "POST",
-    json: signerPayload,
+  const updated = await updateSigner(lojaSigner.token, signerPayload, {
+    token: lojaSigner.token,
+    sign_url: lojaSigner.sign_url,
   });
 
   const whatsappLinkSent = storeWhatsapp && Boolean(lojaPhone);
