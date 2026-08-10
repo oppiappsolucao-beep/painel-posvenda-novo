@@ -58,7 +58,12 @@ app.get("/api/health", async (_req, res) => {
   } catch {
     employees = null;
   }
-  res.json({ ok: database.ok, database, employees });
+  res.json({
+    ok: database.ok,
+    database,
+    employees,
+    build: process.env.GIT_COMMIT || null,
+  });
 });
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);

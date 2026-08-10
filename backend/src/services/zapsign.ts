@@ -221,13 +221,27 @@ async function updateSigner(
       json: sanitizeSignerUpdatePayload(payload),
     });
   } catch (error) {
-    const fallbackUrl = signerResponseUrl(fallback);
-    if (isSignerNoChangeError(error) && fallbackUrl) {
-      return {
-        token: fallback?.token || signerToken,
-        sign_url: fallbackUrl,
-        signing_link: fallback?.signing_link,
-      };
+    if (isSignerNoChangeError(error)) {
+      const fallbackUrl = signerResponseUrl(fallback);
+      if (fallbackUrl) {
+        return {
+          token: fallback?.token || signerToken,
+          sign_url: fallbackUrl,
+          signing_link: fallback?.signing_link,
+        };
+      }
+      try {
+        const current = await zapsignRequest<ZapSignSignerResponse>(`/signers/${signerToken}/`, {
+          method: "GET",
+        });
+        const currentUrl = signerResponseUrl(current);
+        if (currentUrl) {
+          return { ...current, sign_url: currentUrl };
+        }
+      } catch {
+        /* signatário já existe; link virá do documento */
+      }
+      return { token: signerToken, sign_url: "" };
     }
     throw error;
   }
@@ -317,7 +331,7 @@ async function ensureClientSigner(
     signing_link: clientSigner.signing_link,
   });
 
-  return { signUrl: signerResponseUrl(updated) };
+  return { signUrl: signerResponseUrl(updated) || signerResponseUrl(clientSigner) };
 }
 
 function zapsignBrandSettings(): { brand_name: string; created_by: string } {
@@ -431,7 +445,7 @@ async function ensureStoreSigner(
 
   const whatsappLinkSent = storeWhatsapp && Boolean(lojaPhone);
   return {
-    signUrl: signerResponseUrl(updated),
+    signUrl: signerResponseUrl(updated) || signerResponseUrl(lojaSigner),
     emailSent: sendAutomaticEmail,
     email: lojaEmail,
     whatsappLinkSent,

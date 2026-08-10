@@ -1,5 +1,7 @@
 FROM node:22-alpine AS backend-build
 WORKDIR /app
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=$GIT_COMMIT
 COPY backend/package*.json ./
 RUN npm ci
 COPY backend/tsconfig.json ./
@@ -18,8 +20,10 @@ RUN npm run build
 
 FROM node:22-alpine
 WORKDIR /app
+ARG GIT_COMMIT=unknown
 ENV NODE_ENV=production
 ENV PORT=80
+ENV GIT_COMMIT=$GIT_COMMIT
 COPY backend/package*.json ./
 RUN npm ci --omit=dev
 COPY --from=backend-build /app/dist ./dist

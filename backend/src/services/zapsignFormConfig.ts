@@ -121,38 +121,12 @@ export function templateHasStoreUploadWorkflow(detail: ZapSignTemplateDetail): b
   return (detail.signers || []).length >= 2;
 }
 
-function buildStoreTemplateSigner(lojaPhone: string): ZapSignTemplateSigner {
-  return {
-    name: campinasStoreSignerName(),
-    email: (process.env.ZAPSIGN_LOJA_EMAIL || "contato@skoobpet.com.br").trim(),
-    phone_country: "55",
-    phone_number: lojaPhone,
-    auth_mode: campinasStoreAuthMode(),
-    qualification: "lojista",
-    blank_phone: false,
-    blank_email: false,
-  };
-}
-
-function buildClientTemplateSigner(): ZapSignTemplateSigner {
-  return {
-    name: "{{contratante-nome-completo}}",
-    email: "{{e-mail}}",
-    phone_country: "55",
-    phone_number: "{{celular}}",
-    auth_mode: campinasClientAuthMode(),
-    qualification: "cliente",
-    blank_phone: false,
-    blank_email: false,
-    require_document_photo: true,
-    require_selfie_photo: false,
-  };
-}
-
 function isZapSignNoChangeError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
   return msg.includes("Nenhuma alteração efetuada") || msg.includes("mutáveis de modelo");
 }
+
+export { isZapSignNoChangeError };
 
 /** Garante ordem loja (1º) → cliente (2º) no template. */
 export async function ensureCampinasTemplateStoreSigner(
@@ -164,32 +138,13 @@ export async function ensureCampinasTemplateStoreSigner(
   const detail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
   const signers = detail.signers || [];
 
-  // Dois signatários: assume configuração manual no painel ZapSign (PUT via API costuma falhar).
+  // Dois signatários: assume configuração manual no painel ZapSign.
   if (signers.length >= 2) return;
 
-  const lojaPhone = String(process.env.ZAPSIGN_LOJA_PHONE || "11942157917").replace(/\D/g, "");
-  const panelUrl = campinasTemplateStoreSignerPanelUrl(templateId);
-
-  try {
-    await zapsignRequest(`/templates/${templateId}/`, {
-      method: "PUT",
-      json: {
-        signers: [buildStoreTemplateSigner(lojaPhone), buildClientTemplateSigner()],
-      },
-    });
-    console.warn(
-      `[zapsign] Template ajustado: Signatário 1 = loja, Signatário 2 = cliente. Anexos: ${panelUrl} → Signatário 1 → Formulário / Opções avançadas`,
-    );
-  } catch (error) {
-    if (isZapSignNoChangeError(error)) {
-      console.warn(
-        `[zapsign] Template ${templateId} com ${signers.length} signatário(s). ` +
-          `A API não permite ajustar signatários — configure loja (1º) e cliente (2º) no painel: ${panelUrl}`,
-      );
-      return;
-    }
-    throw error;
-  }
+  console.warn(
+    `[zapsign] Template ${templateId} com ${signers.length} signatário(s). ` +
+      `Configure loja (1º) e cliente (2º) no painel ZapSign: ${campinasTemplateStoreSignerPanelUrl(templateId)}`,
+  );
 }
 
 export function campinasTemplateStoreSignerPanelUrl(templateId: string): string {
@@ -262,5 +217,11 @@ export async function applyCampinasClientForm(
       hide_prefilled_fields: true,
       inputs: [...storeInputs, ...clientDocInputs],
     },
+  }).catch((error) => {
+    if (isZapSignNoChangeError(error)) {
+      console.warn("[zapsign] Formulário do template já configurado; ignorando update-form.");
+      return;
+    }
+    throw error;
   });
 }
