@@ -23,6 +23,7 @@ export function StatusAssinaturaPage() {
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
   const [previewItem, setPreviewItem] = useState<StatusAssinaturaItem | null>(null);
+  const [attachmentsItem, setAttachmentsItem] = useState<StatusAssinaturaItem | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -108,6 +109,14 @@ export function StatusAssinaturaPage() {
     setPreviewError(null);
     setPreviewLoading(false);
   };
+
+  const openAttachments = (item: StatusAssinaturaItem, e: ReactMouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setAttachmentsItem(item);
+  };
+
+  const closeAttachments = () => setAttachmentsItem(null);
 
   const openPreview = async (item: StatusAssinaturaItem) => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -426,6 +435,28 @@ export function StatusAssinaturaPage() {
                           </div>
                           <SignatureProgressPanel assinatura={item.assinatura} />
                           <DocFormStatusBadge docForm={item.docForm} />
+                          <div className="mt-3 flex flex-col gap-2">
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => openAttachments(item, e)}
+                              className="w-full text-sm sm:text-base px-4 py-3 rounded-xl text-white font-bold shadow-sm"
+                              style={{
+                                background: item.docForm.completo && item.docForm.emailEnviado
+                                  ? "#16a34a"
+                                  : `linear-gradient(135deg, ${COLORS.navy}, ${COLORS.wine})`,
+                              }}
+                            >
+                              {item.docForm.completo && item.docForm.emailEnviado
+                                ? "📎 Ver / atualizar anexos"
+                                : "📎 Enviar anexos do filhote"}
+                            </button>
+                            {!item.docForm.completo && (
+                              <span className="text-xs text-slate-500 leading-snug">
+                                Carteirinha (frente/verso), atestado e foto do filhote
+                              </span>
+                            )}
+                          </div>
                           {item.inAppSignature && item.status !== "assinado" && (
                             <div className="mt-2 flex flex-wrap gap-2 justify-center">
                               <button
@@ -483,6 +514,45 @@ export function StatusAssinaturaPage() {
           </div>
         )}
       </div>
+
+      {attachmentsItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4"
+          onClick={closeAttachments}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            data-no-preview
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 text-white shrink-0"
+              style={{ background: COLORS.navy }}
+            >
+              <div>
+                <div className="text-xs uppercase tracking-wide opacity-80">Documentação do filhote</div>
+                <div className="font-bold text-lg">{attachmentsItem.nome}</div>
+              </div>
+              <button
+                type="button"
+                onClick={closeAttachments}
+                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-xl font-bold"
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">
+              <ContractDocFormPanel
+                item={attachmentsItem}
+                onSaved={async () => {
+                  await refetch();
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {previewItem && (
         <div
