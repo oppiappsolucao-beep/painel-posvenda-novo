@@ -2,11 +2,13 @@ import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { isZapSignSandbox } from "../config/zapsignEnv.js";
+import type { UnitKey } from "../config.js";
+import { isZapSignSandbox, zapsignFolderPath } from "../config/zapsignEnv.js";
+import { getUnitByKey } from "../config.js";
 import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders, fixCampinasDocxPlaceholders } from "../utils/docxStripHighlights.js";
 import { applyCampinasClientForm, syncCampinasStoreSignerFromSource, templateHasStoreUploadWorkflow } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 9;
+const CACHE_VERSION = 10;
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -19,6 +21,7 @@ export interface ZapSignTemplateDetail {
 interface CleanTemplateCache {
   version: number;
   sandbox: boolean;
+  unitKey: UnitKey;
   sourceToken: string;
   sourceUpdatedAt: string;
   sourceFileHash: string;
@@ -27,20 +30,32 @@ interface CleanTemplateCache {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_FILE = path.join(
-  __dirname,
-  "../../data",
-  isZapSignSandbox() ? "zapsign-clean-template-sandbox.json" : "zapsign-clean-template-v2.json",
-);
 
-let memoryCleanToken: string | null = null;
+function cacheFileForUnit(unitKey: UnitKey): string {
+  const suffix = isZapSignSandbox() ? "sandbox" : "v2";
+  return path.join(__dirname, "../../data", `zapsign-clean-template-${unitKey}-${suffix}.json`);
+}
 
-export async function resetCleanTemplateCache(): Promise<void> {
-  memoryCleanToken = null;
-  try {
-    await fs.unlink(CACHE_FILE);
-  } catch {
-    /* cache inexistente */
+const memoryCleanTokens = new Map<UnitKey, string>();
+
+export async function resetCleanTemplateCache(unitKey?: UnitKey): Promise<void> {
+  if (unitKey) {
+    memoryCleanTokens.delete(unitKey);
+    try {
+      await fs.unlink(cacheFileForUnit(unitKey));
+    } catch {
+      /* cache inexistente */
+    }
+    return;
+  }
+
+  memoryCleanTokens.clear();
+  for (const key of ["campinas", "piracicaba", "indaiatuba"] as UnitKey[]) {
+    try {
+      await fs.unlink(cacheFileForUnit(key));
+    } catch {
+      /* cache inexistente */
+    }
   }
 }
 
@@ -56,9 +71,9 @@ async function downloadTemplateDocx(templateFile: string): Promise<Buffer> {
   return Buffer.from(await docxRes.arrayBuffer());
 }
 
-async function readCache(): Promise<CleanTemplateCache | null> {
+async function readCache(unitKey: UnitKey): Promise<CleanTemplateCache | null> {
   try {
-    const raw = await fs.readFile(CACHE_FILE, "utf8");
+    const raw = await fs.readFile(cacheFileForUnit(unitKey), "utf8");
     return JSON.parse(raw) as CleanTemplateCache;
   } catch {
     return null;
@@ -66,31 +81,33 @@ async function readCache(): Promise<CleanTemplateCache | null> {
 }
 
 async function writeCache(cache: CleanTemplateCache): Promise<void> {
-  await fs.mkdir(path.dirname(CACHE_FILE), { recursive: true });
-  await fs.writeFile(CACHE_FILE, JSON.stringify(cache, null, 2), "utf8");
-  memoryCleanToken = cache.cleanToken;
+  const file = cacheFileForUnit(cache.unitKey);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, JSON.stringify(cache, null, 2), "utf8");
+  memoryCleanTokens.set(cache.unitKey, cache.cleanToken);
 }
 
 /**
  * Deriva um template ZapSign sem destaque a partir do modelo de exemplo (colorido).
  * O Google Doc / template original permanece intacto; só contratos gerados usam a cópia limpa.
  */
-export async function resolveCampinasProductionTemplateId(
+export async function resolveProductionTemplateId(
+  unitKey: UnitKey,
   sourceTemplateId: string,
   zapsignRequest: <T>(path: string, init?: RequestInit & { json?: unknown }) => Promise<T>,
 ): Promise<string> {
   const skipHighlights = process.env.ZAPSIGN_STRIP_HIGHLIGHTS === "false";
 
-  // Sandbox: usa o modelo configurado no painel (signatário 2 + anexos da loja).
-  // Não chama update-form aqui — isso apaga a configuração manual do painel ZapSign.
   if (isZapSignSandbox()) {
     return sourceTemplateId;
   }
 
-  const cache = await readCache();
+  const memoryCleanToken = memoryCleanTokens.get(unitKey);
+  const cache = await readCache(unitKey);
   if (
     memoryCleanToken &&
     cache?.sandbox === isZapSignSandbox() &&
+    cache?.unitKey === unitKey &&
     cache?.sourceToken === sourceTemplateId &&
     cache.cleanToken === memoryCleanToken
   ) {
@@ -100,7 +117,7 @@ export async function resolveCampinasProductionTemplateId(
   const detail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${sourceTemplateId}/`);
   const templateFile = detail.template_file?.trim();
   if (!templateFile) {
-    console.warn("[zapsign] template_file ausente; usando template original.");
+    console.warn(`[zapsign] template_file ausente (${unitKey}); usando template original.`);
     return sourceTemplateId;
   }
 
@@ -112,7 +129,7 @@ export async function resolveCampinasProductionTemplateId(
   const brokenPlaceholders = countBrokenCampinasPlaceholders(previewXml);
   if (brokenPlaceholders > 0) {
     console.log(
-      `[zapsign] Corrigindo ${brokenPlaceholders} placeholder(s) quebrado(s) nome-completo}} no template.`,
+      `[zapsign] Corrigindo ${brokenPlaceholders} placeholder(s) quebrado(s) nome-completo}} no template (${unitKey}).`,
     );
   }
 
@@ -120,11 +137,12 @@ export async function resolveCampinasProductionTemplateId(
     cache &&
     cache.version === CACHE_VERSION &&
     cache.sandbox === isZapSignSandbox() &&
+    cache.unitKey === unitKey &&
     cache.sourceToken === sourceTemplateId &&
     cache.sourceFileHash === fileHash &&
     cache.cleanToken
   ) {
-    memoryCleanToken = cache.cleanToken;
+    memoryCleanTokens.set(unitKey, cache.cleanToken);
     return cache.cleanToken;
   }
 
@@ -137,24 +155,25 @@ export async function resolveCampinasProductionTemplateId(
       }
     : await stripDocxHighlightsVerified(docxBuffer);
   if (!skipHighlights) {
-    console.log(`[zapsign] neutralizar destaque: before=${before} after=${after} fixed=${fixed}`);
+    console.log(`[zapsign] neutralizar destaque (${unitKey}): before=${before} after=${after} fixed=${fixed}`);
   }
 
   if (!skipHighlights && before > 0 && !fixed) {
-    console.warn("[zapsign] Não foi possível neutralizar destaque do template; usando original.");
+    console.warn(`[zapsign] Não foi possível neutralizar destaque (${unitKey}); usando original.`);
     return sourceTemplateId;
   }
 
   const shadingRemoved = Math.max(0, before - after);
   const base64Docx = cleanDocx.toString("base64");
+  const unitLabel = getUnitByKey(unitKey)?.label || unitKey;
 
   const created = await zapsignRequest<ZapSignTemplateDetail>("/templates/create/", {
     method: "POST",
     json: {
-      name: `${detail.name || "Campinas"} — assinatura`,
+      name: `${detail.name || unitLabel} — assinatura`,
       base64_docx: base64Docx,
       lang: "pt-br",
-      folder_path: "/campinas/",
+      folder_path: zapsignFolderPath(unitKey),
       first_signer: {
         blank_email: false,
         blank_phone: false,
@@ -165,7 +184,7 @@ export async function resolveCampinasProductionTemplateId(
 
   const cleanToken = created.token?.trim();
   if (!cleanToken) {
-    throw new Error("ZapSign não retornou token do template de produção.");
+    throw new Error(`ZapSign não retornou token do template de produção (${unitKey}).`);
   }
 
   try {
@@ -174,31 +193,40 @@ export async function resolveCampinasProductionTemplateId(
     const verified = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${cleanToken}/`);
     if (templateHasStoreUploadWorkflow(detail) && !templateHasStoreUploadWorkflow(verified)) {
       console.warn(
-        `[zapsign] Anexos da loja (fotos + CNPJ) precisam ficar em Opções avançadas do signatário lojista no modelo limpo: https://app.zapsign.com.br/conta/modelos/${cleanToken}`,
+        `[zapsign] Anexos da loja precisam ficar no signatário lojista (${unitKey}): https://app.zapsign.com.br/conta/modelos/${cleanToken}`,
       );
     }
 
     await writeCache({
       version: CACHE_VERSION,
       sandbox: isZapSignSandbox(),
+      unitKey,
       sourceToken: sourceTemplateId,
       sourceUpdatedAt: detail.last_update_at || "",
       sourceFileHash: fileHash,
       cleanToken,
       shadingRemoved,
     });
-    console.log(`[zapsign] Formulário e signatário loja aplicados ao template limpo ${cleanToken}`);
+    console.log(`[zapsign] Formulário aplicado ao template limpo ${unitKey}: ${cleanToken}`);
   } catch (e) {
     console.warn(
-      "[zapsign] Falha ao configurar formulário no template limpo:",
+      `[zapsign] Falha ao configurar formulário no template limpo (${unitKey}):`,
       e instanceof Error ? e.message : e,
     );
     return sourceTemplateId;
   }
 
   console.log(
-    `[zapsign] Template de produção (sem destaque) criado: ${cleanToken} ← ${sourceTemplateId}`,
+    `[zapsign] Template de produção (${unitKey}) criado: ${cleanToken} ← ${sourceTemplateId}`,
   );
 
   return cleanToken;
+}
+
+/** @deprecated Use resolveProductionTemplateId("campinas", ...) */
+export async function resolveCampinasProductionTemplateId(
+  sourceTemplateId: string,
+  zapsignRequest: <T>(path: string, init?: RequestInit & { json?: unknown }) => Promise<T>,
+): Promise<string> {
+  return resolveProductionTemplateId("campinas", sourceTemplateId, zapsignRequest);
 }

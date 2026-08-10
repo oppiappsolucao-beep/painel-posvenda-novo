@@ -1,6 +1,7 @@
 import { getUnitByKey, SheetRow, UnitKey } from "../config.js";
+import { isZapSignEnabled } from "../config/zapsignEnv.js";
 import { getPrimaryUnitStoreEmail } from "./unitEmails.js";
-import { campinasStoreSignerName } from "./zapsignFormConfig.js";
+import { zapsignStoreSignerName } from "./zapsignFormConfig.js";
 import { SignatureRecord, clientSignUrl, isSignatureComplete } from "./signatures.js";
 
 export type SignatarioStatus = "assinado" | "pendente" | "aguardando" | "nao_enviado";
@@ -90,9 +91,17 @@ function buildFromRecord(record: SignatureRecord, row: SheetRow, unitKey: UnitKe
   };
 }
 
-function buildCampinasEmpty(row: SheetRow, unitKey: UnitKey): SignatureProgress {
+function buildZapSignEmpty(row: SheetRow, unitKey: UnitKey): SignatureProgress {
   const loja = lojaSignatario(unitKey);
   const signatarios: SignatarioItem[] = [
+    {
+      papel: "Loja",
+      nome: zapsignStoreSignerName(unitKey) || loja.nome,
+      email: String(row["E-mail Loja"] || loja.email).trim(),
+      status: "nao_enviado",
+      statusLabel: statusLabel("nao_enviado"),
+      assinadoEm: "—",
+    },
     {
       papel: "Cliente",
       nome: String(row["Nome"] || "Cliente").trim() || "Cliente",
@@ -101,17 +110,9 @@ function buildCampinasEmpty(row: SheetRow, unitKey: UnitKey): SignatureProgress 
       statusLabel: statusLabel("nao_enviado"),
       assinadoEm: "—",
     },
-    {
-      papel: "Loja",
-      nome: loja.nome,
-      email: loja.email,
-      status: "nao_enviado",
-      statusLabel: statusLabel("nao_enviado"),
-      assinadoEm: "—",
-    },
   ];
 
-  return { signatarios, progresso: 0, inApp: true };
+  return { signatarios, progresso: 0, inApp: false };
 }
 
 function buildFromZapSignRow(row: SheetRow, unitKey: UnitKey): SignatureProgress {
@@ -121,7 +122,7 @@ function buildFromZapSignRow(row: SheetRow, unitKey: UnitKey): SignatureProgress
   const linkCliente = String(row["Link Assinatura"] || "").trim();
   const linkLoja = String(row["Link Assinatura Loja"] || "").trim();
   const loja = lojaSignatario(unitKey);
-  const lojaNome = campinasStoreSignerName() || loja.nome;
+  const lojaNome = zapsignStoreSignerName(unitKey) || loja.nome;
   const lojaEmail = String(row["E-mail Loja"] || loja.email).trim();
 
   const clienteStatus = dataLoja
@@ -166,16 +167,15 @@ export function buildSignatureProgress(
   unitKey: UnitKey,
   record?: SignatureRecord | null,
 ): SignatureProgress {
-  if (unitKey === "campinas") {
-    if (record) return buildFromRecord(record, row, unitKey);
+  if (record) return buildFromRecord(record, row, unitKey);
 
+  if (isZapSignEnabled(unitKey)) {
     const zapsignDoc = String(row["Documento ZapSign"] || "").trim();
     const linkZapSign = String(row["Link Assinatura"] || "").trim();
     if (zapsignDoc || linkZapSign) {
       return buildFromZapSignRow(row, unitKey);
     }
-
-    return buildCampinasEmpty(row, unitKey);
+    return buildZapSignEmpty(row, unitKey);
   }
 
   const enviado = Boolean(String(row["Data Envio"] || row["Documento ZapSign"] || "").trim());

@@ -13,7 +13,8 @@ import {
   getContractAttachmentBuffers,
 } from "./contractAttachments.js";
 import { imageBufferToPdfBase64 } from "./imageToPdf.js";
-import { isZapSignCampinasEnabled, uploadZapSignExtraDoc } from "./zapsign.js";
+import { isZapSignEnabled } from "../config/zapsignEnv.js";
+import { uploadZapSignExtraDoc } from "./zapsign.js";
 import { formatDateBr, todaySaoPaulo } from "../utils/formatters.js";
 import fs from "fs/promises";
 import path from "path";
@@ -99,7 +100,7 @@ export function buildZapsignSyncStatus(
   const docToken = String(contrato["Documento ZapSign"] || "").trim();
   const lojaAssinou = Boolean(String(contrato["Data Assinatura Loja"] || "").trim());
   const disponivel =
-    unitKey === "campinas" && isZapSignCampinasEnabled() && Boolean(docToken) && !lojaAssinou;
+    isZapSignEnabled(unitKey) && Boolean(docToken) && !lojaAssinou;
 
   let sincronizados = 0;
   for (const kind of DOC_FORM_KINDS) {
@@ -142,7 +143,7 @@ export async function syncDocFormAttachmentsToZapSign(
   const docToken = String(contrato["Documento ZapSign"] || "").trim();
   const lojaAssinou = Boolean(String(contrato["Data Assinatura Loja"] || "").trim());
 
-  if (unitKey !== "campinas" || !isZapSignCampinasEnabled() || !docToken) {
+  if (!isZapSignEnabled(unitKey) || !docToken) {
     return buildZapsignSyncStatus(contrato, unitKey, {}, {});
   }
 
@@ -185,7 +186,7 @@ export async function syncDocFormAttachmentsToZapSign(
       syncMap[kind] = { hash, extraDocToken: uploaded.token, syncedAt: formatDateBr(todaySaoPaulo()) };
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
-      console.warn(`[zapsign-sync] ${kind} campinas:${sheetIndex}:`, lastError);
+      console.warn(`[zapsign-sync] ${kind} ${unitKey}:${sheetIndex}:`, lastError);
     }
   }
 

@@ -44,8 +44,8 @@ import {
 } from "../services/signatures.js";
 import {
   buildZapSignSheetPatch,
-  createCampinasContractDocument,
-  isZapSignCampinasEnabled,
+  createUnitContractDocument,
+  isZapSignEnabled,
 } from "../services/zapsign.js";
 import {
   getContractAttachmentBuffers,
@@ -214,7 +214,7 @@ function isContratoAssinado(
   unitKey: UnitKey,
   record?: SignatureRecord | null,
 ): boolean {
-  if (unitKey === "campinas") {
+  if (record) {
     return isContratoAssinadoInApp(record);
   }
 
@@ -284,10 +284,9 @@ function buildStatusAssinaturaData(
     const assinado = isContratoAssinado(row, statusCol, item.unitKey, record);
     const disparoEm = getDisparoEm(row, record);
     const atualizadoEm = getAtualizadoEm(row, record);
-    const linkAssinatura =
-      item.unitKey === "campinas" && record
-        ? clientSignUrl(record.clientToken)
-        : String(row["Link Assinatura"] || "").trim();
+    const linkAssinatura = record
+      ? clientSignUrl(record.clientToken)
+      : String(row["Link Assinatura"] || "").trim();
     const identificador = `contrato_${limparNomeArquivo(nomeCliente || `registro_${index + 1}`)}.pdf`;
     const assinatura = buildSignatureProgress(row, item.unitKey, record);
     const podeAssinarLoja = Boolean(record?.clienteSignedAt && !record?.lojaSignedAt);
@@ -325,7 +324,7 @@ function buildStatusAssinaturaData(
       sortTimestamp: getSortTimestamp(row),
       assinatura,
       podeAssinarLoja,
-      inAppSignature: item.unitKey === "campinas" && Boolean(record),
+      inAppSignature: Boolean(record),
       docForm,
     };
   });
@@ -572,10 +571,11 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
     const sheetIndex = await saveContractForUser(contrato, req.user!);
     const unitKey = req.user!.unit || getUnitByEmail(req.user!.username)?.key;
 
-    if (unitKey === "campinas" && isZapSignCampinasEnabled()) {
-      const zapsignDoc = await createCampinasContractDocument(
+    if (unitKey && isZapSignEnabled(unitKey)) {
+      const zapsignDoc = await createUnitContractDocument(
+        unitKey,
         contrato,
-        `campinas:${sheetIndex}`,
+        `${unitKey}:${sheetIndex}`,
       );
       await updateContractRow(unitKey, sheetIndex, buildZapSignSheetPatch(zapsignDoc, contrato));
 
@@ -598,7 +598,7 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
 
     let record = null;
     let clientSignUrlHeader = "";
-    if (unitKey === "campinas") {
+    if (unitKey === "campinas" && !isZapSignEnabled("campinas")) {
       record = await createSignatureSession(unitKey, sheetIndex, contrato);
       clientSignUrlHeader = clientSignUrl(record.clientToken);
       if (anexos && Object.keys(anexos).length) {
@@ -606,7 +606,10 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
       }
     }
 
-    const attachments = unitKey === "campinas" ? await getContractAttachmentBuffers(unitKey, sheetIndex) : undefined;
+    const attachments =
+      unitKey === "campinas" && !isZapSignEnabled("campinas")
+        ? await getContractAttachmentBuffers(unitKey, sheetIndex)
+        : undefined;
     const pdf = await generateContractPdf(contrato, signatureImages(record), attachments);
     const nome = limparNomeArquivo(contrato["Nome"]);
 
@@ -629,7 +632,7 @@ router.post("/contracts/:unitKey/:sheetIndex/attachments", authMiddleware, requi
     const sheetIndex = parseInt(String(req.params.sheetIndex), 10);
     const anexos = req.body?.anexos as Partial<Record<AttachmentKind, string>> | undefined;
 
-    if (unitKey !== "campinas" || !getUnitByKey(unitKey) || !Number.isFinite(sheetIndex) || sheetIndex < 0) {
+    if (!getUnitByKey(unitKey) || !Number.isFinite(sheetIndex) || sheetIndex < 0) {
       res.status(400).json({ error: "Parâmetros inválidos." });
       return;
     }

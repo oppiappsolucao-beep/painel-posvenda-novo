@@ -108,9 +108,9 @@ export async function sendContractSignEmail(params: {
   nome: string;
   signUrl: string;
   papel?: "cliente" | "loja";
+  brand?: string;
 }): Promise<void> {
-  const { to, nome, signUrl, papel = "cliente" } = params;
-  const brand = "SkoobPet Campinas";
+  const { to, nome, signUrl, papel = "cliente", brand = "SkoobPet" } = params;
   const subject =
     papel === "loja"
       ? `${brand} — contrato aguardando assinatura da loja`

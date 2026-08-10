@@ -15,11 +15,8 @@ import settingsRoutes from "./routes/settings.js";
 import { getDatabaseHealth, initDatabase } from "./db/init.js";
 import { getEmployeesStorageInfo } from "./services/employees.js";
 import { maybeSyncEmployeesFromSheets } from "./services/syncEmployeesFromSheets.js";
-import {
-  configureCampinasTemplateForm,
-  ensureCampinasProductionTemplate,
-  isZapSignCampinasEnabled,
-} from "./services/zapsign.js";
+import { warmUpZapSignTemplates } from "./services/zapsign.js";
+import { isZapSignEnabled, ZAPSIGN_UNIT_KEYS } from "./config/zapsignEnv.js";
 import pkg from "../package.json" with { type: "json" };
 
 const app = express();
@@ -98,13 +95,10 @@ async function start() {
     maybeSyncEmployeesFromSheets(true).catch((e) => {
       console.warn("[employees] sync inicial:", e instanceof Error ? e.message : e);
     });
-    if (isZapSignCampinasEnabled() && process.env.ZAPSIGN_CONFIGURE_FORM !== "false") {
-      ensureCampinasProductionTemplate()
-        .then(() => configureCampinasTemplateForm())
-        .then(() => console.log("[zapsign] Template de produção e formulário Campinas prontos."))
-        .catch((e) => {
-          console.warn("[zapsign] template/form:", e instanceof Error ? e.message : e);
-        });
+    if (process.env.ZAPSIGN_CONFIGURE_FORM !== "false" && ZAPSIGN_UNIT_KEYS.some(isZapSignEnabled)) {
+      warmUpZapSignTemplates().catch((e) => {
+        console.warn("[zapsign] template/form:", e instanceof Error ? e.message : e);
+      });
     }
   } catch (e) {
     console.error("[db] Falha ao conectar PostgreSQL:", e instanceof Error ? e.message : e);

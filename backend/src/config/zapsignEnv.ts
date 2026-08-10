@@ -1,5 +1,24 @@
+import type { UnitKey } from "../config.js";
+
 const PRODUCTION_API = "https://api.zapsign.com.br/api/v1";
 const SANDBOX_API = "https://sandbox.api.zapsign.com.br/api/v1";
+
+export const ZAPSIGN_UNIT_KEYS: UnitKey[] = ["campinas", "piracicaba", "indaiatuba"];
+
+const UNIT_TEMPLATE_ENV: Record<UnitKey, { prod: string; sandbox: string }> = {
+  campinas: {
+    prod: "ZAPSIGN_TEMPLATE_ID_CAMPINAS",
+    sandbox: "ZAPSIGN_SANDBOX_TEMPLATE_ID_CAMPINAS",
+  },
+  piracicaba: {
+    prod: "ZAPSIGN_TEMPLATE_ID_PIRACICABA",
+    sandbox: "ZAPSIGN_SANDBOX_TEMPLATE_ID_PIRACICABA",
+  },
+  indaiatuba: {
+    prod: "ZAPSIGN_TEMPLATE_ID_INDAIATUBA",
+    sandbox: "ZAPSIGN_SANDBOX_TEMPLATE_ID_INDAIATUBA",
+  },
+};
 
 /** Ambiente de testes ZapSign — não consome documentos/créditos de produção. */
 export function isZapSignSandbox(): boolean {
@@ -23,17 +42,38 @@ export function getZapSignApiToken(): string {
   return process.env.ZAPSIGN_API_TOKEN?.trim() || "";
 }
 
-export function getZapSignTemplateIdCampinas(): string {
+function envValue(key: string): string {
+  return process.env[key]?.trim() || "";
+}
+
+/** Template ZapSign da unidade. Se não houver ID próprio, usa o de Campinas (retrocompatível). */
+export function getZapSignTemplateId(unitKey: UnitKey): string {
+  const keys = UNIT_TEMPLATE_ENV[unitKey];
   if (isZapSignSandbox()) {
     return (
-      process.env.ZAPSIGN_SANDBOX_TEMPLATE_ID_CAMPINAS?.trim() ||
-      process.env.ZAPSIGN_TEMPLATE_ID_CAMPINAS?.trim() ||
-      ""
+      envValue(keys.sandbox) ||
+      envValue(keys.prod) ||
+      envValue(UNIT_TEMPLATE_ENV.campinas.sandbox) ||
+      envValue(UNIT_TEMPLATE_ENV.campinas.prod)
     );
   }
-  return process.env.ZAPSIGN_TEMPLATE_ID_CAMPINAS?.trim() || "";
+  return envValue(keys.prod) || envValue(UNIT_TEMPLATE_ENV.campinas.prod);
+}
+
+/** @deprecated Use getZapSignTemplateId("campinas") */
+export function getZapSignTemplateIdCampinas(): string {
+  return getZapSignTemplateId("campinas");
+}
+
+export function isZapSignEnabled(unitKey: UnitKey): boolean {
+  if (process.env.ZAPSIGN_ENABLED === "false") return false;
+  return Boolean(getZapSignApiToken() && getZapSignTemplateId(unitKey));
 }
 
 export function zapSignEnvironmentLabel(): string {
   return isZapSignSandbox() ? "sandbox" : "produção";
+}
+
+export function zapsignFolderPath(unitKey: UnitKey): string {
+  return `/${unitKey}/`;
 }

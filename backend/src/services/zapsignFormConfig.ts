@@ -1,3 +1,4 @@
+import { getUnitByKey, type UnitKey } from "../config.js";
 import {
   CAMPINAS_CLIENT_DOC_ACK_FIELDS,
   CAMPINAS_STORE_CNPJ_FIELD,
@@ -52,6 +53,16 @@ export const CAMPINAS_CLIENT_SIGNER_INDEX = 1;
 /** Nome do signatário lojista no ZapSign (não confundir com Vendedora no contrato). */
 export function campinasStoreSignerName(): string {
   return (process.env.ZAPSIGN_LOJA_NAME || "SkoobPet").trim();
+}
+
+/** Nome da loja no ZapSign por unidade. */
+export function zapsignStoreSignerName(unitKey: UnitKey): string {
+  const envKey = `ZAPSIGN_LOJA_NAME_${unitKey.toUpperCase()}`;
+  const perUnit = process.env[envKey]?.trim();
+  if (perUnit) return perUnit;
+  const unit = getUnitByKey(unitKey);
+  if (unit) return `SkoobPet ${unit.label}`;
+  return campinasStoreSignerName();
 }
 
 /** Autenticação do cliente ao assinar (token do código). */
@@ -128,8 +139,19 @@ function isZapSignNoChangeError(error: unknown): boolean {
 
 export { isZapSignNoChangeError };
 
+export function campinasTemplateStoreSignerPanelUrl(templateId: string): string {
+  const base = process.env.ZAPSIGN_SANDBOX === "true"
+    ? "https://sandbox.app.zapsign.com.br"
+    : "https://app.zapsign.com.br";
+  return `${base}/conta/modelos/${templateId}`;
+}
+
+export function zapsignTemplateStoreSignerPanelUrl(templateId: string): string {
+  return campinasTemplateStoreSignerPanelUrl(templateId);
+}
+
 /** Garante ordem loja (1º) → cliente (2º) no template. */
-export async function ensureCampinasTemplateStoreSigner(
+export async function ensureUnitTemplateStoreSigner(
   templateId: string,
   zapsignRequest: ZapSignRequest,
 ): Promise<void> {
@@ -138,20 +160,20 @@ export async function ensureCampinasTemplateStoreSigner(
   const detail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
   const signers = detail.signers || [];
 
-  // Dois signatários: assume configuração manual no painel ZapSign.
   if (signers.length >= 2) return;
 
   console.warn(
     `[zapsign] Template ${templateId} com ${signers.length} signatário(s). ` +
-      `Configure loja (1º) e cliente (2º) no painel ZapSign: ${campinasTemplateStoreSignerPanelUrl(templateId)}`,
+      `Configure loja (1º) e cliente (2º) no painel ZapSign: ${zapsignTemplateStoreSignerPanelUrl(templateId)}`,
   );
 }
 
-export function campinasTemplateStoreSignerPanelUrl(templateId: string): string {
-  const base = process.env.ZAPSIGN_SANDBOX === "true"
-    ? "https://sandbox.app.zapsign.com.br"
-    : "https://app.zapsign.com.br";
-  return `${base}/conta/modelos/${templateId}`;
+/** @deprecated Use ensureUnitTemplateStoreSigner */
+export async function ensureCampinasTemplateStoreSigner(
+  templateId: string,
+  zapsignRequest: ZapSignRequest,
+): Promise<void> {
+  return ensureUnitTemplateStoreSigner(templateId, zapsignRequest);
 }
 
 /** Copia ordem loja→cliente do template original. */

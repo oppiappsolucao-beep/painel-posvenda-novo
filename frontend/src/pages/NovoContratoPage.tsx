@@ -290,15 +290,13 @@ export function NovoContratoPage() {
             ) : (
               <Field label="Vendedora" value={vendedora} onChange={setVendedora} placeholder="Cadastre no acesso Controle" />
             )}
-            {(unidade === "Campinas" || user?.unit === "campinas") && (
-              <Field
-                label="E-mail da loja (assinatura ZapSign)"
-                value={emailLoja}
-                onChange={setEmailLoja}
-                type="email"
-                placeholder="Ex: responsavel@loja.com"
-              />
-            )}
+            <Field
+              label="E-mail da loja (assinatura ZapSign)"
+              value={emailLoja}
+              onChange={setEmailLoja}
+              type="email"
+              placeholder="Ex: responsavel@loja.com"
+            />
             <Field label="Mês" value={mes} onChange={setMes} />
             <Field label="Unidade" value={unidade} onChange={setUnidade} readOnly={!!user?.unit} />
           </div>
