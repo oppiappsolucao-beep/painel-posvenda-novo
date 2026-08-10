@@ -88,8 +88,8 @@ export function ConfiguracoesPage() {
       emoji="⚙️"
       caption={`E-mails de notificação — ${unitLabel}`}
     >
-      <div className="bg-white rounded-2xl shadow-md p-6 border border-slate-100 max-w-4xl w-full mx-auto">
-        <p className="text-sm text-slate-600 mb-4">
+      <div className="bg-white rounded-2xl shadow-md p-6 sm:p-8 border border-slate-100 w-full">
+        <p className="text-base text-slate-600 mb-5">
           Gerencie os e-mails que recebem a documentação do filhote e outras notificações da unidade.
           Os e-mails saem de <strong>contato@skoobpet.com.br</strong>; aqui você define quem recebe.
         </p>
@@ -112,7 +112,7 @@ export function ConfiguracoesPage() {
         )}
 
         {!isFinanceiro && user?.unit && (
-          <div className="mb-4 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-700">
+          <div className="mb-5 rounded-xl bg-slate-50 border-2 border-slate-200 px-5 py-4 text-base sm:text-lg text-slate-700">
             Unidade: <strong>{unitLabel}</strong>
           </div>
         )}
@@ -128,30 +128,30 @@ export function ConfiguracoesPage() {
           </div>
         )}
 
-        <form onSubmit={handleAdd} className="flex flex-col sm:flex-row sm:items-end gap-3 mb-6">
-          <label className="block flex-1 min-w-0">
-            <span className="text-sm font-semibold text-slate-600">Adicionar e-mail</span>
+        <form onSubmit={handleAdd} className="mb-8">
+          <label className="block w-full">
+            <span className="text-base sm:text-lg font-bold text-slate-700">Adicionar e-mail</span>
             <input
               type="email"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="exemplo@outlook.com"
-              className="mt-2 w-full rounded-xl border border-slate-200 px-5 py-4 text-base sm:text-lg"
+              className="mt-3 w-full rounded-2xl border-2 border-slate-300 px-6 py-5 min-h-[4rem] text-lg sm:text-xl bg-white focus:outline-none focus:border-[#1B1D6D] focus:ring-2 focus:ring-[#1B1D6D]/20"
               required
             />
           </label>
           <button
             type="submit"
             disabled={submitting}
-            className="w-full sm:w-auto shrink-0 px-8 py-4 rounded-xl text-white font-bold text-base disabled:opacity-50"
+            className="mt-4 w-full min-h-[3.5rem] px-8 py-4 rounded-2xl text-white font-bold text-lg sm:text-xl disabled:opacity-50"
             style={{ background: COLORS.navy }}
           >
             {submitting ? "Salvando..." : "Adicionar"}
           </button>
         </form>
 
-        <div className="border-t border-slate-100 pt-4">
-          <div className="text-sm font-bold text-slate-800 mb-3">E-mails cadastrados</div>
+        <div className="border-t border-slate-200 pt-6">
+          <div className="text-base sm:text-lg font-bold text-slate-800 mb-4">E-mails cadastrados</div>
           {isLoading && <div className="text-sm text-slate-500">Carregando...</div>}
           {!isLoading && (data?.items.length ?? 0) === 0 && (
             <div className="text-sm text-slate-500">Nenhum e-mail cadastrado.</div>
@@ -160,17 +160,17 @@ export function ConfiguracoesPage() {
             {(data?.items || []).map((item) => (
               <li
                 key={item.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-5 py-4 bg-slate-50"
+                className="flex items-center justify-between gap-4 rounded-2xl border-2 border-slate-200 px-5 py-5 bg-slate-50"
               >
-                <div className="min-w-0">
-                  <div className="font-medium text-slate-800 text-base sm:text-lg break-all">{item.email}</div>
-                  <div className="text-xs text-slate-500">Cadastrado em {item.createdAt}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-slate-800 text-lg sm:text-xl break-all">{item.email}</div>
+                  <div className="text-sm sm:text-base text-slate-500 mt-1">Cadastrado em {item.createdAt}</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => void handleRemove(item.id)}
                   disabled={removingId === item.id || (data?.items.length ?? 0) <= 1}
-                  className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-40 disabled:no-underline shrink-0"
+                  className="text-sm sm:text-base font-semibold text-red-600 hover:underline disabled:opacity-40 disabled:no-underline shrink-0 px-2 py-1"
                   title={(data?.items.length ?? 0) <= 1 ? "Mantenha ao menos um e-mail" : "Excluir"}
                 >
                   {removingId === item.id ? "..." : "Excluir"}
