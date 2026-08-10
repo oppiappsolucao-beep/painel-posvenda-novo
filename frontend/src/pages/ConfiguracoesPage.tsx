@@ -88,7 +88,7 @@ export function ConfiguracoesPage() {
       emoji="⚙️"
       caption={`E-mails de notificação — ${unitLabel}`}
     >
-      <div className="bg-white rounded-2xl shadow-md p-5 border border-slate-100 max-w-2xl">
+      <div className="bg-white rounded-2xl shadow-md p-6 border border-slate-100 max-w-4xl w-full mx-auto">
         <p className="text-sm text-slate-600 mb-4">
           Gerencie os e-mails que recebem a documentação do filhote e outras notificações da unidade.
           Os e-mails saem de <strong>contato@skoobpet.com.br</strong>; aqui você define quem recebe.
@@ -128,22 +128,22 @@ export function ConfiguracoesPage() {
           </div>
         )}
 
-        <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-3 mb-6">
-          <label className="block flex-1">
+        <form onSubmit={handleAdd} className="flex flex-col sm:flex-row sm:items-end gap-3 mb-6">
+          <label className="block flex-1 min-w-0">
             <span className="text-sm font-semibold text-slate-600">Adicionar e-mail</span>
             <input
               type="email"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="exemplo@outlook.com"
-              className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5"
+              className="mt-2 w-full rounded-xl border border-slate-200 px-5 py-4 text-base sm:text-lg"
               required
             />
           </label>
           <button
             type="submit"
             disabled={submitting}
-            className="self-end sm:self-auto sm:mt-6 px-5 py-2.5 rounded-xl text-white font-bold disabled:opacity-50"
+            className="w-full sm:w-auto shrink-0 px-8 py-4 rounded-xl text-white font-bold text-base disabled:opacity-50"
             style={{ background: COLORS.navy }}
           >
             {submitting ? "Salvando..." : "Adicionar"}
@@ -160,10 +160,10 @@ export function ConfiguracoesPage() {
             {(data?.items || []).map((item) => (
               <li
                 key={item.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 bg-slate-50"
+                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-5 py-4 bg-slate-50"
               >
-                <div>
-                  <div className="font-medium text-slate-800">{item.email}</div>
+                <div className="min-w-0">
+                  <div className="font-medium text-slate-800 text-base sm:text-lg break-all">{item.email}</div>
                   <div className="text-xs text-slate-500">Cadastrado em {item.createdAt}</div>
                 </div>
                 <button
