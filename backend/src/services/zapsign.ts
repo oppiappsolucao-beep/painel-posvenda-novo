@@ -45,7 +45,8 @@ export interface ZapSignCreatedDocument {
 
 interface ZapSignSigner {
   token: string;
-  sign_url: string;
+  sign_url?: string;
+  signing_link?: string;
   name: string;
   email?: string;
   phone_number?: string;
@@ -158,9 +159,14 @@ async function zapsignRequest<T>(
 
 interface ZapSignSignerResponse {
   token: string;
-  sign_url: string;
+  sign_url?: string;
+  signing_link?: string;
   qualification?: string;
   email?: string;
+}
+
+function signerResponseUrl(signer?: Pick<ZapSignSignerResponse, "sign_url" | "signing_link">): string {
+  return String(signer?.sign_url || signer?.signing_link || "").trim();
 }
 
 /** Campos aceitos em POST /signers/{token}/ (atualizar signatário). */
@@ -201,13 +207,13 @@ function sanitizeSignerUpdatePayload(payload: Record<string, unknown>): Record<s
 
 function isSignerNoChangeError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
-  return msg.includes("Nenhuma alteração efetuada");
+  return msg.includes("Nenhuma alteração efetuada") || msg.includes("mutáveis de modelo");
 }
 
 async function updateSigner(
   signerToken: string,
   payload: Record<string, unknown>,
-  fallback?: Pick<ZapSignSignerResponse, "sign_url" | "token">,
+  fallback?: Pick<ZapSignSignerResponse, "sign_url" | "signing_link" | "token">,
 ): Promise<ZapSignSignerResponse> {
   try {
     return await zapsignRequest<ZapSignSignerResponse>(`/signers/${signerToken}/`, {
@@ -215,8 +221,13 @@ async function updateSigner(
       json: sanitizeSignerUpdatePayload(payload),
     });
   } catch (error) {
-    if (isSignerNoChangeError(error) && fallback?.sign_url) {
-      return { token: fallback.token || signerToken, sign_url: fallback.sign_url };
+    const fallbackUrl = signerResponseUrl(fallback);
+    if (isSignerNoChangeError(error) && fallbackUrl) {
+      return {
+        token: fallback?.token || signerToken,
+        sign_url: fallbackUrl,
+        signing_link: fallback?.signing_link,
+      };
     }
     throw error;
   }
@@ -303,9 +314,10 @@ async function ensureClientSigner(
   const updated = await updateSigner(clientSigner.token, payload as Record<string, unknown>, {
     token: clientSigner.token,
     sign_url: clientSigner.sign_url,
+    signing_link: clientSigner.signing_link,
   });
 
-  return { signUrl: updated.sign_url };
+  return { signUrl: signerResponseUrl(updated) };
 }
 
 function zapsignBrandSettings(): { brand_name: string; created_by: string } {
@@ -414,11 +426,12 @@ async function ensureStoreSigner(
   const updated = await updateSigner(lojaSigner.token, signerPayload, {
     token: lojaSigner.token,
     sign_url: lojaSigner.sign_url,
+    signing_link: lojaSigner.signing_link,
   });
 
   const whatsappLinkSent = storeWhatsapp && Boolean(lojaPhone);
   return {
-    signUrl: updated.sign_url,
+    signUrl: signerResponseUrl(updated),
     emailSent: sendAutomaticEmail,
     email: lojaEmail,
     whatsappLinkSent,
@@ -529,8 +542,8 @@ export async function createCampinasContractDocument(
   const client = await ensureClientSigner(doc.token, contrato, sendViaZapSign, sendWhatsapp);
   const clientSignUrl =
     client.signUrl ||
-    doc.signers?.[CAMPINAS_CLIENT_SIGNER_INDEX]?.sign_url ||
-    doc.signers?.find((s) => s.qualification === "cliente")?.sign_url;
+    signerResponseUrl(doc.signers?.[CAMPINAS_CLIENT_SIGNER_INDEX]) ||
+    signerResponseUrl(doc.signers?.find((s) => s.qualification === "cliente"));
 
   if (!clientSignUrl) {
     throw new Error("ZapSign não retornou link de assinatura do cliente.");

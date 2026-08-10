@@ -149,6 +149,11 @@ function buildClientTemplateSigner(): ZapSignTemplateSigner {
   };
 }
 
+function isZapSignNoChangeError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.includes("Nenhuma alteração efetuada") || msg.includes("mutáveis de modelo");
+}
+
 /** Garante ordem loja (1º) → cliente (2º) no template. */
 export async function ensureCampinasTemplateStoreSigner(
   templateId: string,
@@ -158,39 +163,33 @@ export async function ensureCampinasTemplateStoreSigner(
 
   const detail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
   const signers = detail.signers || [];
+
+  // Dois signatários: assume configuração manual no painel ZapSign (PUT via API costuma falhar).
+  if (signers.length >= 2) return;
+
   const lojaPhone = String(process.env.ZAPSIGN_LOJA_PHONE || "11942157917").replace(/\D/g, "");
+  const panelUrl = campinasTemplateStoreSignerPanelUrl(templateId);
 
-  const storeSigner = signers[CAMPINAS_STORE_SIGNER_INDEX];
-  const clientSigner = signers[CAMPINAS_CLIENT_SIGNER_INDEX];
-
-  const isClientSlot = (s?: ZapSignTemplateSigner) => {
-    const name = String(s?.name || "");
-    return (
-      s?.qualification === "cliente" ||
-      name.includes("contratante") ||
-      name.includes("{{nome") ||
-      name.includes("{{e-mail")
+  try {
+    await zapsignRequest(`/templates/${templateId}/`, {
+      method: "PUT",
+      json: {
+        signers: [buildStoreTemplateSigner(lojaPhone), buildClientTemplateSigner()],
+      },
+    });
+    console.warn(
+      `[zapsign] Template ajustado: Signatário 1 = loja, Signatário 2 = cliente. Anexos: ${panelUrl} → Signatário 1 → Formulário / Opções avançadas`,
     );
-  };
-  const isStoreSlot = (s?: ZapSignTemplateSigner) =>
-    s?.qualification === "lojista" ||
-    String(s?.email || "").includes("skoobpet") ||
-    String(s?.name || "").toLowerCase().includes("skoob");
-
-  if (storeSigner && clientSigner && isStoreSlot(storeSigner) && isClientSlot(clientSigner)) {
-    return;
+  } catch (error) {
+    if (isZapSignNoChangeError(error)) {
+      console.warn(
+        `[zapsign] Template ${templateId} com ${signers.length} signatário(s). ` +
+          `A API não permite ajustar signatários — configure loja (1º) e cliente (2º) no painel: ${panelUrl}`,
+      );
+      return;
+    }
+    throw error;
   }
-
-  await zapsignRequest(`/templates/${templateId}/`, {
-    method: "PUT",
-    json: {
-      signers: [buildStoreTemplateSigner(lojaPhone), buildClientTemplateSigner()],
-    },
-  });
-
-  console.warn(
-    `[zapsign] Template ajustado: Signatário 1 = loja, Signatário 2 = cliente. Anexos: ${campinasTemplateStoreSignerPanelUrl(templateId)} → Signatário 1 → Formulário / Opções avançadas`,
-  );
 }
 
 export function campinasTemplateStoreSignerPanelUrl(templateId: string): string {
