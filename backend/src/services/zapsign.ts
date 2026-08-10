@@ -296,6 +296,35 @@ function buildClientSignerPayload(
   return payload;
 }
 
+async function addClientSignerToDocument(
+  docToken: string,
+  contrato: SheetRow,
+  sendAutomaticEmail: boolean,
+  sendAutomaticWhatsapp: boolean,
+): Promise<ZapSignSignerResponse> {
+  const telefone = String(contrato.Telefone || "").replace(/\D/g, "");
+  const email = String(contrato["E-mail"] || "").trim();
+  const nome = String(contrato.Nome || "").trim() || "Cliente";
+
+  const payload: Record<string, unknown> = {
+    name: nome,
+    email: email || undefined,
+    qualification: "cliente",
+    ...buildClientSignerPayload(telefone, email, sendAutomaticEmail, sendAutomaticWhatsapp),
+  };
+
+  if (sendAutomaticWhatsapp && telefone) {
+    payload.custom_message = zapsignCustomMessage(nome);
+    payload.send_automatic_whatsapp = true;
+    payload.send_automatic_email = false;
+  }
+
+  return zapsignRequest<ZapSignSignerResponse>(`/docs/${docToken}/add-signer/`, {
+    method: "POST",
+    json: payload,
+  });
+}
+
 async function ensureClientSigner(
   docToken: string,
   contrato: SheetRow,
@@ -307,9 +336,21 @@ async function ensureClientSigner(
   const nome = String(contrato.Nome || "").trim() || "Cliente";
 
   const detail = await zapsignRequest<{ signers?: ZapSignSignerResponse[] }>(`/docs/${docToken}/`);
-  const clientSigner =
-    detail.signers?.[CAMPINAS_CLIENT_SIGNER_INDEX] ||
-    detail.signers?.find((s) => s.qualification === "cliente");
+  const signers = detail.signers || [];
+  let clientSigner =
+    signers[CAMPINAS_CLIENT_SIGNER_INDEX] ||
+    signers.find((s) => s.qualification === "cliente");
+
+  if (!clientSigner?.token && signers.length <= 1) {
+    clientSigner = await addClientSignerToDocument(
+      docToken,
+      contrato,
+      sendAutomaticEmail,
+      sendAutomaticWhatsapp,
+    );
+    return { signUrl: signerResponseUrl(clientSigner) };
+  }
+
   if (!clientSigner?.token) return {};
 
   const existingUrl = signerResponseUrl(clientSigner);
@@ -569,15 +610,18 @@ export async function createCampinasContractDocument(
     json: payload,
   });
 
+  const docDetail = await zapsignRequest<{ signers?: ZapSignSigner[] }>(`/docs/${doc.token}/`);
+
   const storeSendViaZapSign =
     shouldSendSignEmails() && !emailViaSmtp && !isWhatsappDeliveryEnabled(lojaPhone);
   const store = await ensureStoreSigner(doc.token, templateId, contrato, storeSendViaZapSign);
 
   const client = await ensureClientSigner(doc.token, contrato, sendViaZapSign, sendWhatsapp);
+  const docSigners = docDetail.signers || doc.signers || [];
   const clientSignUrl =
     client.signUrl ||
-    signerResponseUrl(doc.signers?.[CAMPINAS_CLIENT_SIGNER_INDEX]) ||
-    signerResponseUrl(doc.signers?.find((s) => s.qualification === "cliente"));
+    signerResponseUrl(docSigners[CAMPINAS_CLIENT_SIGNER_INDEX]) ||
+    signerResponseUrl(docSigners.find((s) => s.qualification === "cliente"));
 
   if (!clientSignUrl) {
     throw new Error("ZapSign não retornou link de assinatura do cliente.");
