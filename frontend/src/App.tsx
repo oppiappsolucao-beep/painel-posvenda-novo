@@ -9,6 +9,7 @@ import { RacasPage } from "./pages/RacasPage";
 import { VisaoGeralPage } from "./pages/VisaoGeralPage";
 import { NovoContratoPage } from "./pages/NovoContratoPage";
 import { StatusAssinaturaPage } from "./pages/StatusAssinaturaPage";
+import { ConfiguracoesPage } from "./pages/ConfiguracoesPage";
 import { AssinarContratoPage } from "./pages/AssinarContratoPage";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="/visao-geral" element={<ProtectedRoute><VisaoGeralPage /></ProtectedRoute>} />
             <Route path="/novo-contrato" element={<ProtectedRoute><NovoContratoPage /></ProtectedRoute>} />
             <Route path="/status-assinatura" element={<ProtectedRoute><StatusAssinaturaPage /></ProtectedRoute>} />
+            <Route path="/configuracoes" element={<ProtectedRoute><ConfiguracoesPage /></ProtectedRoute>} />
             <Route path="/assinar/:token" element={<AssinarContratoPage />} />
             <Route path="*" element={<Navigate to="/operacao" replace />} />
           </Routes>

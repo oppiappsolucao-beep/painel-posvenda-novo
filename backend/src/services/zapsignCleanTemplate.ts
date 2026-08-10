@@ -3,10 +3,10 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { isZapSignSandbox } from "../config/zapsignEnv.js";
-import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders } from "../utils/docxStripHighlights.js";
+import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders, fixCampinasDocxPlaceholders } from "../utils/docxStripHighlights.js";
 import { applyCampinasClientForm, syncCampinasStoreSignerFromSource, templateHasStoreUploadWorkflow } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 7;
+const CACHE_VERSION = 9;
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -79,7 +79,11 @@ export async function resolveCampinasProductionTemplateId(
   sourceTemplateId: string,
   zapsignRequest: <T>(path: string, init?: RequestInit & { json?: unknown }) => Promise<T>,
 ): Promise<string> {
-  if (process.env.ZAPSIGN_STRIP_HIGHLIGHTS === "false") {
+  const skipHighlights = process.env.ZAPSIGN_STRIP_HIGHLIGHTS === "false";
+
+  // Sandbox: usa o modelo configurado no painel (signatário 2 + anexos da loja).
+  // Não chama update-form aqui — isso apaga a configuração manual do painel ZapSign.
+  if (isZapSignSandbox()) {
     return sourceTemplateId;
   }
 
@@ -124,10 +128,19 @@ export async function resolveCampinasProductionTemplateId(
     return cache.cleanToken;
   }
 
-  const { buffer: cleanDocx, before, after, fixed } = await stripDocxHighlightsVerified(docxBuffer);
-  console.log(`[zapsign] neutralizar destaque: before=${before} after=${after} fixed=${fixed}`);
+  const { buffer: cleanDocx, before, after, fixed } = skipHighlights
+    ? {
+        buffer: await fixCampinasDocxPlaceholders(docxBuffer),
+        before: 0,
+        after: 0,
+        fixed: true,
+      }
+    : await stripDocxHighlightsVerified(docxBuffer);
+  if (!skipHighlights) {
+    console.log(`[zapsign] neutralizar destaque: before=${before} after=${after} fixed=${fixed}`);
+  }
 
-  if (before > 0 && !fixed) {
+  if (!skipHighlights && before > 0 && !fixed) {
     console.warn("[zapsign] Não foi possível neutralizar destaque do template; usando original.");
     return sourceTemplateId;
   }

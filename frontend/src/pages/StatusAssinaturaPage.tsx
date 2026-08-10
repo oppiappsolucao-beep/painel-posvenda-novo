@@ -6,6 +6,7 @@ import { KpiCard } from "../components/KpiCard";
 import { useAuth } from "../context/AuthContext";
 import { fetchStatusAssinatura, fetchContractPreview, StatusAssinaturaItem, SignatureProgress, SignatarioItem, initSignatureSession, signContractAsStore } from "../lib/api";
 import { SignaturePad } from "../components/SignaturePad";
+import { ContractDocFormPanel, DocFormStatusBadge } from "../components/ContractDocFormPanel";
 import { COLORS, copyToClipboard, copyToClipboardSync } from "../lib/utils";
 
 type SortMode = "ultimo_enviado" | "alfabetica";
@@ -424,6 +425,7 @@ export function StatusAssinaturaPage() {
                             {item.statusLabel}
                           </div>
                           <SignatureProgressPanel assinatura={item.assinatura} />
+                          <DocFormStatusBadge docForm={item.docForm} />
                           {item.inAppSignature && item.status !== "assinado" && (
                             <div className="mt-2 flex flex-wrap gap-2 justify-center">
                               <button
@@ -488,15 +490,15 @@ export function StatusAssinaturaPage() {
           onClick={closePreview}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[92vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div
-              className="flex items-center justify-between px-5 py-4 text-white"
+              className="flex items-center justify-between px-5 py-4 text-white shrink-0"
               style={{ background: COLORS.navy }}
             >
               <div>
-                <div className="text-xs uppercase tracking-wide opacity-80">Pré-visualização do contrato</div>
+                <div className="text-xs uppercase tracking-wide opacity-80">Contrato e documentação</div>
                 <div className="font-bold text-lg">{previewItem.nome}</div>
                 <div className="text-sm opacity-90">{previewItem.identificador}</div>
               </div>
@@ -510,24 +512,38 @@ export function StatusAssinaturaPage() {
               </button>
             </div>
 
-            <div className="flex-1 bg-slate-100">
-              {previewLoading && (
-                <div className="h-full flex items-center justify-center text-slate-500">
-                  Carregando contrato...
+            <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+              <div className="lg:w-[58%] min-h-[240px] lg:min-h-0 bg-slate-100 border-b lg:border-b-0 lg:border-r border-slate-200">
+                {previewLoading && (
+                  <div className="h-full flex items-center justify-center text-slate-500">
+                    Carregando contrato...
+                  </div>
+                )}
+                {previewError && (
+                  <div className="h-full flex items-center justify-center text-red-600 px-6 text-center">
+                    {previewError}
+                  </div>
+                )}
+                {previewUrl && !previewLoading && !previewError && (
+                  <iframe
+                    src={previewUrl}
+                    title={`Contrato ${previewItem.nome}`}
+                    className="w-full h-full min-h-[240px] border-0 bg-white"
+                  />
+                )}
+              </div>
+
+              <div className="lg:w-[42%] min-h-0 overflow-y-auto bg-slate-50 p-4">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <ContractDocFormPanel
+                    item={previewItem}
+                    compact
+                    onSaved={async () => {
+                      await refetch();
+                    }}
+                  />
                 </div>
-              )}
-              {previewError && (
-                <div className="h-full flex items-center justify-center text-red-600 px-6 text-center">
-                  {previewError}
-                </div>
-              )}
-              {previewUrl && !previewLoading && !previewError && (
-                <iframe
-                  src={previewUrl}
-                  title={`Contrato ${previewItem.nome}`}
-                  className="w-full h-full border-0 bg-white"
-                />
-              )}
+              </div>
             </div>
           </div>
         </div>

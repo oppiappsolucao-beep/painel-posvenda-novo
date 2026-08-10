@@ -7,7 +7,7 @@ const BROKEN_NOME_WT_PATTERN =
 
 /** Corrige placeholder quebrado no DOCX original (faltava "{{" no início). */
 export function fixCampinasPlaceholdersInXml(xml: string): string {
-  return xml.replace(BROKEN_NOME_WT_PATTERN, "$1{{contratante-nome-completo}}$2");
+  return xml.replace(BROKEN_NOME_WT_PATTERN, "$1{{nome-completo}}$2");
 }
 
 export function countBrokenCampinasPlaceholders(docxXml: string): number {
@@ -52,6 +52,25 @@ function isNeutralShading(xml: string): boolean {
     ...xml.matchAll(/<w:shd\b(?![^>]*w:fill="FFFFFF")[^>]*>/gi),
   ];
   return bad.length === 0;
+}
+
+export async function fixCampinasDocxPlaceholders(docxBuffer: Buffer): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(docxBuffer);
+  let changed = false;
+
+  for (const name of Object.keys(zip.files)) {
+    const file = zip.files[name];
+    if (!file || file.dir || !/\.xml$/i.test(name)) continue;
+    const content = await file.async("string");
+    const fixed = fixCampinasPlaceholdersInXml(content);
+    if (fixed !== content) {
+      zip.file(name, fixed);
+      changed = true;
+    }
+  }
+
+  if (!changed) return docxBuffer;
+  return Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
 }
 
 export async function countDocxShadingTags(docxBuffer: Buffer): Promise<number> {

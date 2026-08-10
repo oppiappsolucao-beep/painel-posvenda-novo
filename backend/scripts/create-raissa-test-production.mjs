@@ -38,16 +38,16 @@ const contrato = {
   Pelagem: "LONGA",
   Microchip: "985112004567891",
   "Nascimento filhote": "10/02/2026",
-  Observações: "Contrato teste assinatura Raissa + Higo",
+  Observações: "Contrato teste assinatura Raissa + Oppi",
   "Data Compra": "07/08/2026",
   Mês: "2026-08",
   "Valor Filhote": "4.500,00",
   "Valor por extenso": "quatro mil e quinhentos reais",
   "Forma de pagamento": "PIX",
   "Quantidade de parcelas": "1",
-  Vendedora: "Higo",
-  "E-mail Loja": "silvaphigo@gmail.com",
-  "Telefone Loja": "11999251024",
+  Vendedora: "Oppi",
+  "E-mail Loja": "oppiappsolucao@gmail.com",
+  "Telefone Loja": "11942157917",
   Unidade: "Campinas",
 };
 
@@ -124,7 +124,7 @@ async function main() {
   console.log("Documento:", doc.docToken);
   console.log("Cliente (Raissa):", doc.signUrl);
   console.log("E-mail cliente:", doc.emailSent ? doc.clientEmail : "não");
-  console.log("Loja (Higo):", doc.storeSignUrl || "(ver ZapSign)");
+  console.log("Loja (Oppi):", doc.storeSignUrl || "(ver ZapSign)");
   console.log("E-mail loja:", doc.storeEmailSent ? doc.storeEmail : "não");
 }
 

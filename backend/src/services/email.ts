@@ -160,3 +160,65 @@ export async function sendContractSignEmail(params: {
     throw new Error(friendlySmtpError(error));
   }
 }
+
+export async function sendDocFormAttachmentsEmail(params: {
+  storeEmails: string[];
+  clientEmail: string;
+  clienteNome: string;
+  unitLabel: string;
+  attachments: Array<{ filename: string; content: Buffer }>;
+}): Promise<void> {
+  const { storeEmails, clientEmail, clienteNome, unitLabel, attachments } = params;
+  const brand = `SkoobPet ${unitLabel}`;
+  const subject = `${brand} — documentação do filhote anexada`;
+
+  const docList = attachments.map((a) => `• ${a.filename.replace(/_/g, " ").replace(/\.jpg$/i, "")}`).join("\n");
+
+  const text = [
+    `Olá,`,
+    ``,
+    `A documentação do filhote referente ao contrato de ${clienteNome} foi enviada pelo painel SkoobPet.`,
+    ``,
+    `Documentos anexados:`,
+    docList,
+    ``,
+    `Unidade: ${unitLabel}`,
+    ``,
+    `Abraços,`,
+    `Equipe SkoobPet`,
+  ].join("\n");
+
+  const html = `
+    <p>Olá,</p>
+    <p>A documentação do filhote referente ao contrato de <strong>${clienteNome}</strong> foi enviada pelo painel SkoobPet.</p>
+    <p><strong>Documentos anexados:</strong></p>
+    <ul>${attachments.map((a) => `<li>${a.filename.replace(/_/g, " ").replace(/\.jpg$/i, "")}</li>`).join("")}</ul>
+    <p><strong>Unidade:</strong> ${unitLabel}</p>
+    <p>Abraços,<br><strong>Equipe SkoobPet</strong></p>
+  `;
+
+  const mail = getTransporter();
+  if (!mail) {
+    throw new Error("Servidor de e-mail não configurado. Defina SMTP_HOST, SMTP_USER e SMTP_PASS.");
+  }
+
+  const mailAttachments = attachments.map((a) => ({
+    filename: a.filename,
+    content: a.content,
+    contentType: "image/jpeg",
+  }));
+
+  try {
+    await mail.sendMail({
+      from: config.smtp.from,
+      replyTo: config.smtp.from,
+      to: [...storeEmails, clientEmail].join(", "),
+      subject,
+      text,
+      html,
+      attachments: mailAttachments,
+    });
+  } catch (error) {
+    throw new Error(friendlySmtpError(error));
+  }
+}

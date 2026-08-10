@@ -51,7 +51,13 @@ import {
   getContractAttachmentBuffers,
   saveContractAttachments,
   AttachmentKind,
+  DocFormKind,
 } from "../services/contractAttachments.js";
+import {
+  getDocFormStatus,
+  loadDocFormStatusMap,
+  saveDocFormAttachments,
+} from "../services/contractDocForm.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middleware/auth.js";
 
 const router = Router();
@@ -263,6 +269,7 @@ function buildStatusAssinaturaData(
   dataFim: string,
   statusFilter: string,
   signatures: Map<string, SignatureRecord>,
+  docFormMap: Map<string, import("../services/contractDocForm.js").DocFormStatus>,
 ) {
   const rows = toSheetRows(loaded);
   const cols = rows.length ? Object.keys(rows[0]) : [];
@@ -284,6 +291,20 @@ function buildStatusAssinaturaData(
     const identificador = `contrato_${limparNomeArquivo(nomeCliente || `registro_${index + 1}`)}.pdf`;
     const assinatura = buildSignatureProgress(row, item.unitKey, record);
     const podeAssinarLoja = Boolean(record?.clienteSignedAt && !record?.lojaSignedAt);
+    const docForm = docFormMap.get(signatureKey(item.unitKey, item.sheetIndex)) || {
+      anexos: {
+        carteirinhaFrente: { enviado: false },
+        carteirinhaVerso: { enviado: false },
+        atestado: { enviado: false },
+        fotoFilhote: { enviado: false },
+      },
+      completo: false,
+      pendentes: ["carteirinhaFrente", "carteirinhaVerso", "atestado", "fotoFilhote"] as DocFormKind[],
+      total: 4,
+      enviados: 0,
+      emailEnviado: false,
+      statusLabel: "Pendente",
+    };
 
     return {
       sheetIndex: item.sheetIndex,
@@ -304,6 +325,7 @@ function buildStatusAssinaturaData(
       assinatura,
       podeAssinarLoja,
       inAppSignature: item.unitKey === "campinas" && Boolean(record),
+      docForm,
     };
   });
 
@@ -395,7 +417,10 @@ router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async 
     const status = String(req.query.status || "todos");
     const loaded = await loadRowsForUser(req.user!);
     const signatures = await loadSignaturesMap();
-    res.json(buildStatusAssinaturaData(loaded, nome, dataInicio, dataFim, status, signatures));
+    const docFormMap = await loadDocFormStatusMap(
+      loaded.map((item) => ({ unitKey: item.unitKey, sheetIndex: item.sheetIndex })),
+    );
+    res.json(buildStatusAssinaturaData(loaded, nome, dataInicio, dataFim, status, signatures, docFormMap));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });
@@ -627,6 +652,77 @@ router.post("/contracts/:unitKey/:sheetIndex/attachments", authMiddleware, requi
 
     await saveContractAttachments(unitKey, sheetIndex, anexos);
     res.json({ ok: true, message: "Anexos salvos com sucesso." });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.get("/contracts/:unitKey/:sheetIndex/doc-form", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
+  try {
+    const unitKey = String(req.params.unitKey) as UnitKey;
+    const sheetIndex = parseInt(String(req.params.sheetIndex), 10);
+
+    if (!getUnitByKey(unitKey) || !Number.isFinite(sheetIndex) || sheetIndex < 0) {
+      res.status(400).json({ error: "Parâmetros inválidos." });
+      return;
+    }
+
+    const userUnit = req.user?.unit;
+    if (userUnit && userUnit !== unitKey) {
+      res.status(403).json({ error: "Acesso negado para esta unidade." });
+      return;
+    }
+
+    const contrato = await getContractRow(unitKey, sheetIndex);
+    if (!contrato) {
+      res.status(404).json({ error: "Contrato não encontrado." });
+      return;
+    }
+
+    const status = await getDocFormStatus(unitKey, sheetIndex);
+    res.json({ ok: true, status });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
+  }
+});
+
+router.post("/contracts/:unitKey/:sheetIndex/doc-form", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
+  try {
+    const unitKey = String(req.params.unitKey) as UnitKey;
+    const sheetIndex = parseInt(String(req.params.sheetIndex), 10);
+    const anexos = req.body?.anexos as Partial<Record<DocFormKind, string>> | undefined;
+
+    if (!getUnitByKey(unitKey) || !Number.isFinite(sheetIndex) || sheetIndex < 0) {
+      res.status(400).json({ error: "Parâmetros inválidos." });
+      return;
+    }
+
+    const userUnit = req.user?.unit;
+    if (userUnit && userUnit !== unitKey) {
+      res.status(403).json({ error: "Acesso negado para esta unidade." });
+      return;
+    }
+
+    const contrato = await getContractRow(unitKey, sheetIndex);
+    if (!contrato) {
+      res.status(404).json({ error: "Contrato não encontrado." });
+      return;
+    }
+
+    const result = await saveDocFormAttachments(unitKey, sheetIndex, contrato, anexos || {});
+    res.json({
+      ok: true,
+      message: result.emailSent
+        ? "Anexos salvos e e-mail enviado para loja e cliente (contato@skoobpet.com.br)."
+        : result.status.completo
+          ? "Anexos salvos. E-mail será enviado quando o SMTP estiver configurado."
+          : "Anexos salvos. Envie todos os documentos para concluir.",
+      status: result.status,
+      emailSent: result.emailSent,
+      emailError: result.emailError,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });

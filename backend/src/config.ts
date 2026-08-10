@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 
-dotenv.config();
+// .env do projeto prevalece sobre variáveis antigas do sistema (ex.: template sandbox errado).
+dotenv.config({ override: true });
 
 export interface AuthAccount {
   user: string;
@@ -14,6 +15,8 @@ export interface UnitConfig {
   label: string;
   user: string;
   password: string;
+  /** E-mail da loja para anexos, ZapSign e notificações (não é o login do painel). */
+  storeEmail: string;
   sheetId: string;
   sheetName: string;
   sheetTab: string;
@@ -31,6 +34,10 @@ function unitSheetName(envKey: string, defaultName: string): string {
   return process.env[envKey] || defaultName;
 }
 
+function unitStoreEmail(envKey: string, defaultEmail: string): string {
+  return (process.env[envKey] || defaultEmail).trim();
+}
+
 const sharedSheetTab = process.env.SHEET_TAB || "Folha1";
 const campinasSheetId =
   unitSheetId("SHEET_ID_CAMPINAS") ||
@@ -43,6 +50,7 @@ export const units: UnitConfig[] = [
     label: "Campinas",
     user: "campinas@skoobpet.com.br",
     password: operPassword("OPER_PASS_CAMPINAS", "skoob1234"),
+    storeEmail: unitStoreEmail("STORE_EMAIL_CAMPINAS", "skoobpet@outlook.com"),
     sheetId: campinasSheetId,
     sheetName: unitSheetName("SHEET_NAME_CAMPINAS", "Planilha SkoobPet (Campinas)"),
     sheetTab: sharedSheetTab,
@@ -52,6 +60,7 @@ export const units: UnitConfig[] = [
     label: "Piracicaba",
     user: "piracicaba@skoobpet.com.br",
     password: operPassword("OPER_PASS_PIRACICABA", "skoob123"),
+    storeEmail: unitStoreEmail("STORE_EMAIL_PIRACICABA", "skoobpetpiracicaba@outlook.com"),
     sheetId: unitSheetId("SHEET_ID_PIRACICABA"),
     sheetName: unitSheetName("SHEET_NAME_PIRACICABA", "Planilha SkoobPet (Piracicaba)"),
     sheetTab: sharedSheetTab,
@@ -61,6 +70,7 @@ export const units: UnitConfig[] = [
     label: "Indaiatuba",
     user: "indaiatuba@skoobpet.com.br",
     password: operPassword("OPER_PASS_INDAIATUBA", "skoob12345"),
+    storeEmail: unitStoreEmail("STORE_EMAIL_INDAIATUBA", "skoobpetindaiatuba@outlook.com"),
     sheetId: unitSheetId("SHEET_ID_INDAIATUBA"),
     sheetName: unitSheetName("SHEET_NAME_INDAIATUBA", "Planilha SkoobPet (Indaiatuba)"),
     sheetTab: sharedSheetTab,
@@ -78,6 +88,13 @@ export function getUnitByEmail(email: string): UnitConfig | undefined {
 
 export function getUnitByKey(key: UnitKey): UnitConfig | undefined {
   return units.find((unit) => unit.key === key);
+}
+
+/** @deprecated Prefer getUnitStoreEmailsForNotifications — retorna e-mail padrão da unidade. */
+export function resolveUnitStoreEmail(unitKey: UnitKey, contrato?: SheetRow): string {
+  const fromSheet = contrato ? String(contrato["E-mail Loja"] || "").trim() : "";
+  if (fromSheet) return fromSheet;
+  return getUnitByKey(unitKey)?.storeEmail || "contato@skoobpet.com.br";
 }
 
 export function unitKeyFromLabel(label: string): UnitKey | null {

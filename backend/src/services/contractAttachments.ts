@@ -11,7 +11,33 @@ const DATA_DIR = path.join(__dirname, "../../data");
 const META_FILE = path.join(DATA_DIR, "attachments.json");
 const FILES_DIR = path.join(DATA_DIR, "attachments");
 
-export type AttachmentKind = "rgFrente" | "rgVerso" | "carteirinha" | "laudo" | "fotoAnimal";
+export type AttachmentKind =
+  | "rgFrente"
+  | "rgVerso"
+  | "carteirinha"
+  | "laudo"
+  | "fotoAnimal"
+  | "carteirinhaFrente"
+  | "carteirinhaVerso"
+  | "atestado"
+  | "fotoFilhote";
+
+/** Anexos obrigatórios no painel Status De Assinatura (formulário abaixo do contrato). */
+export type DocFormKind = "carteirinhaFrente" | "carteirinhaVerso" | "atestado" | "fotoFilhote";
+
+export const DOC_FORM_KINDS: DocFormKind[] = [
+  "carteirinhaFrente",
+  "carteirinhaVerso",
+  "atestado",
+  "fotoFilhote",
+];
+
+export const DOC_FORM_LABELS: Record<DocFormKind, string> = {
+  carteirinhaFrente: "Carteirinha de vacina — Frente",
+  carteirinhaVerso: "Carteirinha de vacina — Verso",
+  atestado: "Atestado de saúde",
+  fotoFilhote: "Foto do filhote",
+};
 
 export const ATTACHMENT_KINDS: AttachmentKind[] = [
   "rgFrente",
@@ -19,6 +45,7 @@ export const ATTACHMENT_KINDS: AttachmentKind[] = [
   "carteirinha",
   "laudo",
   "fotoAnimal",
+  ...DOC_FORM_KINDS,
 ];
 
 export const ATTACHMENT_LABELS: Record<AttachmentKind, string> = {
@@ -27,6 +54,7 @@ export const ATTACHMENT_LABELS: Record<AttachmentKind, string> = {
   carteirinha: "Carteirinha de vacinação do filhote",
   laudo: "Laudo de saúde",
   fotoAnimal: "Foto do animal",
+  ...DOC_FORM_LABELS,
 };
 
 export type ContractAttachmentImages = Partial<Record<AttachmentKind, Buffer>>;

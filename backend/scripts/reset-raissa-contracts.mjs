@@ -27,7 +27,7 @@ if (!process.env.GCP_CLIENT_EMAIL || !process.env.GCP_PRIVATE_KEY) {
 
 const contrato = {
   Nome: "Raissa",
-  Telefone: "(19) 98765-4321",
+  Telefone: "(11) 96848-2180",
   CPF: "529.982.247-25",
   "E-mail": "kaineenetwork@gmail.com",
   Endereço: "Rua das Flores",
@@ -46,15 +46,16 @@ const contrato = {
   Pelagem: "LONGA",
   Microchip: "985112004567891",
   "Nascimento filhote": "10/02/2026",
-  Observações: "Contrato teste assinatura Raissa + Higo",
+  Observações: "Contrato teste assinatura Raissa + Oppi",
   "Data Compra": "07/08/2026",
   Mês: "2026-08",
   "Valor Filhote": "4.500,00",
   "Valor por extenso": "quatro mil e quinhentos reais",
   "Forma de pagamento": "PIX",
   "Quantidade de parcelas": "1",
-  Vendedora: "Higo",
-  "E-mail Loja": "silvaphigo@gmail.com",
+  Vendedora: "Oppi",
+  "E-mail Loja": "oppiappsolucao@gmail.com",
+  "Telefone Loja": "11942157917",
   Unidade: "Campinas",
 };
 
@@ -158,22 +159,6 @@ contrato["Data preenchimento"] = now.toLocaleString("pt-BR", { timeZone: "Americ
 const externalId = `campinas:raissa-${Date.now()}`;
 const doc = await createCampinasContractDocument(contrato, externalId);
 
-const detailRes = await zapsign(`/docs/${doc.docToken}/`);
-const signers = detailRes.data.signers || [];
-const lojaSigner = signers.find((s) => s.qualification === "lojista") || signers[1];
-if (lojaSigner?.token) {
-  await zapsign(`/signers/${lojaSigner.token}/`, {
-    method: "POST",
-    body: {
-      name: "Higo",
-      email: "silvaphigo@gmail.com",
-      send_automatic_email: true,
-      auth_mode: "assinaturaTela",
-      qualification: "lojista",
-    },
-  });
-}
-
 console.log("5) Registrando na planilha...");
 const headerRes = await sheets.spreadsheets.values.get({
   spreadsheetId: sheetId,
@@ -198,7 +183,7 @@ const patch = {
   "Documento ZapSign": doc.docToken,
   "Data Envio": now.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
   "Status Assinatura": "Aguardando cliente (ZapSign)",
-  "E-mail Loja": "silvaphigo@gmail.com",
+  "E-mail Loja": "oppiappsolucao@gmail.com",
 };
 if (doc.storeSignUrl) patch["Link Assinatura Loja"] = doc.storeSignUrl;
 
@@ -214,5 +199,9 @@ await sheets.spreadsheets.values.append({
 console.log("\n=== Novo contrato Raissa ===");
 console.log("Documento:", doc.docToken);
 console.log("Cliente:", doc.signUrl);
-console.log("E-mail enviado:", doc.emailSent ? doc.clientEmail : "não");
-if (doc.storeSignUrl) console.log("Loja:", doc.storeSignUrl);
+console.log("WhatsApp cliente:", contrato.Telefone);
+console.log("Auth cliente:", process.env.ZAPSIGN_CLIENT_AUTH_MODE || "tokenWhatsapp");
+if (doc.storeSignUrl) {
+  console.log("Loja:", doc.storeSignUrl);
+  console.log("WhatsApp loja:", contrato["Telefone Loja"]);
+}

@@ -202,6 +202,19 @@ export interface SignatureProgress {
   clientSignUrl?: string;
 }
 
+export type DocFormKind = "carteirinhaFrente" | "carteirinhaVerso" | "atestado" | "fotoFilhote";
+
+export interface DocFormStatus {
+  anexos: Record<DocFormKind, { enviado: boolean }>;
+  completo: boolean;
+  pendentes: DocFormKind[];
+  total: number;
+  enviados: number;
+  emailEnviado: boolean;
+  emailEnviadoEm?: string;
+  statusLabel: string;
+}
+
 export interface StatusAssinaturaItem {
   id: number;
   sheetIndex: number;
@@ -219,6 +232,7 @@ export interface StatusAssinaturaItem {
   assinatura: SignatureProgress;
   podeAssinarLoja?: boolean;
   inAppSignature?: boolean;
+  docForm: DocFormStatus;
 }
 
 export interface StatusAssinaturaResponse {
@@ -234,6 +248,28 @@ export async function fetchStatusAssinatura(params: {
   status?: string;
 }) {
   const { data } = await api.get<StatusAssinaturaResponse>("/dashboard/status-assinatura", { params });
+  return data;
+}
+
+export async function fetchDocFormStatus(unitKey: UnitKey, sheetIndex: number) {
+  const { data } = await api.get<{ ok: boolean; status: DocFormStatus }>(
+    `/dashboard/contracts/${unitKey}/${sheetIndex}/doc-form`,
+  );
+  return data.status;
+}
+
+export async function submitDocFormAttachments(
+  unitKey: UnitKey,
+  sheetIndex: number,
+  anexos: Partial<Record<DocFormKind, string>>,
+) {
+  const { data } = await api.post<{
+    ok: boolean;
+    message: string;
+    status: DocFormStatus;
+    emailSent: boolean;
+    emailError?: string;
+  }>(`/dashboard/contracts/${unitKey}/${sheetIndex}/doc-form`, { anexos });
   return data;
 }
 
@@ -376,4 +412,40 @@ export async function signContractAsStore(unitKey: UnitKey, sheetIndex: number, 
     }
     throw err;
   }
+}
+
+export interface UnitEmailItem {
+  id: number;
+  unitKey: UnitKey;
+  email: string;
+  createdAt: string;
+}
+
+export async function fetchSettingsUnits() {
+  const { data } = await api.get<{ items: Array<{ key: UnitKey; label: string }> }>("/settings/units");
+  return data.items;
+}
+
+export async function fetchUnitEmails(unit?: UnitKey) {
+  const { data } = await api.get<{ unitKey: UnitKey; unitLabel: string; items: UnitEmailItem[] }>(
+    "/settings/emails",
+    { params: unit ? { unit } : undefined },
+  );
+  return data;
+}
+
+export async function addUnitEmail(email: string, unit?: UnitKey) {
+  const { data } = await api.post<{ ok: boolean; item: UnitEmailItem; message: string }>(
+    "/settings/emails",
+    { email, unitKey: unit },
+  );
+  return data;
+}
+
+export async function removeUnitEmail(id: number, unit?: UnitKey) {
+  const { data } = await api.delete<{ ok: boolean; items: UnitEmailItem[]; message: string }>(
+    `/settings/emails/${id}`,
+    { params: unit ? { unit } : undefined },
+  );
+  return data;
 }

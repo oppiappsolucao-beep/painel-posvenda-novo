@@ -1,4 +1,6 @@
 import { getUnitByKey, SheetRow, UnitKey } from "../config.js";
+import { getPrimaryUnitStoreEmail } from "./unitEmails.js";
+import { campinasStoreSignerName } from "./zapsignFormConfig.js";
 import { SignatureRecord, clientSignUrl, isSignatureComplete } from "./signatures.js";
 
 export type SignatarioStatus = "assinado" | "pendente" | "aguardando" | "nao_enviado";
@@ -43,7 +45,7 @@ function lojaSignatario(unitKey: UnitKey): { nome: string; email: string } {
   const unit = getUnitByKey(unitKey);
   return {
     nome: unit ? `SkoobPet ${unit.label}` : "Loja",
-    email: unit?.user || "",
+    email: getPrimaryUnitStoreEmail(unitKey),
   };
 }
 
@@ -119,26 +121,17 @@ function buildFromZapSignRow(row: SheetRow, unitKey: UnitKey): SignatureProgress
   const linkCliente = String(row["Link Assinatura"] || "").trim();
   const linkLoja = String(row["Link Assinatura Loja"] || "").trim();
   const loja = lojaSignatario(unitKey);
-  const lojaNome = String(row["Vendedora"] || loja.nome).trim() || loja.nome;
+  const lojaNome = campinasStoreSignerName() || loja.nome;
   const lojaEmail = String(row["E-mail Loja"] || loja.email).trim();
 
-  const clienteStatus = inferStatusFromDate(dataCliente, enviado);
-  const lojaStatus = dataCliente
-    ? inferStatusFromDate(dataLoja, enviado)
+  const clienteStatus = dataLoja
+    ? inferStatusFromDate(dataCliente, enviado)
     : enviado
       ? "aguardando"
       : "nao_enviado";
+  const lojaStatus = inferStatusFromDate(dataLoja, enviado);
 
   const signatarios: SignatarioItem[] = [
-    {
-      papel: "Cliente",
-      nome: String(row["Nome"] || "Cliente").trim() || "Cliente",
-      email: String(row["E-mail"] || "").trim(),
-      status: clienteStatus,
-      statusLabel: statusLabel(clienteStatus),
-      assinadoEm: dataCliente || "—",
-      linkAssinatura: linkCliente || undefined,
-    },
     {
       papel: "Loja",
       nome: lojaNome,
@@ -147,6 +140,15 @@ function buildFromZapSignRow(row: SheetRow, unitKey: UnitKey): SignatureProgress
       statusLabel: statusLabel(lojaStatus),
       assinadoEm: dataLoja || "—",
       linkAssinatura: linkLoja || undefined,
+    },
+    {
+      papel: "Cliente",
+      nome: String(row["Nome"] || "Cliente").trim() || "Cliente",
+      email: String(row["E-mail"] || "").trim(),
+      status: clienteStatus,
+      statusLabel: statusLabel(clienteStatus),
+      assinadoEm: dataCliente || "—",
+      linkAssinatura: linkCliente || undefined,
     },
   ];
 

@@ -11,6 +11,7 @@ import signatureRoutes from "./routes/signatures.js";
 import employeeRoutes from "./routes/employees.js";
 import breedRoutes from "./routes/breeds.js";
 import zapsignRoutes from "./routes/zapsign.js";
+import settingsRoutes from "./routes/settings.js";
 import { getDatabaseHealth, initDatabase } from "./db/init.js";
 import { getEmployeesStorageInfo } from "./services/employees.js";
 import { maybeSyncEmployeesFromSheets } from "./services/syncEmployeesFromSheets.js";
@@ -65,6 +66,7 @@ app.use("/api/signatures", signatureRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/breeds", breedRoutes);
 app.use("/api/zapsign", zapsignRoutes);
+app.use("/api/settings", settingsRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(publicDir));

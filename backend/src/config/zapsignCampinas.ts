@@ -26,8 +26,8 @@ export interface ZapSignTemplateField {
   order: number;
 }
 
-/** Campos que o cliente preenche no formulário ZapSign antes de assinar. */
-export const CAMPINAS_CLIENT_FORM_FIELDS: ZapSignTemplateField[] = [
+/** Cliente (signatário 2): só confirma recebimento de documentação. */
+export const CAMPINAS_CLIENT_DOC_ACK_FIELDS: ZapSignTemplateField[] = [
   {
     variable: "{{carteirinha}}",
     input_type: "radio",
@@ -74,6 +74,11 @@ export const CAMPINAS_CLIENT_FORM_FIELDS: ZapSignTemplateField[] = [
     required: true,
     order: 5,
   },
+];
+
+/** @deprecated Fluxo antigo (cliente signatário 1). Use CAMPINAS_CLIENT_DOC_ACK_FIELDS. */
+export const CAMPINAS_CLIENT_FORM_FIELDS: ZapSignTemplateField[] = [
+  ...CAMPINAS_CLIENT_DOC_ACK_FIELDS,
   {
     variable: "{{contratante-cpf}}",
     input_type: "cpf",
@@ -105,32 +110,32 @@ export const CAMPINAS_STORE_UPLOAD_FIELDS: ZapSignTemplateField[] = [
   {
     variable: "",
     input_type: "upload",
-    label: "Comprovante de vacina - frente",
-    help_text: "Carteirinha de vacinação (frente)",
+    label: "Atestado de Saúde",
+    help_text: "Atestado de saúde do filhote",
     required: true,
     order: 50,
   },
   {
     variable: "",
     input_type: "upload",
-    label: "Comprovante de vacina - verso",
-    help_text: "Carteirinha de vacinação (verso)",
+    label: "Carteirinha de vacinas - frente",
+    help_text: "Carteirinha de vacinação (frente)",
     required: true,
     order: 51,
   },
   {
     variable: "",
     input_type: "upload",
-    label: "Foto do filhote",
-    help_text: "Foto do filhote adquirido",
+    label: "Carteirinha de vacinas - verso",
+    help_text: "Carteirinha de vacinação (verso)",
     required: true,
     order: 52,
   },
   {
     variable: "",
     input_type: "upload",
-    label: "Atestado de saúde",
-    help_text: "Atestado de saúde do filhote",
+    label: "Foto do filhote",
+    help_text: "Foto do filhote adquirido",
     required: true,
     order: 53,
   },
@@ -151,16 +156,20 @@ export const CAMPINAS_STORE_FORM_FIELDS: ZapSignTemplateField[] = [
   ...CAMPINAS_STORE_UPLOAD_FIELDS,
 ];
 
+/** Formulário do signatário 1 (loja): CNPJ + anexos. Cliente responde só radios (signatário 2). */
+export function campinasStoreFirstFormFields(): ZapSignTemplateField[] {
+  return CAMPINAS_STORE_FORM_FIELDS.map((field, index) => ({ ...field, order: index + 1 }));
+}
+
 export const CAMPINAS_STORE_FORM_LABELS = new Set(
   CAMPINAS_STORE_FORM_FIELDS.map((field) => field.label.trim().toLowerCase()),
 );
 
-/** Variáveis preenchidas no painel — não exibidas no formulário do cliente ZapSign. */
+/** Variáveis preenchidas no painel — enviadas via API no create-doc, não no formulário do cliente. */
 export const CAMPINAS_STORE_PREFILLED_VARIABLES = [
   "{{nome-completo}}",
   "{{endereco}}",
   "{{numero}}",
-  "{{complemento}}",
   "{{bairro}}",
   "{{cidade}}",
   "{{uf}}",
@@ -191,7 +200,7 @@ export const CAMPINAS_STORE_PREFILLED_VARIABLES = [
 ] as const;
 
 export const CAMPINAS_CLIENT_FORM_VARIABLES = new Set(
-  CAMPINAS_CLIENT_FORM_FIELDS.map((field) => field.variable),
+  CAMPINAS_CLIENT_DOC_ACK_FIELDS.map((field) => field.variable),
 );
 
 function pick(contrato: SheetRow, ...keys: string[]): string {
@@ -228,7 +237,7 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
     ["nome-completo}}", nome],
     ["{{endereco}}", pick(contrato, "Endereço", "Endereco")],
     ["{{numero}}", pick(contrato, "Número", "Numero")],
-    ["{{complemento}}", pick(contrato, "Complemento")],
+    ["{{complemento}}", pick(contrato, "Complemento") || "\u200b"],
     ["{{bairro}}", pick(contrato, "Bairro")],
     ["{{cidade}}", pick(contrato, "Cidade")],
     ["{{uf}}", pick(contrato, "Estado")],
@@ -243,7 +252,7 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
     ["{{microchip}}", pick(contrato, "Microchip")],
     ["{{especie}}", pick(contrato, "Espécie", "Especie")],
     ["{{pelagem}}", pick(contrato, "Pelagem")],
-    ["{{observacoes}}", pick(contrato, "Observações", "Observacoes")],
+    ["{{observacoes}}", pick(contrato, "Observações", "Observacoes") || "\u200b"],
     ["{{valor}}", pick(contrato, "Valor Filhote")],
     ["{{ex-cinco-mil-reais}}", pick(contrato, "Valor por extenso")],
     ["{{forma-de-pag}}", pick(contrato, "Forma de pagamento")],
@@ -255,6 +264,7 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
     ["{{exemplo-18}}", day],
     ["{{fevereiro}}", monthName],
     ["{{cpf}}", pick(contrato, "CPF")],
+    ["{{contratante-cpf}}", pick(contrato, "CPF")],
   ];
 
   if (year) {

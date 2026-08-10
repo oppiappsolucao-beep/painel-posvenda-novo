@@ -87,7 +87,7 @@ async function downloadAndPrepareDocx(templateFileUrl) {
     const xml = await file.async("string");
     const fixedXml = xml.replace(
       /(<w:t(?:\s[^>]*)?>)\s*nome-completo\}\}(\s*<\/w:t>)/g,
-      "$1{{contratante-nome-completo}}$2",
+      "$1{{nome-completo}}$2",
     );
     if (fixedXml !== xml) {
       fixedCount += (xml.match(/(<w:t(?:\s[^>]*)?>)\s*nome-completo\}\}(\s*<\/w:t>)/g) || []).length;
@@ -97,7 +97,7 @@ async function downloadAndPrepareDocx(templateFileUrl) {
   if (fixedCount > 0) {
     docx = Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
     console.log(
-      `Corrigido placeholder nome-completo}} → {{contratante-nome-completo}} (${fixedCount}x)`,
+      `Corrigido placeholder nome-completo}} → {{nome-completo}} (${fixedCount}x)`,
     );
   }
   return docx;
@@ -141,11 +141,23 @@ async function main() {
   const sandboxTemplateId = created.token;
   if (!sandboxTemplateId) throw new Error("Sandbox não retornou token do template");
 
-  console.log("3) IMPORTANTE: anexos da loja (upload) não podem ser criados via API.");
-  console.log("   Abra https://sandbox.app.zapsign.com.br/conta/modelos/" + sandboxTemplateId);
-  console.log("   e configure manualmente os campos de upload/CNPJ do lojista,");
-  console.log("   copiando do modelo de produção Campinas.");
-  console.log("   (update-form da API remove uploads — não usamos aqui.)");
+  console.log("3) Configurando formulário do cliente...");
+  await api(SANDBOX_API, sandboxToken, "/templates/update-form/", {
+    method: "POST",
+    json: {
+      template_id: sandboxTemplateId,
+      custom_intro:
+        "Confirme seus dados e responda sobre a documentação do filhote antes de assinar o contrato.",
+      youtube_video_code: "",
+      hide_prefilled_fields: true,
+      inputs: CLIENT_FORM,
+    },
+  });
+
+  console.log("4) IMPORTANTE: anexos da loja ficam em Opções avançadas do SIGNATÁRIO 2 (lojista):");
+  console.log("   https://sandbox.app.zapsign.com.br/conta/modelos/" + sandboxTemplateId);
+  console.log("   → Configurar modelo → Editar modelo → Signatário 2 → Opções avançadas");
+  console.log("   Adicione: Atestado de Saúde, Carteirinha frente/verso, Foto do filhote");
 
   const verified = await api(SANDBOX_API, sandboxToken, `/templates/${sandboxTemplateId}/`);
   const uploads = (verified.inputs || []).filter((i) => i.input_type === "upload").length;
