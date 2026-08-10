@@ -312,6 +312,11 @@ async function ensureClientSigner(
     detail.signers?.find((s) => s.qualification === "cliente");
   if (!clientSigner?.token) return {};
 
+  const existingUrl = signerResponseUrl(clientSigner);
+  if (!sendAutomaticEmail && !sendAutomaticWhatsapp) {
+    return { signUrl: existingUrl };
+  }
+
   const payload = {
     name: nome,
     email: email || undefined,
@@ -425,6 +430,16 @@ async function ensureStoreSigner(
     );
   }
 
+  const existingUrl = signerResponseUrl(lojaSigner);
+  if (!sendAutomaticEmail && !storeWhatsapp && existingUrl) {
+    return {
+      signUrl: existingUrl,
+      emailSent: false,
+      email: lojaEmail,
+      whatsappLinkSent: false,
+    };
+  }
+
   const signerPayload = buildStoreSignerPayload(
     lojaNome,
     lojaEmail,
@@ -485,7 +500,12 @@ export async function createCampinasContractDocument(
       `[zapsign] Ambiente ${zapSignEnvironmentLabel()} (${getZapSignApiBase()}) — testes sem validade jurídica.`,
     );
   }
-  await ensureCampinasClientFormConfigured(templateId);
+  await ensureCampinasClientFormConfigured(templateId).catch((error) => {
+    console.warn(
+      "[zapsign] Formulário do template ignorado ao criar contrato:",
+      error instanceof Error ? error.message : error,
+    );
+  });
   await ensureCampinasTemplateStoreSigner(templateId, zapsignRequest);
 
   const templateDetail = await zapsignRequest<{

@@ -20,6 +20,7 @@ import {
   ensureCampinasProductionTemplate,
   isZapSignCampinasEnabled,
 } from "./services/zapsign.js";
+import pkg from "../package.json" with { type: "json" };
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -62,6 +63,7 @@ app.get("/api/health", async (_req, res) => {
     ok: database.ok,
     database,
     employees,
+    version: pkg.version,
     build: process.env.GIT_COMMIT || null,
   });
 });
