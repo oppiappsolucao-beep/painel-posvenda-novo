@@ -422,22 +422,14 @@ function resolveClientDocAckFields(sourceInputs: ZapSignTemplateInput[]): ZapSig
   return resolved;
 }
 
-/** Campos visíveis + variáveis do DOCX suprimidas (required false) para update-form. */
+/** Campos visíveis no formulário (somente CNPJ loja + radios/RG cliente). */
 export function buildTemplateFormUpdatePayload(detail: ZapSignTemplateDetail) {
-  const curated = buildTemplateFormInputs(detail).filter(shouldExposeInSignerForm);
-  const curatedKeys = new Set(curated.map(templateInputKey));
-  const suppressed = (detail.inputs || [])
-    .filter((input) => !curatedKeys.has(templateInputKey(input)))
-    .filter(
-      (input) =>
-        isPrefilledContractField(input) || isStoreUploadInput(input) || isLegacyClientField(input),
-    )
-    .map((input, index) => ({
-      ...mapExistingTemplateInput(input),
-      order: 900 + index,
-      required: false,
-    }));
-  return dedupeTemplateInputs([...curated, ...suppressed]);
+  return buildTemplateFormInputs(detail).filter(shouldExposeInSignerForm);
+}
+
+/** Modelo-fonte com anexos da loja embutidos (Foto filhote, Atestado, etc.). */
+export function templateHasLegacyStoreUploadFields(detail: ZapSignTemplateDetail): boolean {
+  return (detail.inputs || []).some(isStoreUploadInput);
 }
 
 function isLegacyClientField(input: ZapSignTemplateInput): boolean {
@@ -494,17 +486,19 @@ export async function syncFormFromSourceTemplate(
 }
 
 function isStoreUploadInput(input: ZapSignTemplateInput): boolean {
-  if (String(input.input_type || "").trim().toLowerCase() !== "upload") return false;
-  if (isClientUploadInput(input)) return false;
+  if (isDocAckRadioInput(input) || isClientUploadInput(input)) return false;
   const label = String(input.label || "").trim().toLowerCase();
   if (CAMPINAS_STORE_FORM_LABELS.has(label)) return true;
-  return (
+  if (
     label.includes("vacina") ||
     label.includes("atestado") ||
     label.includes("filhote") ||
-    label.includes("carteirinha") ||
-    label.includes("comprovante")
-  );
+    label.includes("comprovante") ||
+    (label.includes("carteirinha") && String(input.input_type || "").toLowerCase() === "upload")
+  ) {
+    return true;
+  }
+  return String(input.input_type || "").trim().toLowerCase() === "upload";
 }
 
 function isStoreCnpjInput(input: ZapSignTemplateInput): boolean {

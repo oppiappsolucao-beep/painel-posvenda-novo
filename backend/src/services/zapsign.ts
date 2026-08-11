@@ -23,6 +23,7 @@ import {
   findClientSigner,
   findStoreSigner,
   syncCampinasStoreSignerFromSource,
+  templateHasLegacyStoreUploadFields,
   templateHasStoreUploadWorkflow,
   zapsignStoreSignerName,
   zapsignTemplateStoreSignerPanelUrl,
@@ -124,15 +125,44 @@ async function ensureClientFormConfigured(unitKey: UnitKey, templateId: string):
   formConfiguredForTemplateId.set(templateId, unitKey);
 }
 
-async function getProductionTemplateId(unitKey: UnitKey): Promise<string> {
+async function getProductionTemplateId(unitKey: UnitKey, allowRetry = true): Promise<string> {
   const { templateId } = getConfig(unitKey);
   if (!templateId) return "";
 
   const cached = cachedProductionTemplateIds.get(unitKey);
-  if (cached) return cached;
+  if (cached) {
+    const cachedDetail = await zapsignRequest<{ inputs?: Array<{ input_type?: string; label?: string; variable?: string }> }>(
+      `/templates/${cached}/`,
+    ).catch(() => null);
+    if (cachedDetail && templateHasLegacyStoreUploadFields(cachedDetail)) {
+      console.warn(`[zapsign] Cache (${unitKey}) apontava template legado ${cached}; recriando template limpo.`);
+      cachedProductionTemplateIds.delete(unitKey);
+    } else if (cachedDetail) {
+      return cached;
+    }
+  }
 
   const resolved = await resolveProductionTemplateId(unitKey, templateId, zapsignRequest);
+  const detail = await zapsignRequest<{ inputs?: Array<{ input_type?: string; label?: string; variable?: string }> }>(
+    `/templates/${resolved}/`,
+  ).catch(() => null);
+
+  if (detail && templateHasLegacyStoreUploadFields(detail)) {
+    if (allowRetry) {
+      console.warn(
+        `[zapsign] Template ${resolved} (${unitKey}) ainda contém anexos legados da loja; recriando template limpo.`,
+      );
+      await resetProductionTemplateCache(unitKey);
+      return getProductionTemplateId(unitKey, false);
+    }
+    console.error(
+      `[zapsign] Template ${resolved} (${unitKey}) ainda contém anexos legados após recriação. ` +
+        `Contratos novos podem exibir uploads da loja no link do cliente.`,
+    );
+  }
+
   cachedProductionTemplateIds.set(unitKey, resolved);
+  console.log(`[zapsign] Template de produção (${unitKey}): ${resolved}`);
   return resolved;
 }
 

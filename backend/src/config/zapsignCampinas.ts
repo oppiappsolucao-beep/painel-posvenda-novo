@@ -268,47 +268,47 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
   const telefone = pick(contrato, "Telefone");
   const email = pick(contrato, "E-mail", "Email");
 
+  const prefilled = (value: string) => value || "\u200b";
+
   const entries: Array<[string, string]> = [
-    ["{{nome-completo}}", nome],
+    ["{{nome-completo}}", prefilled(nome)],
     // Placeholder quebrado no DOCX de produção (faltava "{{" no início).
-    ["nome-completo}}", nome],
-    ["{{endereco}}", pick(contrato, "Endereço", "Endereco")],
-    ["{{numero}}", pick(contrato, "Número", "Numero")],
-    ["{{complemento}}", pick(contrato, "Complemento") || "\u200b"],
-    ["{{bairro}}", pick(contrato, "Bairro")],
-    ["{{cidade}}", pick(contrato, "Cidade")],
-    ["{{uf}}", pick(contrato, "Estado")],
-    ["{{cep}}", pick(contrato, "CEP")],
-    ["{{rg}}", pick(contrato, "RG")],
-    ["{{data}}", dataCompra],
-    ["{{nome-animal}}", pick(contrato, "Nome do animal")],
-    ["{{raca}}", pick(contrato, "Raça", "Raca")],
-    ["{{cor}}", pick(contrato, "Cor")],
-    ["{{data-nasc}}", pick(contrato, "Nascimento filhote")],
-    ["{{sexo}}", pick(contrato, "Sexo")],
-    ["{{microchip}}", pick(contrato, "Microchip")],
-    ["{{especie}}", pick(contrato, "Espécie", "Especie")],
-    ["{{pelagem}}", pick(contrato, "Pelagem")],
-    ["{{observacoes}}", pick(contrato, "Observações", "Observacoes") || "\u200b"],
-    ["{{valor}}", pick(contrato, "Valor Filhote")],
-    ["{{ex-cinco-mil-reais}}", pick(contrato, "Valor por extenso")],
-    ["{{forma-de-pag}}", pick(contrato, "Forma de pagamento")],
-    ["{{parcela}}", pick(contrato, "Quantidade de parcelas")],
-    ["{{nome-sobrenome}}", pick(contrato, "Vendedora")],
-    ["{{contratante-nome-completo}}", nome],
-    ["{{celular}}", telefone],
-    ["{{e-mail}}", email],
-    ["{{exemplo-18}}", day],
-    ["{{fevereiro}}", monthName],
-    ["{{cpf}}", pick(contrato, "CPF")],
-    ["{{contratante-cpf}}", pick(contrato, "CPF")],
+    ["nome-completo}}", prefilled(nome)],
+    ["{{endereco}}", prefilled(pick(contrato, "Endereço", "Endereco"))],
+    ["{{numero}}", prefilled(pick(contrato, "Número", "Numero"))],
+    ["{{complemento}}", prefilled(pick(contrato, "Complemento"))],
+    ["{{bairro}}", prefilled(pick(contrato, "Bairro"))],
+    ["{{cidade}}", prefilled(pick(contrato, "Cidade"))],
+    ["{{uf}}", prefilled(pick(contrato, "Estado"))],
+    ["{{cep}}", prefilled(pick(contrato, "CEP"))],
+    ["{{rg}}", prefilled(pick(contrato, "RG"))],
+    ["{{data}}", prefilled(dataCompra)],
+    ["{{nome-animal}}", prefilled(pick(contrato, "Nome do animal"))],
+    ["{{raca}}", prefilled(pick(contrato, "Raça", "Raca"))],
+    ["{{cor}}", prefilled(pick(contrato, "Cor"))],
+    ["{{data-nasc}}", prefilled(pick(contrato, "Nascimento filhote"))],
+    ["{{sexo}}", prefilled(pick(contrato, "Sexo"))],
+    ["{{microchip}}", prefilled(pick(contrato, "Microchip"))],
+    ["{{especie}}", prefilled(pick(contrato, "Espécie", "Especie"))],
+    ["{{pelagem}}", prefilled(pick(contrato, "Pelagem"))],
+    ["{{observacoes}}", prefilled(pick(contrato, "Observações", "Observacoes"))],
+    ["{{valor}}", prefilled(pick(contrato, "Valor Filhote"))],
+    ["{{ex-cinco-mil-reais}}", prefilled(pick(contrato, "Valor por extenso"))],
+    ["{{forma-de-pag}}", prefilled(pick(contrato, "Forma de pagamento"))],
+    ["{{parcela}}", prefilled(pick(contrato, "Quantidade de parcelas"))],
+    ["{{nome-sobrenome}}", prefilled(pick(contrato, "Vendedora"))],
+    ["{{contratante-nome-completo}}", prefilled(nome)],
+    ["{{celular}}", prefilled(telefone)],
+    ["{{e-mail}}", prefilled(email)],
+    ["{{exemplo-18}}", prefilled(day)],
+    ["{{fevereiro}}", prefilled(monthName)],
+    ["{{cpf}}", prefilled(pick(contrato, "CPF"))],
+    ["{{contratante-cpf}}", prefilled(pick(contrato, "CPF"))],
   ];
 
   if (year) {
     entries.push(["{{ano}}", year]);
   }
 
-  return entries
-    .filter(([, para]) => para)
-    .map(([de, para]) => ({ de, para }));
+  return entries.map(([de, para]) => ({ de, para }));
 }
