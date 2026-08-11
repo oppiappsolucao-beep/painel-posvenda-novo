@@ -76,6 +76,30 @@ export const CAMPINAS_CLIENT_DOC_ACK_FIELDS: ZapSignTemplateField[] = [
   },
 ];
 
+/** Cliente (signatário 2): anexos na documentação do contrato. */
+export const CAMPINAS_CLIENT_UPLOAD_FIELDS: ZapSignTemplateField[] = [
+  {
+    variable: "",
+    input_type: "upload",
+    label: "Foto do RG",
+    help_text: "Tire uma foto nítida do seu documento de identidade (RG)",
+    required: true,
+    order: 6,
+  },
+];
+
+/** Radios + anexos do cliente na tela de assinatura. */
+export function campinasClientFormFields(): ZapSignTemplateField[] {
+  return [...CAMPINAS_CLIENT_DOC_ACK_FIELDS, ...CAMPINAS_CLIENT_UPLOAD_FIELDS].map((field, index) => ({
+    ...field,
+    order: index + 1,
+  }));
+}
+
+export const CAMPINAS_CLIENT_FORM_LABELS = new Set(
+  CAMPINAS_CLIENT_UPLOAD_FIELDS.map((field) => field.label.trim().toLowerCase()),
+);
+
 /** @deprecated Fluxo antigo (cliente signatário 1). Use CAMPINAS_CLIENT_DOC_ACK_FIELDS. */
 export const CAMPINAS_CLIENT_FORM_FIELDS: ZapSignTemplateField[] = [
   ...CAMPINAS_CLIENT_DOC_ACK_FIELDS,
@@ -156,7 +180,7 @@ export const CAMPINAS_STORE_FORM_FIELDS: ZapSignTemplateField[] = [
   ...CAMPINAS_STORE_UPLOAD_FIELDS,
 ];
 
-/** Formulário do signatário 1 (loja): CNPJ + anexos. Cliente responde só radios (signatário 2). */
+/** Formulário do signatário 1 (loja): CNPJ + anexos. Cliente responde radios + foto do RG (signatário 2). */
 export function campinasStoreFirstFormFields(): ZapSignTemplateField[] {
   return CAMPINAS_STORE_FORM_FIELDS.map((field, index) => ({ ...field, order: index + 1 }));
 }

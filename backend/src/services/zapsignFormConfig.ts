@@ -1,9 +1,12 @@
 import { getUnitByKey, type UnitKey } from "../config.js";
 import {
   CAMPINAS_CLIENT_DOC_ACK_FIELDS,
+  CAMPINAS_CLIENT_FORM_LABELS,
   CAMPINAS_CLIENT_FORM_VARIABLES,
+  CAMPINAS_CLIENT_UPLOAD_FIELDS,
   CAMPINAS_STORE_CNPJ_FIELD,
   CAMPINAS_STORE_FORM_LABELS,
+  campinasClientFormFields,
   campinasStoreFirstFormFields,
 } from "../config/zapsignCampinas.js";
 
@@ -226,22 +229,36 @@ function isLegacyClientField(input: ZapSignTemplateInput): boolean {
   );
 }
 
-/** Copia formulário do modelo-fonte (CNPJ/anexos loja + radios cliente), loja sempre antes. */
+function isClientUploadInput(input: ZapSignTemplateInput): boolean {
+  if (String(input.input_type || "").trim().toLowerCase() !== "upload") return false;
+  const label = String(input.label || "").trim().toLowerCase();
+  return CAMPINAS_CLIENT_FORM_LABELS.has(label);
+}
+
+/** Copia formulário do modelo-fonte (CNPJ/anexos loja + radios/anexo RG cliente), loja sempre antes. */
 export function pickFormInputsFromSource(detail: ZapSignTemplateDetail) {
   const storeFromSource = (detail.inputs || []).filter(
     (input) => isStoreUploadInput(input) || isStoreCnpjInput(input),
   );
-  const clientFromSource = (detail.inputs || []).filter(isDocAckRadioInput);
+  const clientRadiosFromSource = (detail.inputs || []).filter(isDocAckRadioInput);
+  const clientUploadsFromSource = (detail.inputs || []).filter(isClientUploadInput);
 
   const storeInputs =
     storeFromSource.length > 0
       ? storeFromSource.map(mapExistingTemplateInput)
       : campinasStoreFirstFormFields().map(mapFormField);
 
-  const clientInputs =
-    clientFromSource.length > 0
-      ? clientFromSource.map(mapExistingTemplateInput)
+  const clientRadioInputs =
+    clientRadiosFromSource.length > 0
+      ? clientRadiosFromSource.map(mapExistingTemplateInput)
       : CAMPINAS_CLIENT_DOC_ACK_FIELDS.map(mapFormField);
+
+  const clientUploadInputs =
+    clientUploadsFromSource.length > 0
+      ? clientUploadsFromSource.map(mapExistingTemplateInput)
+      : CAMPINAS_CLIENT_UPLOAD_FIELDS.map(mapFormField);
+
+  const clientInputs = [...clientRadioInputs, ...clientUploadInputs];
 
   return [
     ...storeInputs.map((input, index) => ({ ...input, order: index + 1 })),
@@ -262,7 +279,7 @@ export async function syncFormFromSourceTemplate(
     json: {
       template_id: cleanTemplateId,
       custom_intro:
-        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme abaixo o que recebeu.",
+        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme o que recebeu e anexe a foto do RG.",
       youtube_video_code: "",
       hide_prefilled_fields: true,
       inputs,
@@ -277,9 +294,10 @@ export async function syncFormFromSourceTemplate(
 }
 
 function isStoreUploadInput(input: ZapSignTemplateInput): boolean {
-  if (String(input.input_type || "").trim().toLowerCase() === "upload") return true;
+  if (String(input.input_type || "").trim().toLowerCase() !== "upload") return false;
+  if (isClientUploadInput(input)) return false;
   const label = String(input.label || "").trim().toLowerCase();
-  return CAMPINAS_STORE_FORM_LABELS.has(label) && label !== CAMPINAS_STORE_CNPJ_FIELD.label.trim().toLowerCase();
+  return CAMPINAS_STORE_FORM_LABELS.has(label);
 }
 
 function isStoreCnpjInput(input: ZapSignTemplateInput): boolean {
@@ -387,7 +405,7 @@ export async function syncCampinasStoreSignerFromSource(
 
 /**
  * Formulário: signatário 1 (loja) = CNPJ + anexos.
- * Cliente (signatário 2) responde só radios de documentação — configure no painel ZapSign.
+ * Cliente (signatário 2) = radios de documentação + foto do RG.
  */
 export async function applyCampinasClientForm(
   templateId: string,
@@ -396,7 +414,7 @@ export async function applyCampinasClientForm(
   if (!templateId) return;
 
   const storeInputs = campinasStoreFirstFormFields().map(mapFormField);
-  const clientDocInputs = CAMPINAS_CLIENT_DOC_ACK_FIELDS.map((field, index) =>
+  const clientInputs = campinasClientFormFields().map((field, index) =>
     mapFormField({ ...field, order: 20 + index }),
   );
 
@@ -405,10 +423,10 @@ export async function applyCampinasClientForm(
     json: {
       template_id: templateId,
       custom_intro:
-        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme abaixo o que recebeu.",
+        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme o que recebeu e anexe a foto do RG.",
       youtube_video_code: "",
       hide_prefilled_fields: true,
-      inputs: [...storeInputs, ...clientDocInputs],
+      inputs: [...storeInputs, ...clientInputs],
     },
   }).catch((error) => {
     if (isZapSignNoChangeError(error)) {
