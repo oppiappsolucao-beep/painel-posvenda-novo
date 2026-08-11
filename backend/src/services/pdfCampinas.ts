@@ -209,11 +209,11 @@ export function generateCampinasContractPdf(
 
     section(doc, "DA DOCUMENTAÇÃO DO FILHOTE");
     paragraph(doc, "3.1) Abaixo relação de documentação:");
-    paragraph(doc, "1. Carteira de Vacinação atualizada: Sim, recebi !", { size: 8.5 });
-    paragraph(doc, "2. Certificado de Microchip: Sim, recebi !", { size: 8.5 });
-    paragraph(doc, "3. Pedigree - OPCIONAL - R$ 249,90 Taxa de Emissão: Vou pensar !", { size: 8.5 });
-    paragraph(doc, "4. AR - OPCIONAL - R$ 35,80 Carta Registrada via Correios: Vou pensar !", { size: 8.5 });
-    paragraph(doc, "5. Atestado de Saúde: Sim, recebi !", { size: 8.5 });
+    paragraph(doc, "Carteira de Vacinação atualizada: Sim, recebi !", { size: 8.5 });
+    paragraph(doc, "Certificado de Microchip: Sim, recebi !", { size: 8.5 });
+    paragraph(doc, "Pedigree - OPCIONAL - R$ 249,90 Taxa de Emissão: Vou pensar !", { size: 8.5 });
+    paragraph(doc, "AR - OPCIONAL - R$ 35,80 Carta Registrada via Correios: Vou pensar !", { size: 8.5 });
+    paragraph(doc, "Atestado de Saúde: Sim, recebi !", { size: 8.5 });
     paragraph(doc, "3.2) O comprador(a) declara estar ciente de que a matriz responsável pela emissão dos pedigrees encontra-se registrada junto à Cinobras, não possuindo direito de escolher a entidade ou associação responsável pelo registro e emissão do Pedigree.");
     paragraph(doc, "3.3) O Pedigree será emitido pela entidade responsável pelo registro da matriz, sendo esta uma Entidade Cinófila devidamente legalizada e registrada no 1º Cartório de Registro Civil de Pessoa Jurídica sob nº 79.613 e inscrita no CNPJ sob nº 22.214.403/0001-76.");
 

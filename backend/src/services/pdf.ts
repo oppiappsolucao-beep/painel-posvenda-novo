@@ -89,11 +89,11 @@ function generateDefaultContractPdf(contrato: SheetRow): Promise<Buffer> {
 
     doc.font("Helvetica-Bold").fontSize(11).text("DA DOCUMENTAÇÃO DO FILHOTE");
     doc.moveDown(0.3);
-    addParagraph(doc, "1. Carteira de Vacinação atualizada: Sim, recebi !", { size: 8.5 });
-    addParagraph(doc, "2. Certificado de Microchip: Sim, recebi !", { size: 8.5 });
-    addParagraph(doc, "3. Pedigree - OPCIONAL - R$ 249,90 Taxa de Emissão: Vou pensar !", { size: 8.5 });
-    addParagraph(doc, "4. AR - OPCIONAL - R$ 35,80 Carta Registrada via Correios: Vou pensar !", { size: 8.5 });
-    addParagraph(doc, "5. Atestado de Saúde: Sim, recebi !", { size: 8.5 });
+    addParagraph(doc, "Carteira de Vacinação atualizada: Sim, recebi !", { size: 8.5 });
+    addParagraph(doc, "Certificado de Microchip: Sim, recebi !", { size: 8.5 });
+    addParagraph(doc, "Pedigree - OPCIONAL - R$ 249,90 Taxa de Emissão: Vou pensar !", { size: 8.5 });
+    addParagraph(doc, "AR - OPCIONAL - R$ 35,80 Carta Registrada via Correios: Vou pensar !", { size: 8.5 });
+    addParagraph(doc, "Atestado de Saúde: Sim, recebi !", { size: 8.5 });
 
     doc.moveDown(1);
     addParagraph(doc, "Campinas, " + dataCompra, { align: "center" });

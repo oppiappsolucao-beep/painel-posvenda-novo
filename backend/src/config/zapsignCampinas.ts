@@ -26,6 +26,16 @@ export interface ZapSignTemplateField {
   order: number;
 }
 
+/** Monta opções de rádio com a linha completa que aparece no contrato (cláusula 3.1). */
+export function buildDocAckRadioOptions(contractLabel: string, rawOptions: string): string {
+  return rawOptions
+    .split(";")
+    .map((option) => option.trim())
+    .filter(Boolean)
+    .map((option) => `${contractLabel}: ${option}`)
+    .join(";");
+}
+
 /** Cliente (signatário 2): só confirma recebimento de documentação. */
 export const CAMPINAS_CLIENT_DOC_ACK_FIELDS: ZapSignTemplateField[] = [
   {
@@ -33,7 +43,10 @@ export const CAMPINAS_CLIENT_DOC_ACK_FIELDS: ZapSignTemplateField[] = [
     input_type: "radio",
     label: "Você recebeu a carteirinha de vacinação?",
     help_text: "Carteira de Vacinação atualizada",
-    options: "Sim, recebi !;Não recebi !",
+    options: buildDocAckRadioOptions(
+      "Carteira de Vacinação atualizada",
+      "Sim, recebi !;Não recebi !",
+    ),
     required: true,
     order: 1,
   },
@@ -42,7 +55,7 @@ export const CAMPINAS_CLIENT_DOC_ACK_FIELDS: ZapSignTemplateField[] = [
     input_type: "radio",
     label: "Você recebeu o certificado do microchip?",
     help_text: "Certificado de Microchip",
-    options: "Sim, recebi !;Não recebi !",
+    options: buildDocAckRadioOptions("Certificado de Microchip", "Sim, recebi !;Não recebi !"),
     required: true,
     order: 2,
   },
@@ -51,8 +64,10 @@ export const CAMPINAS_CLIENT_DOC_ACK_FIELDS: ZapSignTemplateField[] = [
     input_type: "radio",
     label: "Deseja transferir o documento para o seu nome? (vem no nome da loja)",
     help_text: "Pedigree com transferência — taxa R$ 249,90",
-    options:
+    options: buildDocAckRadioOptions(
+      "Pedigree - OPCIONAL - R$ 249,90 Taxa de Emissão",
       "Sim, desejo o Pedigree com transferência para o meu nome.;Não desejo o Pedigree com transferência para o meu nome.;Vou pensar !",
+    ),
     required: true,
     order: 3,
   },
@@ -61,7 +76,10 @@ export const CAMPINAS_CLIENT_DOC_ACK_FIELDS: ZapSignTemplateField[] = [
     input_type: "radio",
     label: "O pedigree será entregue via correios pela taxa de 35,00 reais",
     help_text: "AR — Carta Registrada via Correios",
-    options: "Sim, aceito pagar pela taxa !;Não aceito pagar pela taxa !;Vou pensar !",
+    options: buildDocAckRadioOptions(
+      "AR - OPCIONAL - R$ 35,80 Carta Registrada via Correios",
+      "Sim, aceito pagar pela taxa !;Não aceito pagar pela taxa !;Vou pensar !",
+    ),
     required: true,
     order: 4,
   },
@@ -70,7 +88,7 @@ export const CAMPINAS_CLIENT_DOC_ACK_FIELDS: ZapSignTemplateField[] = [
     input_type: "radio",
     label: "Você recebeu o atestado de saúde do filhote?",
     help_text: "Atestado de Saúde",
-    options: "Sim, recebi !;Não recebi !",
+    options: buildDocAckRadioOptions("Atestado de Saúde", "Sim, recebi !;Não recebi !"),
     required: true,
     order: 5,
   },

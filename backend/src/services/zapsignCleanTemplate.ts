@@ -8,7 +8,7 @@ import { getUnitByKey } from "../config.js";
 import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders, fixCampinasDocxPlaceholders } from "../utils/docxStripHighlights.js";
 import { applyCampinasClientForm, syncCampinasStoreSignerFromSource, templateHasStoreUploadWorkflow } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 10;
+const CACHE_VERSION = 11;
 
 export interface ZapSignTemplateDetail {
   token: string;

@@ -5,9 +5,42 @@ const SHADING_PATTERN = /<w:(?:highlight|shd)\b/gi;
 const BROKEN_NOME_WT_PATTERN =
   /(<w:t(?:\s[^>]*)?>)\s*nome-completo\}\}(\s*<\/w:t>)/g;
 
+const DOC_ACK_TEMPLATE_VARS = [
+  "carteirinha",
+  "certificado",
+  "transferencia",
+  "pedigree",
+  "atestado",
+] as const;
+
+/**
+ * Na cláusula 3.1, remove rótulos estáticos numerados e deixa só {{var}}.
+ * O valor preenchido pelo cliente já traz a linha completa (rótulo + resposta).
+ */
+export function fixDocumentacaoFilhoteParagraphsInXml(xml: string): string {
+  return xml.replace(/<w:p[\s\S]*?<\/w:p>/g, (paragraph) => {
+    for (const variable of DOC_ACK_TEMPLATE_VARS) {
+      const placeholder = `{{${variable}}}`;
+      if (!paragraph.includes(placeholder)) continue;
+
+      const openTag = paragraph.match(/^<w:p[^>]*>/)?.[0] ?? "<w:p>";
+      const afterOpen = paragraph.slice(openTag.length);
+      const pPr = afterOpen.match(/^<w:pPr>[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
+      const runs = paragraph.match(/<w:r[\s\S]*?<\/w:r>/g) ?? [];
+      const run = runs.find((candidate) => candidate.includes(placeholder));
+      if (!run) return paragraph;
+
+      return `${openTag}${pPr}${run}</w:p>`;
+    }
+    return paragraph;
+  });
+}
+
 /** Corrige placeholder quebrado no DOCX original (faltava "{{" no início). */
 export function fixCampinasPlaceholdersInXml(xml: string): string {
-  return xml.replace(BROKEN_NOME_WT_PATTERN, "$1{{nome-completo}}$2");
+  let result = xml.replace(BROKEN_NOME_WT_PATTERN, "$1{{nome-completo}}$2");
+  result = fixDocumentacaoFilhoteParagraphsInXml(result);
+  return result;
 }
 
 export function countBrokenCampinasPlaceholders(docxXml: string): number {
