@@ -6,6 +6,7 @@ import {
   CAMPINAS_CLIENT_UPLOAD_FIELDS,
   CAMPINAS_STORE_CNPJ_FIELD,
   CAMPINAS_STORE_FORM_LABELS,
+  CAMPINAS_STORE_PREFILLED_VARIABLES,
   campinasClientFormFields,
   campinasStoreFirstFormFields,
 } from "../config/zapsignCampinas.js";
@@ -53,9 +54,12 @@ export function campinasStoreAuthMode(): string {
   return (process.env.ZAPSIGN_LOJA_AUTH_MODE || "assinaturaTela").trim();
 }
 
-/** Índice do signatário loja (0 = primeiro) e cliente (1 = segundo). */
+/** Índices preferenciais quando o template segue loja→cliente. */
 export const CAMPINAS_STORE_SIGNER_INDEX = 0;
 export const CAMPINAS_CLIENT_SIGNER_INDEX = 1;
+
+const STORE_FORM_ORDER_BASE = 1;
+const CLIENT_FORM_ORDER_BASE = 20;
 
 /** Nome do signatário lojista no ZapSign (não confundir com Vendedora no contrato). */
 export function campinasStoreSignerName(): string {
@@ -159,11 +163,155 @@ export function buildCleanTemplateSigners(unitKey: UnitKey) {
   ];
 }
 
-function isStoreSigner(signer: ZapSignTemplateSigner): boolean {
+function isStoreSigner(signer: { qualification?: string; name?: string }): boolean {
   return (
     String(signer.qualification || "").toLowerCase() === "lojista" ||
     String(signer.name || "").toLowerCase().includes("loja")
   );
+}
+
+export function findStoreSigner<T extends { qualification?: string; name?: string }>(
+  signers: T[] = [],
+): T | undefined {
+  return (
+    signers.find((signer) => String(signer.qualification || "").toLowerCase() === "lojista") ||
+    signers.find(isStoreSigner) ||
+    signers[CAMPINAS_STORE_SIGNER_INDEX]
+  );
+}
+
+export function findClientSigner<T extends { qualification?: string; name?: string }>(
+  signers: T[] = [],
+): T | undefined {
+  return (
+    signers.find((signer) => String(signer.qualification || "").toLowerCase() === "cliente") ||
+    signers.find((signer) => !isStoreSigner(signer)) ||
+    signers[CAMPINAS_CLIENT_SIGNER_INDEX]
+  );
+}
+
+export function resolveTemplateSignerIndexes(signers: ZapSignTemplateSigner[] = []) {
+  const storeIndex = signers.findIndex(isStoreSigner);
+  const clientIndex = signers.findIndex((signer) => !isStoreSigner(signer));
+  return {
+    storeIndex: storeIndex >= 0 ? storeIndex : CAMPINAS_STORE_SIGNER_INDEX,
+    clientIndex: clientIndex >= 0 ? clientIndex : CAMPINAS_CLIENT_SIGNER_INDEX,
+  };
+}
+
+/** Monta inputs reordenando campos já existentes no DOCX (update-form só altera variáveis do modelo). */
+export function buildTemplateFormInputs(detail?: ZapSignTemplateDetail) {
+  const sourceInputs = detail?.inputs || [];
+  const { storeIndex, clientIndex } = resolveTemplateSignerIndexes(detail?.signers || []);
+
+  if (sourceInputs.length === 0) {
+    const storeInputs = campinasStoreFirstFormFields().map(mapFormField);
+    const clientInputs = campinasClientFormFields().map(mapFormField);
+    const storeOrdered = storeInputs.map((input, index) => ({
+      ...input,
+      order: STORE_FORM_ORDER_BASE + index,
+    }));
+    const clientOrdered = clientInputs.map((input, index) => ({
+      ...input,
+      order: CLIENT_FORM_ORDER_BASE + index,
+    }));
+    if (storeIndex > clientIndex) {
+      return [
+        ...clientOrdered.map((input, index) => ({ ...input, order: STORE_FORM_ORDER_BASE + index })),
+        ...storeOrdered.map((input, index) => ({ ...input, order: CLIENT_FORM_ORDER_BASE + index })),
+      ];
+    }
+    return [...storeOrdered, ...clientOrdered];
+  }
+
+  let clientInputs = sourceInputs.filter((input) => isDocAckRadioInput(input) || isClientUploadInput(input));
+  let storeInputs = sourceInputs.filter((input) => isStoreCnpjInput(input) || isStoreUploadInput(input));
+  storeInputs = dedupeTemplateInputs(storeInputs);
+
+  const existingClientLabels = new Set(
+    clientInputs.map((input) => String(input.label || "").trim().toLowerCase()),
+  );
+  for (const field of CAMPINAS_CLIENT_UPLOAD_FIELDS) {
+    if (!existingClientLabels.has(field.label.trim().toLowerCase())) {
+      clientInputs.push({
+        variable: field.variable,
+        input_type: field.input_type,
+        label: field.label,
+        help_text: field.help_text,
+        options: field.options,
+        required: field.required,
+        order: field.order,
+      });
+    }
+  }
+
+  const assignedKeys = new Set([
+    ...clientInputs.map(templateInputKey),
+    ...storeInputs.map(templateInputKey),
+  ]);
+  const backgroundInputs = sourceInputs.filter((input) => !assignedKeys.has(templateInputKey(input)));
+
+  const orderFields = (inputs: ZapSignTemplateInput[], base: number, role: "client" | "store") =>
+    inputs.map((input, index) => ({
+      ...mapExistingTemplateInput(input),
+      order: base + index,
+      required: isPrefilledContractField(input)
+        ? false
+        : role === "store"
+          ? true
+          : (input.required ?? true),
+    }));
+
+  const backgroundOrdered = backgroundInputs.map((input, index) => ({
+    ...mapExistingTemplateInput(input),
+    order: 900 + index,
+    required: false,
+  }));
+
+  // Modelo-fonte Campinas: cliente=0, loja=1 → cliente com order baixo, loja com order alto.
+  if (storeIndex > clientIndex) {
+    return [
+      ...orderFields(clientInputs, STORE_FORM_ORDER_BASE, "client"),
+      ...orderFields(storeInputs, CLIENT_FORM_ORDER_BASE, "store"),
+      ...backgroundOrdered,
+    ];
+  }
+
+  return [
+    ...orderFields(storeInputs, STORE_FORM_ORDER_BASE, "store"),
+    ...orderFields(clientInputs, CLIENT_FORM_ORDER_BASE, "client"),
+    ...backgroundOrdered,
+  ];
+}
+
+function templateInputKey(input: ZapSignTemplateInput): string {
+  const variable = String(input.variable || "").trim();
+  if (variable) return `v:${variable}`;
+  return `l:${String(input.label || "").trim().toLowerCase()}|${String(input.input_type || "").trim().toLowerCase()}`;
+}
+
+function dedupeTemplateInputs(inputs: ZapSignTemplateInput[]): ZapSignTemplateInput[] {
+  const seen = new Set<string>();
+  const unique: ZapSignTemplateInput[] = [];
+  for (const input of inputs) {
+    const key = templateInputKey(input);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(input);
+  }
+  return unique;
+}
+
+const PREFILLED_VARIABLES = new Set(
+  CAMPINAS_STORE_PREFILLED_VARIABLES.map((variable) => variable.toLowerCase()),
+);
+
+function isPrefilledContractField(input: ZapSignTemplateInput): boolean {
+  const variable = String(input.variable || "").trim().toLowerCase();
+  if (PREFILLED_VARIABLES.has(variable)) return true;
+  if (Number(input.order || 0) >= 500) return true;
+  if (String(input.input_type || "").trim().toLowerCase() === "signer_fullname") return true;
+  return isLegacyClientField(input);
 }
 
 function mapStoreSignerFromSource(signer: ZapSignTemplateSigner, unitKey: UnitKey) {
@@ -235,35 +383,9 @@ function isClientUploadInput(input: ZapSignTemplateInput): boolean {
   return CAMPINAS_CLIENT_FORM_LABELS.has(label);
 }
 
-/** Copia formulário do modelo-fonte (CNPJ/anexos loja + radios/anexo RG cliente), loja sempre antes. */
+/** Copia formulário curado (CNPJ/anexos loja + radios/RG cliente) com order por signatário. */
 export function pickFormInputsFromSource(detail: ZapSignTemplateDetail) {
-  const storeFromSource = (detail.inputs || []).filter(
-    (input) => isStoreUploadInput(input) || isStoreCnpjInput(input),
-  );
-  const clientRadiosFromSource = (detail.inputs || []).filter(isDocAckRadioInput);
-  const clientUploadsFromSource = (detail.inputs || []).filter(isClientUploadInput);
-
-  const storeInputs =
-    storeFromSource.length > 0
-      ? storeFromSource.map(mapExistingTemplateInput)
-      : campinasStoreFirstFormFields().map(mapFormField);
-
-  const clientRadioInputs =
-    clientRadiosFromSource.length > 0
-      ? clientRadiosFromSource.map(mapExistingTemplateInput)
-      : CAMPINAS_CLIENT_DOC_ACK_FIELDS.map(mapFormField);
-
-  const clientUploadInputs =
-    clientUploadsFromSource.length > 0
-      ? clientUploadsFromSource.map(mapExistingTemplateInput)
-      : CAMPINAS_CLIENT_UPLOAD_FIELDS.map(mapFormField);
-
-  const clientInputs = [...clientRadioInputs, ...clientUploadInputs];
-
-  return [
-    ...storeInputs.map((input, index) => ({ ...input, order: index + 1 })),
-    ...clientInputs.map((input, index) => ({ ...input, order: 20 + index })),
-  ];
+  return buildTemplateFormInputs(detail);
 }
 
 export async function syncFormFromSourceTemplate(
@@ -297,7 +419,14 @@ function isStoreUploadInput(input: ZapSignTemplateInput): boolean {
   if (String(input.input_type || "").trim().toLowerCase() !== "upload") return false;
   if (isClientUploadInput(input)) return false;
   const label = String(input.label || "").trim().toLowerCase();
-  return CAMPINAS_STORE_FORM_LABELS.has(label);
+  if (CAMPINAS_STORE_FORM_LABELS.has(label)) return true;
+  return (
+    label.includes("vacina") ||
+    label.includes("atestado") ||
+    label.includes("filhote") ||
+    label.includes("carteirinha") ||
+    label.includes("comprovante")
+  );
 }
 
 function isStoreCnpjInput(input: ZapSignTemplateInput): boolean {
@@ -372,8 +501,8 @@ export async function syncCampinasStoreSignerFromSource(
   zapsignRequest: ZapSignRequest,
 ): Promise<void> {
   const source = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${sourceTemplateId}/`);
-  const storeSigner = source.signers?.[CAMPINAS_STORE_SIGNER_INDEX] || source.signers?.[1];
-  const clientSigner = source.signers?.[CAMPINAS_CLIENT_SIGNER_INDEX] || source.signers?.[0];
+  const storeSigner = findStoreSigner(source.signers || []);
+  const clientSigner = findClientSigner(source.signers || []);
   if (!storeSigner || !clientSigner) return;
 
   try {
@@ -413,10 +542,8 @@ export async function applyCampinasClientForm(
 ): Promise<void> {
   if (!templateId) return;
 
-  const storeInputs = campinasStoreFirstFormFields().map(mapFormField);
-  const clientInputs = campinasClientFormFields().map((field, index) =>
-    mapFormField({ ...field, order: 20 + index }),
-  );
+  const detail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
+  const inputs = buildTemplateFormInputs(detail);
 
   await zapsignRequest("/templates/update-form/", {
     method: "POST",
@@ -426,7 +553,7 @@ export async function applyCampinasClientForm(
         "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme o que recebeu e anexe fotos do RG (frente e verso).",
       youtube_video_code: "",
       hide_prefilled_fields: true,
-      inputs: [...storeInputs, ...clientInputs],
+      inputs,
     },
   }).catch((error) => {
     if (isZapSignNoChangeError(error)) {

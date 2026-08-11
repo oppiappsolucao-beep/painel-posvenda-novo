@@ -20,12 +20,12 @@ import {
   campinasClientAuthMode,
   campinasStoreAuthMode,
   ensureUnitTemplateStoreSigner,
+  findClientSigner,
+  findStoreSigner,
   syncCampinasStoreSignerFromSource,
   templateHasStoreUploadWorkflow,
   zapsignStoreSignerName,
   zapsignTemplateStoreSignerPanelUrl,
-  CAMPINAS_CLIENT_SIGNER_INDEX,
-  CAMPINAS_STORE_SIGNER_INDEX,
 } from "./zapsignFormConfig.js";
 
 export interface ZapSignConfig {
@@ -360,9 +360,7 @@ async function ensureClientSigner(
 
   const detail = await zapsignRequest<{ signers?: ZapSignSignerResponse[] }>(`/docs/${docToken}/`);
   const signers = detail.signers || [];
-  let clientSigner =
-    signers[CAMPINAS_CLIENT_SIGNER_INDEX] ||
-    signers.find((s) => s.qualification === "cliente");
+  let clientSigner = findClientSigner(signers);
 
   if (!clientSigner?.token && signers.length <= 1) {
     clientSigner = await addClientSignerToDocument(
@@ -476,18 +474,19 @@ async function ensureStoreSigner(
   const storeWhatsapp = isWhatsappDeliveryEnabled(lojaPhone);
 
   const templateDetail = templateId
-    ? await zapsignRequest<{ signers?: Array<{ auth_mode?: string }> }>(`/templates/${templateId}/`)
+    ? await zapsignRequest<{ signers?: Array<{ auth_mode?: string; qualification?: string; name?: string }> }>(
+        `/templates/${templateId}/`,
+      )
     : { signers: [] };
   const templateStoreAuth =
-    templateDetail.signers?.[CAMPINAS_STORE_SIGNER_INDEX]?.auth_mode?.trim() || campinasStoreAuthMode();
+    findStoreSigner(templateDetail.signers || [])?.auth_mode?.trim() || campinasStoreAuthMode();
 
   const detail = await zapsignRequest<{
     signers?: ZapSignSignerResponse[];
     template?: { token?: string };
   }>(`/docs/${docToken}/`);
   const signers = detail.signers || [];
-  const lojaSigner =
-    signers[CAMPINAS_STORE_SIGNER_INDEX] || signers.find((s) => s.qualification === "lojista");
+  const lojaSigner = findStoreSigner(signers);
 
   if (!lojaSigner?.token) {
     throw new Error(
@@ -633,7 +632,7 @@ export async function createUnitContractDocument(
     sandbox,
     external_id: externalId,
     folder_path: zapsignFolderPath(unitKey),
-    signer_has_incomplete_fields: true,
+    signer_has_incomplete_fields: false,
     signature_order_active: true,
     brand_name: brandName,
     created_by: (process.env.ZAPSIGN_CREATED_BY || "contato@skoobpet.com.br").trim().toLowerCase(),
@@ -658,8 +657,7 @@ export async function createUnitContractDocument(
   const docSigners = docDetail.signers || doc.signers || [];
   const clientSignUrl =
     client.signUrl ||
-    signerResponseUrl(docSigners[CAMPINAS_CLIENT_SIGNER_INDEX]) ||
-    signerResponseUrl(docSigners.find((s) => s.qualification === "cliente"));
+    signerResponseUrl(findClientSigner(docSigners));
 
   if (!clientSignUrl) {
     throw new Error("ZapSign não retornou link de assinatura do cliente.");
