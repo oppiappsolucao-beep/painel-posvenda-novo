@@ -228,7 +228,8 @@ export function buildTemplateFormInputs(detail?: ZapSignTemplateDetail) {
     ];
   }
 
-  let clientInputs = sourceInputs.filter((input) => isDocAckRadioInput(input) || isClientUploadInput(input));
+  let clientInputs = resolveClientDocAckFields(sourceInputs);
+  clientInputs.push(...sourceInputs.filter((input) => isClientUploadInput(input)));
   let storeInputs = sourceInputs.filter((input) => isStoreCnpjInput(input));
 
   if (storeInputs.length === 0) {
@@ -379,11 +380,64 @@ export function buildSignersFromSource(sourceSigners: ZapSignTemplateSigner[], u
 }
 
 function isDocAckRadioInput(input: ZapSignTemplateInput): boolean {
-  const variable = String(input.variable || "").trim();
-  return (
-    String(input.input_type || "").toLowerCase() === "radio" &&
-    CAMPINAS_CLIENT_FORM_VARIABLES.has(variable)
+  const variable = normalizeTemplateVariable(input.variable || "");
+  const label = normalizeTemplateVariable(input.label || "");
+  for (const fieldVar of CAMPINAS_CLIENT_FORM_VARIABLES) {
+    const key = normalizeTemplateVariable(fieldVar);
+    if (key === variable || key === label) return true;
+  }
+  return false;
+}
+
+function resolveClientDocAckFields(sourceInputs: ZapSignTemplateInput[]): ZapSignTemplateInput[] {
+  const configByVar = new Map(
+    CAMPINAS_CLIENT_DOC_ACK_FIELDS.map((field) => [normalizeTemplateVariable(field.variable), field]),
   );
+  const resolved: ZapSignTemplateInput[] = [];
+  const seen = new Set<string>();
+
+  for (const input of sourceInputs.filter(isDocAckRadioInput)) {
+    const key = normalizeTemplateVariable(input.variable || input.label || "");
+    const config = configByVar.get(key);
+    if (!config || seen.has(key)) continue;
+    resolved.push({
+      variable: config.variable,
+      input_type: "radio",
+      label: config.label,
+      help_text: config.help_text,
+      options: config.options,
+      required: config.required,
+      order: config.order,
+    });
+    seen.add(key);
+  }
+
+  for (const field of CAMPINAS_CLIENT_DOC_ACK_FIELDS) {
+    const key = normalizeTemplateVariable(field.variable);
+    if (seen.has(key)) continue;
+    resolved.push({ ...field });
+    seen.add(key);
+  }
+
+  return resolved;
+}
+
+/** Campos visíveis + variáveis do DOCX suprimidas (required false) para update-form. */
+export function buildTemplateFormUpdatePayload(detail: ZapSignTemplateDetail) {
+  const curated = buildTemplateFormInputs(detail).filter(shouldExposeInSignerForm);
+  const curatedKeys = new Set(curated.map(templateInputKey));
+  const suppressed = (detail.inputs || [])
+    .filter((input) => !curatedKeys.has(templateInputKey(input)))
+    .filter(
+      (input) =>
+        isPrefilledContractField(input) || isStoreUploadInput(input) || isLegacyClientField(input),
+    )
+    .map((input, index) => ({
+      ...mapExistingTemplateInput(input),
+      order: 900 + index,
+      required: false,
+    }));
+  return dedupeTemplateInputs([...curated, ...suppressed]);
 }
 
 function isLegacyClientField(input: ZapSignTemplateInput): boolean {
@@ -419,7 +473,7 @@ export async function syncFormFromSourceTemplate(
   zapsignRequest: ZapSignRequest,
 ): Promise<void> {
   const cleanDetail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${cleanTemplateId}/`);
-  const inputs = pickFormInputsFromSource(cleanDetail).filter(shouldExposeInSignerForm);
+  const inputs = buildTemplateFormUpdatePayload(cleanDetail);
 
   await zapsignRequest("/templates/update-form/", {
     method: "POST",
@@ -564,7 +618,7 @@ export async function applyCampinasClientForm(
   if (!templateId) return;
 
   const detail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
-  const inputs = buildTemplateFormInputs(detail).filter(shouldExposeInSignerForm);
+  const inputs = buildTemplateFormUpdatePayload(detail);
 
   await zapsignRequest("/templates/update-form/", {
     method: "POST",
