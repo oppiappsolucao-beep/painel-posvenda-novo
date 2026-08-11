@@ -375,6 +375,13 @@ function isWhatsappDeliveryEnabled(telefone: string): boolean {
   return process.env.ZAPSIGN_SEND_WHATSAPP === "true" && Boolean(telefone);
 }
 
+function clientRequiresDocumentPhoto(): boolean {
+  const explicit = process.env.ZAPSIGN_CLIENT_REQUIRE_DOCUMENT_PHOTO?.trim();
+  if (explicit === "false") return false;
+  if (explicit === "true") return true;
+  return true;
+}
+
 function buildClientSignerPayload(
   telefone: string,
   email: string,
@@ -388,7 +395,7 @@ function buildClientSignerPayload(
     lock_name: true,
     phone_country: "55",
     require_selfie_photo: false,
-    require_document_photo: false,
+    require_document_photo: clientRequiresDocumentPhoto(),
   };
 
   if (email) {
