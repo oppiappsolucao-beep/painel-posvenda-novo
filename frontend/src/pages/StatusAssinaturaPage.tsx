@@ -11,15 +11,25 @@ import { COLORS, copyToClipboard, copyToClipboardSync } from "../lib/utils";
 
 type SortMode = "ultimo_enviado" | "alfabetica";
 
+function todayIsoDate(): string {
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatIsoDateBr(iso: string): string {
+  const [yyyy, mm, dd] = iso.split("-");
+  if (!yyyy || !mm || !dd) return iso;
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 export function StatusAssinaturaPage() {
   const { user, loading } = useAuth();
-  const [search, setSearch] = useState("");
   const [nome, setNome] = useState("");
-  const [dataInicio, setDataInicio] = useState("");
-  const [dataFim, setDataFim] = useState("");
-  const [status, setStatus] = useState("todos");
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>("ultimo_enviado");
+  const [dataConsulta, setDataConsulta] = useState(todayIsoDate);
+  const [sortMode, setSortMode] = useState<SortMode>("alfabetica");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
   const [previewItem, setPreviewItem] = useState<StatusAssinaturaItem | null>(null);
@@ -35,7 +45,26 @@ export function StatusAssinaturaPage() {
   const [linkModal, setLinkModal] = useState<{ url: string; copied: boolean } | null>(null);
   const [copyingKey, setCopyingKey] = useState<string | null>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
-  const [applied, setApplied] = useState({ nome: "", dataInicio: "", dataFim: "", status: "todos" });
+
+  const queryParams = useMemo(
+    () => ({ nome: nome.trim(), data: dataConsulta, status: "todos" as const }),
+    [nome, dataConsulta],
+  );
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["status-assinatura", queryParams],
+    queryFn: () => fetchStatusAssinatura(queryParams),
+    refetchInterval: 10000,
+    enabled: !!user,
+  });
+
+  const filteredItems = useMemo(() => {
+    if (!data?.items) return [];
+    return sortItems(data.items, sortMode);
+  }, [data?.items, sortMode]);
+
+  const assinadosCount = filteredItems.filter((item) => item.status === "assinado").length;
+  const pendentesCount = filteredItems.filter((item) => item.status === "pendente").length;
 
   useEffect(() => {
     if (!linkModal || !linkInputRef.current) return;
@@ -60,46 +89,11 @@ export function StatusAssinaturaPage() {
     return () => document.removeEventListener("mousedown", close);
   }, [sortMenuOpen]);
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["status-assinatura", applied],
-    queryFn: () => fetchStatusAssinatura(applied),
-    refetchInterval: 10000,
-    enabled: !!user,
-  });
-
-  const filteredItems = useMemo(() => {
-    if (!data?.items) return [];
-    const q = search.trim().toLowerCase();
-    const items = !q
-      ? data.items
-      : data.items.filter(
-          (item) =>
-            item.nome.toLowerCase().includes(q) ||
-            item.identificador.toLowerCase().includes(q) ||
-            item.email.toLowerCase().includes(q),
-        );
-
-    return sortItems(items, sortMode);
-  }, [data?.items, search, sortMode]);
-
-  const assinadosCount = filteredItems.filter((item) => item.status === "assinado").length;
-  const pendentesCount = filteredItems.filter((item) => item.status === "pendente").length;
-
   if (!loading && !user) return <Navigate to="/login" replace />;
-
-  const applyFilters = () => {
-    setApplied({ nome, dataInicio, dataFim, status });
-    setFiltersOpen(false);
-  };
 
   const clearFilters = () => {
     setNome("");
-    setDataInicio("");
-    setDataFim("");
-    setStatus("todos");
-    setSearch("");
-    setApplied({ nome: "", dataInicio: "", dataFim: "", status: "todos" });
-    setFiltersOpen(false);
+    setDataConsulta(todayIsoDate());
   };
 
   const closePreview = () => {
@@ -218,7 +212,7 @@ export function StatusAssinaturaPage() {
     <AppLayout
       title="Status De Assinatura"
       emoji="✍️"
-      caption={data ? `Total de registros: ${data.total}` : undefined}
+      caption={data ? `${formatIsoDateBr(dataConsulta)} • ${filteredItems.length} contrato(s)` : undefined}
     >
       {copyFeedback && (
         <div className="mb-3 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-2">
@@ -243,15 +237,27 @@ export function StatusAssinaturaPage() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
-          <div className="flex-1 flex gap-2">
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-end">
+          <label className="block sm:w-44 shrink-0">
+            <span className="text-sm font-semibold text-slate-600">Data</span>
+            <input
+              type="date"
+              value={dataConsulta}
+              onChange={(e) => setDataConsulta(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/20"
+            />
+          </label>
+          <label className="block flex-1 min-w-0">
+            <span className="text-sm font-semibold text-slate-600">Nome do cliente</span>
             <input
               type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Pesquisar no relatório"
-              className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/20"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Pesquisar pelo nome"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/20"
             />
+          </label>
+          <div className="flex gap-2 shrink-0">
             <button
               type="button"
               onClick={() => refetch()}
@@ -259,83 +265,17 @@ export function StatusAssinaturaPage() {
               style={{ background: COLORS.navy }}
               title="Atualizar"
             >
-              🔍
+              Atualizar
             </button>
             <button
               type="button"
-              onClick={() => setFiltersOpen((v) => !v)}
-              className="px-4 py-2.5 rounded-xl text-white font-semibold flex items-center gap-2"
-              style={{ background: COLORS.navy2 }}
-              title="Filtros"
+              onClick={clearFilters}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-semibold text-slate-600"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden>
-                <path d="M3 4.5h18l-7.2 9.3V19l-3.6 2v-5.2L3 4.5z" />
-              </svg>
+              Hoje
             </button>
           </div>
         </div>
-
-        {filtersOpen && (
-          <div className="p-4 bg-slate-50 border-b border-slate-100 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-600">Nome</span>
-              <input
-                type="text"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Filtrar por nome"
-                className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-white"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-600">Data inicial</span>
-              <input
-                type="date"
-                value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-white"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-600">Data final</span>
-              <input
-                type="date"
-                value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-white"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-600">Status</span>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-white"
-              >
-                <option value="todos">Todos</option>
-                <option value="assinado">Assinados</option>
-                <option value="pendente">Pendentes</option>
-              </select>
-            </label>
-            <div className="md:col-span-2 xl:col-span-4 flex gap-2">
-              <button
-                type="button"
-                onClick={applyFilters}
-                className="px-5 py-2.5 rounded-xl text-white font-bold"
-                style={{ background: COLORS.navy }}
-              >
-                Aplicar filtros
-              </button>
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white font-semibold text-slate-600"
-              >
-                Limpar
-              </button>
-            </div>
-          </div>
-        )}
 
         {isLoading && <div className="p-8 text-center text-slate-500">Carregando contratos...</div>}
         {error && (
@@ -351,7 +291,7 @@ export function StatusAssinaturaPage() {
                 className="flex items-center justify-between px-4 py-3 text-white text-sm font-bold uppercase tracking-wide rounded-t-2xl"
                 style={{ background: COLORS.navy }}
               >
-                <span>Contratos cadastrados</span>
+                <span>Contratos do dia</span>
                 <div className="relative" ref={sortMenuRef}>
                   <button
                     type="button"
@@ -397,60 +337,61 @@ export function StatusAssinaturaPage() {
                   )}
                 </div>
               </div>
-              <table className="w-full min-w-[920px]">
+              <table className="w-full">
                 <thead>
                   <tr className="text-white text-sm" style={{ background: COLORS.navy2 }}>
-                    <th className="text-left px-4 py-3 font-bold">Id</th>
-                    <th className="text-left px-4 py-3 font-bold">Identificador do arquivo</th>
-                    <th className="text-center px-4 py-3 font-bold">Status</th>
-                    <th className="text-left px-4 py-3 font-bold">Mais informações</th>
+                    <th className="text-left px-4 py-3 font-bold">Cliente</th>
+                    <th className="text-left px-4 py-3 font-bold w-[220px]">Assinaturas</th>
+                    <th className="text-left px-4 py-3 font-bold">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredItems.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-4 py-10 text-center text-slate-500">
-                        Nenhum contrato encontrado com os filtros selecionados.
+                      <td colSpan={3} className="px-4 py-16 text-center text-slate-400">
+                        Nenhum contrato em {formatIsoDateBr(dataConsulta)}
+                        {nome.trim() ? ` para "${nome.trim()}"` : ""}.
                       </td>
                     </tr>
                   ) : (
                     filteredItems.map((item) => (
                       <tr
-                        key={item.id}
-                        className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors"
+                        key={`${item.unitKey}-${item.sheetIndex}`}
+                        className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors align-top"
                         onClick={(e) => {
                           if ((e.target as HTMLElement).closest("[data-no-preview]")) return;
                           openPreview(item);
                         }}
                         title="Clique para visualizar o contrato"
                       >
-                        <td className="px-4 py-4 text-sm text-slate-700">{item.id}</td>
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-3">
                           <div className="font-semibold text-slate-800">{item.nome}</div>
-                          <span className="text-sm text-slate-500">{item.identificador}</span>
+                          <div className="text-xs text-slate-500 mt-0.5">Compra: {item.dataCompra}</div>
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               openPreview(item);
                             }}
-                            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline"
+                            className="mt-1 text-xs font-semibold text-blue-700 hover:underline"
                           >
-                            Visualizar contrato
+                            Ver contrato
                           </button>
                         </td>
-                        <td className="px-4 py-4 text-center align-top min-w-[280px]" data-no-preview>
-                          <div className={`font-bold mb-2 ${item.status === "assinado" ? "text-green-700" : "text-slate-900"}`}>
+                        <td className="px-4 py-3" data-no-preview>
+                          <div className={`text-sm font-bold mb-1 ${item.status === "assinado" ? "text-green-700" : "text-slate-800"}`}>
                             {item.statusLabel}
                           </div>
-                          <SignatureProgressPanel assinatura={item.assinatura} />
+                          <SignatureProgressCompact assinatura={item.assinatura} />
                           <DocFormStatusBadge docForm={item.docForm} />
-                          <div className="mt-3 flex flex-col gap-2">
+                        </td>
+                        <td className="px-4 py-3 text-sm" data-no-preview>
+                          <div className="flex flex-col gap-2 max-w-xs">
                             <button
                               type="button"
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => openAttachments(item, e)}
-                              className="w-full text-sm sm:text-base px-4 py-3 rounded-xl text-white font-bold shadow-sm"
+                              className="w-full text-sm px-3 py-2 rounded-xl text-white font-bold shadow-sm"
                               style={{
                                 background: item.docForm.completo && item.docForm.emailEnviado
                                   ? "#16a34a"
@@ -458,78 +399,66 @@ export function StatusAssinaturaPage() {
                               }}
                             >
                               {item.docForm.completo && item.docForm.emailEnviado
-                                ? "📎 Ver / atualizar anexos"
-                                : "📎 Enviar anexos do filhote"}
+                                ? "📎 Anexos"
+                                : "📎 Enviar anexos"}
                             </button>
-                            {!item.docForm.completo && (
-                              <span className="text-xs text-slate-500 leading-snug">
-                                Carteirinha (frente/verso), atestado e foto do filhote
-                              </span>
-                            )}
-                          </div>
-                          {item.inAppSignature && item.status !== "assinado" && (
-                            <div className="mt-2 flex flex-wrap gap-2 justify-center">
-                              <button
-                                type="button"
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => showClientLink(item, e)}
-                                disabled={copyingKey === `${item.unitKey}-${item.sheetIndex}`}
-                                className="text-xs px-3 py-1.5 rounded-lg text-white font-semibold disabled:opacity-60"
-                                style={{ background: COLORS.navy2 }}
-                              >
-                                {copyingKey === `${item.unitKey}-${item.sheetIndex}`
-                                  ? "Abrindo..."
-                                  : "Copiar link do cliente"}
-                              </button>
-                              {item.podeAssinarLoja && (
+                            {item.inAppSignature && item.status !== "assinado" && (
+                              <div className="flex flex-wrap gap-2">
                                 <button
                                   type="button"
                                   onMouseDown={(e) => e.stopPropagation()}
-                                  onClick={(e) => openStoreSign(item, e)}
-                                  className="text-xs px-3 py-1.5 rounded-lg text-white font-semibold"
-                                  style={{ background: COLORS.wine }}
+                                  onClick={(e) => showClientLink(item, e)}
+                                  disabled={copyingKey === `${item.unitKey}-${item.sheetIndex}`}
+                                  className="text-xs px-3 py-1.5 rounded-lg text-white font-semibold disabled:opacity-60"
+                                  style={{ background: COLORS.navy2 }}
                                 >
-                                  Assinar como loja
+                                  {copyingKey === `${item.unitKey}-${item.sheetIndex}` ? "..." : "Link cliente"}
                                 </button>
-                              )}
-                            </div>
-                          )}
-                          {!item.inAppSignature && item.linkAssinatura && (
-                            <div className="mt-2 flex flex-col items-center gap-1">
-                              <a
-                                href={item.linkAssinatura}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-block text-xs text-blue-600 hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                Acompanhar documento
-                              </a>
-                              {item.linkAssinaturaLoja && (
-                                item.docForm.completo ? (
-                                  <a
-                                    href={item.linkAssinaturaLoja}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-block text-xs px-3 py-1.5 rounded-lg text-white font-semibold"
+                                {item.podeAssinarLoja && (
+                                  <button
+                                    type="button"
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => openStoreSign(item, e)}
+                                    className="text-xs px-3 py-1.5 rounded-lg text-white font-semibold"
                                     style={{ background: COLORS.wine }}
-                                    onClick={(e) => e.stopPropagation()}
                                   >
-                                    Assinar como loja (ZapSign)
-                                  </a>
-                                ) : (
-                                  <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-center leading-snug">
-                                    Envie os 4 anexos antes de assinar como loja no ZapSign
-                                  </span>
-                                )
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-slate-600 leading-6">
-                          <div>Disparo em: {item.disparoEm}</div>
-                          <div>Atualizado em: {item.atualizadoEm}</div>
-                          <div>Compra: {item.dataCompra}</div>
+                                    Assinar loja
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            {!item.inAppSignature && item.linkAssinatura && (
+                              <div className="flex flex-col gap-1">
+                                <a
+                                  href={item.linkAssinatura}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs text-blue-600 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  Acompanhar ZapSign
+                                </a>
+                                {item.linkAssinaturaLoja && (
+                                  item.docForm.completo ? (
+                                    <a
+                                      href={item.linkAssinaturaLoja}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs px-3 py-1.5 rounded-lg text-white font-semibold text-center"
+                                      style={{ background: COLORS.wine }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      Assinar loja (ZapSign)
+                                    </a>
+                                  ) : (
+                                    <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                                      Envie os anexos antes de assinar
+                                    </span>
+                                  )
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -537,9 +466,9 @@ export function StatusAssinaturaPage() {
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-3 text-center text-sm text-slate-500 border-t border-slate-100 bg-white rounded-b-2xl">
-              Mostrando de 1 a {filteredItems.length} de {filteredItems.length} documento(s)
-              {sortMode === "ultimo_enviado" ? " • ordenado por último enviado" : " • ordenado alfabeticamente"}
+            <div className="px-4 py-2 text-center text-xs text-slate-500 border-t border-slate-100 bg-white rounded-b-2xl">
+              {filteredItems.length} contrato(s) em {formatIsoDateBr(dataConsulta)}
+              {sortMode === "alfabetica" ? " • ordem alfabética" : " • último enviado"}
             </div>
           </div>
         )}
@@ -800,16 +729,10 @@ function signatureStatusColor(status: SignatarioItem["status"]): string {
   }
 }
 
-function SignatureProgressPanel({ assinatura }: { assinatura: SignatureProgress }) {
+function SignatureProgressCompact({ assinatura }: { assinatura: SignatureProgress }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-          Assinaturas
-        </span>
-        <span className="text-xs font-bold text-slate-700">{assinatura.progresso}%</span>
-      </div>
-      <div className="h-2 rounded-full bg-slate-200 overflow-hidden mb-3">
+    <div>
+      <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden mb-1.5">
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{
@@ -818,23 +741,11 @@ function SignatureProgressPanel({ assinatura }: { assinatura: SignatureProgress 
           }}
         />
       </div>
-      <div className="space-y-2">
+      <div className="space-y-0.5">
         {assinatura.signatarios.map((signatario) => (
-          <div key={signatario.papel} className="flex items-start gap-2">
-            <span
-              className="mt-1 w-2.5 h-2.5 rounded-full shrink-0"
-              style={{ background: signatureStatusColor(signatario.status) }}
-              aria-hidden
-            />
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-slate-800 truncate">
-                {signatario.papel}: {signatario.nome}
-              </div>
-              <div className="text-xs text-slate-500">{signatario.statusLabel}</div>
-              {signatario.linkAssinatura && signatario.status !== "assinado" && signatario.papel === "Cliente" && (
-                <span className="text-xs text-slate-500 block mt-0.5">Link disponível para envio</span>
-              )}
-            </div>
+          <div key={signatario.papel} className="text-xs text-slate-600 truncate">
+            <span className="font-semibold">{signatario.papel}:</span>{" "}
+            <span style={{ color: signatureStatusColor(signatario.status) }}>{signatario.statusLabel}</span>
           </div>
         ))}
       </div>
