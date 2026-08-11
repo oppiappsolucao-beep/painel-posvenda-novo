@@ -13,7 +13,7 @@ import {
   templateHasStoreUploadWorkflow,
 } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 15;
+const CACHE_VERSION = 16;
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -206,8 +206,9 @@ export async function resolveProductionTemplateId(
     const verified = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${cleanToken}/`);
     if (!templateHasStoreUploadWorkflow(verified)) {
       console.warn(
-        `[zapsign] Template limpo (${unitKey}) ficou com 1 signatário (limite da API ZapSign). ` +
-          `Usando modelo-fonte com loja+cliente: ${sourceTemplateId}`,
+        `[zapsign] Template limpo (${unitKey}) ficou com ${(verified.signers || []).length} signatário(s) ` +
+          `(limite da API ZapSign). Usando template limpo com DOCX corrigido: ${cleanToken}. ` +
+          `O cliente será adicionado ao criar cada documento.`,
       );
       await writeCache({
         version: CACHE_VERSION,
@@ -216,11 +217,11 @@ export async function resolveProductionTemplateId(
         sourceToken: sourceTemplateId,
         sourceUpdatedAt: detail.last_update_at || "",
         sourceFileHash: fileHash,
-        cleanToken: sourceTemplateId,
-        useSourceFallback: true,
-        shadingRemoved: 0,
+        cleanToken,
+        shadingRemoved,
       });
-      return sourceTemplateId;
+      console.log(`[zapsign] Formulário aplicado ao template limpo ${unitKey}: ${cleanToken}`);
+      return cleanToken;
     }
 
     await writeCache({
@@ -246,11 +247,11 @@ export async function resolveProductionTemplateId(
       sourceToken: sourceTemplateId,
       sourceUpdatedAt: detail.last_update_at || "",
       sourceFileHash: fileHash,
-      cleanToken: sourceTemplateId,
-      useSourceFallback: true,
-      shadingRemoved: 0,
+      cleanToken,
+      shadingRemoved,
     }).catch(() => undefined);
-    return sourceTemplateId;
+    console.log(`[zapsign] Template limpo (${unitKey}) com DOCX corrigido: ${cleanToken}`);
+    return cleanToken;
   }
 
   console.log(

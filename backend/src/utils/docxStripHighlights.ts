@@ -1,9 +1,8 @@
 import JSZip from "jszip";
 
 const SHADING_PATTERN = /<w:(?:highlight|shd)\b/gi;
-/** Só o placeholder quebrado no <w:t> (faltava "{{" no início). Não altera {{contratante-nome-completo}}. */
-const BROKEN_NOME_WT_PATTERN =
-  /(<w:t(?:\s[^>]*)?>)\s*nome-completo\}\}(\s*<\/w:t>)/g;
+/** Placeholder quebrado no DOCX (faltava "{{" no início). Não altera {{contratante-nome-completo}}. */
+const BROKEN_NOME_PLACEHOLDER_PATTERN = /(?<!\{)nome-completo\}\}/g;
 
 const DOC_ACK_TEMPLATE_VARS = [
   "carteirinha",
@@ -30,13 +29,13 @@ export function fixDocumentacaoFilhoteParagraphsInXml(xml: string): string {
 
 /** Corrige placeholder quebrado no DOCX original (faltava "{{" no início). */
 export function fixCampinasPlaceholdersInXml(xml: string): string {
-  let result = xml.replace(BROKEN_NOME_WT_PATTERN, "$1{{nome-completo}}$2");
+  let result = xml.replace(BROKEN_NOME_PLACEHOLDER_PATTERN, "{{nome-completo}}");
   result = fixDocumentacaoFilhoteParagraphsInXml(result);
   return result;
 }
 
 export function countBrokenCampinasPlaceholders(docxXml: string): number {
-  return docxXml.match(BROKEN_NOME_WT_PATTERN)?.length ?? 0;
+  return docxXml.match(BROKEN_NOME_PLACEHOLDER_PATTERN)?.length ?? 0;
 }
 
 function countShadingTags(xml: string): number {
