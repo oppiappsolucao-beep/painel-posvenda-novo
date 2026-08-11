@@ -1,6 +1,7 @@
 import { getUnitByKey, type UnitKey } from "../config.js";
 import {
   CAMPINAS_CLIENT_DOC_ACK_FIELDS,
+  CAMPINAS_CLIENT_FORM_VARIABLES,
   CAMPINAS_STORE_CNPJ_FIELD,
   CAMPINAS_STORE_FORM_LABELS,
   campinasStoreFirstFormFields,
@@ -35,6 +36,9 @@ interface ZapSignTemplateSigner {
   lock_email?: boolean;
   require_selfie_photo?: boolean;
   require_document_photo?: boolean;
+  selfie_validation_type?: string;
+  hide_phone?: boolean;
+  hide_email?: boolean;
 }
 
 interface ZapSignTemplateDetail {
@@ -103,6 +107,173 @@ function mapExistingTemplateInput(input: ZapSignTemplateInput) {
     required: input.required ?? true,
     order: input.order ?? 0,
   };
+}
+
+function mapSignerForTemplateApi(signer: ZapSignTemplateSigner) {
+  return {
+    name: signer.name ?? "",
+    auth_mode: signer.auth_mode ?? campinasStoreAuthMode(),
+    email: signer.email ?? "",
+    phone_country: signer.phone_country ?? "55",
+    phone_number: signer.phone_number ?? "",
+    qualification: signer.qualification ?? "",
+    blank_email: signer.blank_email ?? false,
+    blank_phone: signer.blank_phone ?? false,
+    lock_name: signer.lock_name ?? false,
+    lock_email: signer.lock_email ?? false,
+    lock_phone: signer.lock_phone ?? false,
+    hide_phone: signer.hide_phone ?? false,
+    hide_email: signer.hide_email ?? false,
+    require_selfie_photo: signer.require_selfie_photo ?? false,
+    require_document_photo: signer.require_document_photo ?? false,
+    selfie_validation_type: signer.selfie_validation_type ?? "none",
+  };
+}
+
+/** Signatários loja→cliente para template limpo (fallback se source não tiver 2). */
+export function buildCleanTemplateSigners(unitKey: UnitKey) {
+  return [
+    {
+      name: zapsignStoreSignerName(unitKey),
+      auth_mode: campinasStoreAuthMode(),
+      qualification: "lojista",
+      blank_email: false,
+      blank_phone: false,
+      lock_name: true,
+    },
+    {
+      name: "{{contratante-nome-completo}}",
+      email: "{{e-mail}}",
+      phone_country: "55",
+      phone_number: "{{celular}}",
+      auth_mode: campinasClientAuthMode(),
+      qualification: "cliente",
+      blank_email: false,
+      blank_phone: false,
+      lock_name: true,
+      require_document_photo: true,
+    },
+  ];
+}
+
+function isStoreSigner(signer: ZapSignTemplateSigner): boolean {
+  return (
+    String(signer.qualification || "").toLowerCase() === "lojista" ||
+    String(signer.name || "").toLowerCase().includes("loja")
+  );
+}
+
+function mapStoreSignerFromSource(signer: ZapSignTemplateSigner, unitKey: UnitKey) {
+  const mapped = mapSignerForTemplateApi(signer);
+  return {
+    ...mapped,
+    name: zapsignStoreSignerName(unitKey),
+    auth_mode: campinasStoreAuthMode(),
+    qualification: "lojista",
+    blank_email: false,
+    blank_phone: false,
+    lock_name: true,
+  };
+}
+
+function mapClientSignerFromSource(signer: ZapSignTemplateSigner) {
+  const mapped = mapSignerForTemplateApi(signer);
+  return {
+    ...mapped,
+    name: "{{contratante-nome-completo}}",
+    email: "{{e-mail}}",
+    phone_country: "55",
+    phone_number: "{{celular}}",
+    auth_mode: campinasClientAuthMode(),
+    qualification: "cliente",
+    blank_email: false,
+    blank_phone: false,
+    lock_name: true,
+    require_document_photo: true,
+  };
+}
+
+/** Preserva config do modelo-fonte, mas sempre loja (1º) → cliente (2º). */
+export function buildSignersFromSource(sourceSigners: ZapSignTemplateSigner[], unitKey: UnitKey) {
+  const fallback = buildCleanTemplateSigners(unitKey);
+  const storeSource = sourceSigners.find(isStoreSigner);
+  const clientSource = sourceSigners.find((signer) => !isStoreSigner(signer));
+
+  return [
+    storeSource ? mapStoreSignerFromSource(storeSource, unitKey) : fallback[0],
+    clientSource ? mapClientSignerFromSource(clientSource) : fallback[1],
+  ];
+}
+
+function isDocAckRadioInput(input: ZapSignTemplateInput): boolean {
+  const variable = String(input.variable || "").trim();
+  return (
+    String(input.input_type || "").toLowerCase() === "radio" &&
+    CAMPINAS_CLIENT_FORM_VARIABLES.has(variable)
+  );
+}
+
+function isLegacyClientField(input: ZapSignTemplateInput): boolean {
+  const variable = String(input.variable || "").trim().toLowerCase();
+  const label = String(input.label || "").trim().toLowerCase();
+  return (
+    variable.includes("contratante-cpf") ||
+    variable.includes("celular") ||
+    variable.includes("e-mail") ||
+    label.includes("contratante cpf") ||
+    label === "celular" ||
+    label === "e-mail"
+  );
+}
+
+/** Copia formulário do modelo-fonte (CNPJ/anexos loja + radios cliente), loja sempre antes. */
+export function pickFormInputsFromSource(detail: ZapSignTemplateDetail) {
+  const storeFromSource = (detail.inputs || []).filter(
+    (input) => isStoreUploadInput(input) || isStoreCnpjInput(input),
+  );
+  const clientFromSource = (detail.inputs || []).filter(isDocAckRadioInput);
+
+  const storeInputs =
+    storeFromSource.length > 0
+      ? storeFromSource.map(mapExistingTemplateInput)
+      : campinasStoreFirstFormFields().map(mapFormField);
+
+  const clientInputs =
+    clientFromSource.length > 0
+      ? clientFromSource.map(mapExistingTemplateInput)
+      : CAMPINAS_CLIENT_DOC_ACK_FIELDS.map(mapFormField);
+
+  return [
+    ...storeInputs.map((input, index) => ({ ...input, order: index + 1 })),
+    ...clientInputs.map((input, index) => ({ ...input, order: 20 + index })),
+  ];
+}
+
+export async function syncFormFromSourceTemplate(
+  sourceTemplateId: string,
+  cleanTemplateId: string,
+  zapsignRequest: ZapSignRequest,
+): Promise<void> {
+  const source = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${sourceTemplateId}/`);
+  const inputs = pickFormInputsFromSource(source).filter((input) => !isLegacyClientField(input));
+
+  await zapsignRequest("/templates/update-form/", {
+    method: "POST",
+    json: {
+      template_id: cleanTemplateId,
+      custom_intro:
+        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme abaixo o que recebeu.",
+      youtube_video_code: "",
+      hide_prefilled_fields: true,
+      inputs,
+    },
+  }).catch((error) => {
+    if (isZapSignNoChangeError(error)) {
+      console.warn("[zapsign] Formulário do template limpo já configurado; ignorando update-form.");
+      return;
+    }
+    throw error;
+  });
 }
 
 function isStoreUploadInput(input: ZapSignTemplateInput): boolean {

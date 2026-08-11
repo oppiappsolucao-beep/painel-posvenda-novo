@@ -6,16 +6,22 @@ import type { UnitKey } from "../config.js";
 import { isZapSignSandbox, zapsignFolderPath } from "../config/zapsignEnv.js";
 import { getUnitByKey } from "../config.js";
 import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders, fixCampinasDocxPlaceholders } from "../utils/docxStripHighlights.js";
-import { applyCampinasClientForm, syncCampinasStoreSignerFromSource, templateHasStoreUploadWorkflow } from "./zapsignFormConfig.js";
+import {
+  buildCleanTemplateSigners,
+  buildSignersFromSource,
+  syncFormFromSourceTemplate,
+  templateHasStoreUploadWorkflow,
+} from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 12;
+const CACHE_VERSION = 14;
 
 export interface ZapSignTemplateDetail {
   token: string;
   template_file?: string;
   last_update_at?: string;
   name?: string;
-  inputs?: Array<{ input_type?: string; label?: string; required?: boolean; order?: number }>;
+  signers?: Array<{ name?: string; qualification?: string; auth_mode?: string }>;
+  inputs?: Array<{ input_type?: string; label?: string; required?: boolean; order?: number; variable?: string }>;
 }
 
 interface CleanTemplateCache {
@@ -27,6 +33,8 @@ interface CleanTemplateCache {
   sourceFileHash: string;
   cleanToken: string;
   shadingRemoved?: number;
+  /** Template limpo via API não suporta 2 signatários — usa modelo-fonte. */
+  useSourceFallback?: boolean;
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -143,6 +151,11 @@ export async function resolveProductionTemplateId(
     cache.cleanToken
   ) {
     memoryCleanTokens.set(unitKey, cache.cleanToken);
+    if (cache.useSourceFallback) {
+      console.log(
+        `[zapsign] Template limpo indisponível (${unitKey}); usando modelo-fonte ${sourceTemplateId}.`,
+      );
+    }
     return cache.cleanToken;
   }
 
@@ -166,6 +179,11 @@ export async function resolveProductionTemplateId(
   const shadingRemoved = Math.max(0, before - after);
   const base64Docx = cleanDocx.toString("base64");
   const unitLabel = getUnitByKey(unitKey)?.label || unitKey;
+  const sourceSigners = detail.signers || [];
+  const signersForCreate =
+    sourceSigners.length >= 2
+      ? buildSignersFromSource(sourceSigners, unitKey)
+      : buildCleanTemplateSigners(unitKey);
 
   const created = await zapsignRequest<ZapSignTemplateDetail>("/templates/create/", {
     method: "POST",
@@ -174,11 +192,7 @@ export async function resolveProductionTemplateId(
       base64_docx: base64Docx,
       lang: "pt-br",
       folder_path: zapsignFolderPath(unitKey),
-      first_signer: {
-        blank_email: false,
-        blank_phone: false,
-        auth_mode: "assinaturaTela",
-      },
+      signers: signersForCreate,
     },
   });
 
@@ -188,13 +202,25 @@ export async function resolveProductionTemplateId(
   }
 
   try {
-    await syncCampinasStoreSignerFromSource(sourceTemplateId, cleanToken, zapsignRequest);
-    await applyCampinasClientForm(cleanToken, zapsignRequest);
+    await syncFormFromSourceTemplate(sourceTemplateId, cleanToken, zapsignRequest);
     const verified = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${cleanToken}/`);
-    if (templateHasStoreUploadWorkflow(detail) && !templateHasStoreUploadWorkflow(verified)) {
+    if (!templateHasStoreUploadWorkflow(verified)) {
       console.warn(
-        `[zapsign] Anexos da loja precisam ficar no signatário lojista (${unitKey}): https://app.zapsign.com.br/conta/modelos/${cleanToken}`,
+        `[zapsign] Template limpo (${unitKey}) ficou com 1 signatário (limite da API ZapSign). ` +
+          `Usando modelo-fonte com loja+cliente: ${sourceTemplateId}`,
       );
+      await writeCache({
+        version: CACHE_VERSION,
+        sandbox: isZapSignSandbox(),
+        unitKey,
+        sourceToken: sourceTemplateId,
+        sourceUpdatedAt: detail.last_update_at || "",
+        sourceFileHash: fileHash,
+        cleanToken: sourceTemplateId,
+        useSourceFallback: true,
+        shadingRemoved: 0,
+      });
+      return sourceTemplateId;
     }
 
     await writeCache({
@@ -213,6 +239,17 @@ export async function resolveProductionTemplateId(
       `[zapsign] Falha ao configurar formulário no template limpo (${unitKey}):`,
       e instanceof Error ? e.message : e,
     );
+    await writeCache({
+      version: CACHE_VERSION,
+      sandbox: isZapSignSandbox(),
+      unitKey,
+      sourceToken: sourceTemplateId,
+      sourceUpdatedAt: detail.last_update_at || "",
+      sourceFileHash: fileHash,
+      cleanToken: sourceTemplateId,
+      useSourceFallback: true,
+      shadingRemoved: 0,
+    }).catch(() => undefined);
     return sourceTemplateId;
   }
 
