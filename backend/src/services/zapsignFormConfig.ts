@@ -200,23 +200,37 @@ export function resolveTemplateSignerIndexes(signers: ZapSignTemplateSigner[] = 
   };
 }
 
+/** Signatário com índice menor no template recebe order 1+; o outro recebe order 20+. */
+function orderBaseForRole(role: "client" | "store", signers: ZapSignTemplateSigner[] = []): number {
+  if (signers.length < 2) {
+    return role === "store" ? STORE_FORM_ORDER_BASE : CLIENT_FORM_ORDER_BASE;
+  }
+  const { storeIndex, clientIndex } = resolveTemplateSignerIndexes(signers);
+  const roleIndex = role === "store" ? storeIndex : clientIndex;
+  const otherIndex = role === "store" ? clientIndex : storeIndex;
+  return roleIndex < otherIndex ? STORE_FORM_ORDER_BASE : CLIENT_FORM_ORDER_BASE;
+}
+
 /** Monta inputs reordenando campos já existentes no DOCX (update-form só altera variáveis do modelo). */
 export function buildTemplateFormInputs(detail?: ZapSignTemplateDetail) {
   const sourceInputs = detail?.inputs || [];
   const signers = detail?.signers || [];
   const singleSignerTemplate = signers.length < 2;
+  const clientOrderBase = orderBaseForRole("client", signers);
+  const storeOrderBase = orderBaseForRole("store", signers);
 
   if (sourceInputs.length === 0) {
     const storeInputs = campinasStoreZapSignFormFields().map(mapFormField);
     const clientInputs = campinasClientFormFields().map(mapFormField);
     return [
-      ...storeInputs.map((input, index) => ({ ...input, order: STORE_FORM_ORDER_BASE + index })),
-      ...clientInputs.map((input, index) => ({ ...input, order: CLIENT_FORM_ORDER_BASE + index })),
+      ...storeInputs.map((input, index) => ({ ...input, order: storeOrderBase + index })),
+      ...clientInputs.map((input, index) => ({ ...input, order: clientOrderBase + index })),
     ];
   }
 
   let clientInputs = sourceInputs.filter((input) => isDocAckRadioInput(input) || isClientUploadInput(input));
   let storeInputs = sourceInputs.filter((input) => isStoreCnpjInput(input));
+
   if (storeInputs.length === 0) {
     storeInputs = campinasStoreZapSignFormFields().map((field) => ({
       variable: field.variable,
@@ -246,12 +260,6 @@ export function buildTemplateFormInputs(detail?: ZapSignTemplateDetail) {
     }
   }
 
-  const assignedKeys = new Set([
-    ...clientInputs.map(templateInputKey),
-    ...storeInputs.map(templateInputKey),
-  ]);
-  const backgroundInputs = sourceInputs.filter((input) => !assignedKeys.has(templateInputKey(input)));
-
   const orderFields = (inputs: ZapSignTemplateInput[], base: number, role: "client" | "store") =>
     inputs.map((input, index) => ({
       ...mapExistingTemplateInput(input),
@@ -263,32 +271,24 @@ export function buildTemplateFormInputs(detail?: ZapSignTemplateDetail) {
           : (input.required ?? true),
     }));
 
-  const backgroundOrdered = backgroundInputs.map((input, index) => ({
-    ...mapExistingTemplateInput(input),
-    order: 900 + index,
-    required: false,
-  }));
-
-  const clientFieldsOptional = clientInputs.map((input, index) => ({
+  const clientFieldsForSingleSigner = clientInputs.map((input, index) => ({
     ...mapExistingTemplateInput(input),
     order: CLIENT_FORM_ORDER_BASE + index,
-    required: false,
+    required: input.required ?? true,
   }));
 
-  // Template com 1 signatário: ZapSign associa todos os campos à loja — só CNPJ fica ativo.
+  // Template com 1 signatário no modelo: loja preenche CNPJ (order 1+); cliente (adicionado ao doc) usa order 20+.
   if (singleSignerTemplate) {
     return [
       ...orderFields(storeInputs, STORE_FORM_ORDER_BASE, "store"),
-      ...clientFieldsOptional,
-      ...backgroundOrdered,
+      ...clientFieldsForSingleSigner,
     ];
   }
 
-  // Loja: order 1+ (CNPJ). Cliente: order 20+ (radios/RG).
+  // Dois signatários no modelo: separar por índice (cliente order baixo/alto conforme template).
   return [
-    ...orderFields(storeInputs, STORE_FORM_ORDER_BASE, "store"),
-    ...orderFields(clientInputs, CLIENT_FORM_ORDER_BASE, "client"),
-    ...backgroundOrdered,
+    ...orderFields(clientInputs, clientOrderBase, "client"),
+    ...orderFields(storeInputs, storeOrderBase, "store"),
   ];
 }
 
@@ -310,16 +310,30 @@ function dedupeTemplateInputs(inputs: ZapSignTemplateInput[]): ZapSignTemplateIn
   return unique;
 }
 
-const PREFILLED_VARIABLES = new Set(
-  CAMPINAS_STORE_PREFILLED_VARIABLES.map((variable) => variable.toLowerCase()),
+const PREFILLED_VARIABLE_NAMES = new Set(
+  CAMPINAS_STORE_PREFILLED_VARIABLES.map((variable) => normalizeTemplateVariable(variable)),
 );
 
+function normalizeTemplateVariable(raw: string): string {
+  return String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^\{\{+/, "")
+    .replace(/\}\}+$/, "");
+}
+
 function isPrefilledContractField(input: ZapSignTemplateInput): boolean {
-  const variable = String(input.variable || "").trim().toLowerCase();
-  if (PREFILLED_VARIABLES.has(variable)) return true;
+  const variable = normalizeTemplateVariable(input.variable || "");
+  const label = normalizeTemplateVariable(input.label || "");
+  if (variable && PREFILLED_VARIABLE_NAMES.has(variable)) return true;
+  if (label && PREFILLED_VARIABLE_NAMES.has(label)) return true;
   if (Number(input.order || 0) >= 500) return true;
   if (String(input.input_type || "").trim().toLowerCase() === "signer_fullname") return true;
   return isLegacyClientField(input);
+}
+
+function shouldExposeInSignerForm(input: ZapSignTemplateInput): boolean {
+  return !isStoreUploadInput(input) && !isPrefilledContractField(input) && !isLegacyClientField(input);
 }
 
 function mapStoreSignerFromSource(signer: ZapSignTemplateSigner, unitKey: UnitKey) {
@@ -405,7 +419,7 @@ export async function syncFormFromSourceTemplate(
   zapsignRequest: ZapSignRequest,
 ): Promise<void> {
   const cleanDetail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${cleanTemplateId}/`);
-  const inputs = pickFormInputsFromSource(cleanDetail).filter((input) => !isLegacyClientField(input));
+  const inputs = pickFormInputsFromSource(cleanDetail).filter(shouldExposeInSignerForm);
 
   await zapsignRequest("/templates/update-form/", {
     method: "POST",
@@ -550,7 +564,7 @@ export async function applyCampinasClientForm(
   if (!templateId) return;
 
   const detail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
-  const inputs = buildTemplateFormInputs(detail);
+  const inputs = buildTemplateFormInputs(detail).filter(shouldExposeInSignerForm);
 
   await zapsignRequest("/templates/update-form/", {
     method: "POST",
