@@ -15,8 +15,12 @@ import settingsRoutes from "./routes/settings.js";
 import { getDatabaseHealth, initDatabase } from "./db/init.js";
 import { getEmployeesStorageInfo } from "./services/employees.js";
 import { maybeSyncEmployeesFromSheets } from "./services/syncEmployeesFromSheets.js";
+import {
+  getZapSignProductionTemplateId,
+  isZapSignEnabled,
+  ZAPSIGN_UNIT_KEYS,
+} from "./config/zapsignEnv.js";
 import { warmUpZapSignTemplates } from "./services/zapsign.js";
-import { isZapSignEnabled, ZAPSIGN_UNIT_KEYS } from "./config/zapsignEnv.js";
 import pkg from "../package.json" with { type: "json" };
 
 const app = express();
@@ -62,6 +66,12 @@ app.get("/api/health", async (_req, res) => {
     employees,
     version: pkg.version,
     build: process.env.GIT_COMMIT || null,
+    zapsign: Object.fromEntries(
+      ZAPSIGN_UNIT_KEYS.map((unitKey) => [
+        unitKey,
+        getZapSignProductionTemplateId(unitKey) || null,
+      ]),
+    ),
   });
 });
 app.use("/api/auth", authRoutes);

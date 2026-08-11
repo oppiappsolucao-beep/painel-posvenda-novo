@@ -177,8 +177,9 @@ export async function resolveProductionTemplateId(
   }
 
   if (!skipHighlights && before > 0 && !fixed) {
-    console.warn(`[zapsign] Não foi possível neutralizar destaque (${unitKey}); usando original.`);
-    return sourceTemplateId;
+    console.warn(
+      `[zapsign] Destaque parcial no DOCX (${unitKey}); continuando com placeholder corrigido.`,
+    );
   }
 
   const shadingRemoved = Math.max(0, before - after);

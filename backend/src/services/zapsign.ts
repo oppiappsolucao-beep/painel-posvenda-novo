@@ -126,15 +126,58 @@ async function ensureClientFormConfigured(unitKey: UnitKey, templateId: string):
   formConfiguredForTemplateId.set(templateId, unitKey);
 }
 
+function sourceTemplateIdForUnit(unitKey: UnitKey): string {
+  return getZapSignTemplateId(unitKey);
+}
+
+function isSourceTemplateId(unitKey: UnitKey, templateId: string): boolean {
+  const sourceId = sourceTemplateIdForUnit(unitKey);
+  return Boolean(sourceId && templateId && templateId === sourceId);
+}
+
+async function resolveCleanProductionTemplateId(
+  unitKey: UnitKey,
+  allowRetry = true,
+): Promise<string> {
+  const sourceTemplateId = sourceTemplateIdForUnit(unitKey);
+  if (!sourceTemplateId) return "";
+
+  await resetProductionTemplateCache(unitKey);
+  const resolved = await resolveProductionTemplateId(unitKey, sourceTemplateId, zapsignRequest);
+  if (isSourceTemplateId(unitKey, resolved)) {
+    if (allowRetry) {
+      console.warn(
+        `[zapsign] Template limpo (${unitKey}) ainda apontava para o modelo-fonte ${resolved}; tentando novamente.`,
+      );
+      return resolveCleanProductionTemplateId(unitKey, false);
+    }
+    throw new Error(
+      `ZapSign (${unitKey}): não foi possível obter template limpo (modelo-fonte=${sourceTemplateId}).`,
+    );
+  }
+
+  cachedProductionTemplateIds.set(unitKey, resolved);
+  console.log(`[zapsign] Template limpo de produção (${unitKey}): ${resolved}`);
+  return resolved;
+}
+
 async function getProductionTemplateId(unitKey: UnitKey, allowRetry = true): Promise<string> {
+  const sourceTemplateId = sourceTemplateIdForUnit(unitKey);
   const productionOverride = getZapSignProductionTemplateId(unitKey);
-  if (productionOverride) {
+
+  if (productionOverride && !isSourceTemplateId(unitKey, productionOverride)) {
     cachedProductionTemplateIds.set(unitKey, productionOverride);
     return productionOverride;
   }
 
+  if (productionOverride && isSourceTemplateId(unitKey, productionOverride)) {
+    console.warn(
+      `[zapsign] ZAPSIGN_PRODUCTION_TEMPLATE_ID_${unitKey.toUpperCase()} aponta para o modelo-fonte; ignorando.`,
+    );
+  }
+
   const cachedClean = await readCachedCleanTemplateId(unitKey);
-  if (cachedClean) {
+  if (cachedClean && !isSourceTemplateId(unitKey, cachedClean)) {
     const cachedDetail = await zapsignRequest<{ inputs?: Array<{ input_type?: string; label?: string; variable?: string }> }>(
       `/templates/${cachedClean}/`,
     ).catch(() => null);
@@ -144,11 +187,10 @@ async function getProductionTemplateId(unitKey: UnitKey, allowRetry = true): Pro
     }
   }
 
-  const { templateId } = getConfig(unitKey);
-  if (!templateId) return "";
+  if (!sourceTemplateId) return "";
 
   const cached = cachedProductionTemplateIds.get(unitKey);
-  if (cached) {
+  if (cached && !isSourceTemplateId(unitKey, cached)) {
     const cachedDetail = await zapsignRequest<{ inputs?: Array<{ input_type?: string; label?: string; variable?: string }> }>(
       `/templates/${cached}/`,
     ).catch(() => null);
@@ -158,9 +200,11 @@ async function getProductionTemplateId(unitKey: UnitKey, allowRetry = true): Pro
     } else if (cachedDetail) {
       return cached;
     }
+  } else if (cached && isSourceTemplateId(unitKey, cached)) {
+    cachedProductionTemplateIds.delete(unitKey);
   }
 
-  const resolved = await resolveProductionTemplateId(unitKey, templateId, zapsignRequest);
+  const resolved = await resolveCleanProductionTemplateId(unitKey, allowRetry);
   const detail = await zapsignRequest<{ inputs?: Array<{ input_type?: string; label?: string; variable?: string }> }>(
     `/templates/${resolved}/`,
   ).catch(() => null);
@@ -170,7 +214,6 @@ async function getProductionTemplateId(unitKey: UnitKey, allowRetry = true): Pro
       console.warn(
         `[zapsign] Template ${resolved} (${unitKey}) ainda contém anexos legados da loja; recriando template limpo.`,
       );
-      await resetProductionTemplateCache(unitKey);
       return getProductionTemplateId(unitKey, false);
     }
     console.error(
@@ -179,8 +222,6 @@ async function getProductionTemplateId(unitKey: UnitKey, allowRetry = true): Pro
     );
   }
 
-  cachedProductionTemplateIds.set(unitKey, resolved);
-  console.log(`[zapsign] Template de produção (${unitKey}): ${resolved}`);
   return resolved;
 }
 
@@ -614,10 +655,17 @@ export async function createUnitContractDocument(
   externalId: string,
 ): Promise<ZapSignCreatedDocument> {
   const { sandbox } = getConfig(unitKey);
-  const templateId = await getProductionTemplateId(unitKey);
+  let templateId = await getProductionTemplateId(unitKey);
   if (!templateId) {
     throw new Error(`Template ZapSign não configurado para ${unitKey}.`);
   }
+  if (isSourceTemplateId(unitKey, templateId)) {
+    console.warn(
+      `[zapsign] create-doc (${unitKey}) recebeu modelo-fonte ${templateId}; forçando template limpo.`,
+    );
+    templateId = await resolveCleanProductionTemplateId(unitKey);
+  }
+  console.log(`[zapsign] create-doc (${unitKey}) template_id=${templateId}`);
   if (sandbox) {
     console.log(
       `[zapsign] Ambiente ${zapSignEnvironmentLabel()} (${getZapSignApiBase()}) — ${unitKey}.`,
