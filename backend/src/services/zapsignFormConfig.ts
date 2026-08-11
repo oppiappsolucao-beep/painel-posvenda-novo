@@ -203,26 +203,16 @@ export function resolveTemplateSignerIndexes(signers: ZapSignTemplateSigner[] = 
 /** Monta inputs reordenando campos já existentes no DOCX (update-form só altera variáveis do modelo). */
 export function buildTemplateFormInputs(detail?: ZapSignTemplateDetail) {
   const sourceInputs = detail?.inputs || [];
-  const { storeIndex, clientIndex } = resolveTemplateSignerIndexes(detail?.signers || []);
+  const signers = detail?.signers || [];
+  const singleSignerTemplate = signers.length < 2;
 
   if (sourceInputs.length === 0) {
     const storeInputs = campinasStoreZapSignFormFields().map(mapFormField);
     const clientInputs = campinasClientFormFields().map(mapFormField);
-    const storeOrdered = storeInputs.map((input, index) => ({
-      ...input,
-      order: STORE_FORM_ORDER_BASE + index,
-    }));
-    const clientOrdered = clientInputs.map((input, index) => ({
-      ...input,
-      order: CLIENT_FORM_ORDER_BASE + index,
-    }));
-    if (storeIndex > clientIndex) {
-      return [
-        ...clientOrdered.map((input, index) => ({ ...input, order: STORE_FORM_ORDER_BASE + index })),
-        ...storeOrdered.map((input, index) => ({ ...input, order: CLIENT_FORM_ORDER_BASE + index })),
-      ];
-    }
-    return [...storeOrdered, ...clientOrdered];
+    return [
+      ...storeInputs.map((input, index) => ({ ...input, order: STORE_FORM_ORDER_BASE + index })),
+      ...clientInputs.map((input, index) => ({ ...input, order: CLIENT_FORM_ORDER_BASE + index })),
+    ];
   }
 
   let clientInputs = sourceInputs.filter((input) => isDocAckRadioInput(input) || isClientUploadInput(input));
@@ -279,15 +269,22 @@ export function buildTemplateFormInputs(detail?: ZapSignTemplateDetail) {
     required: false,
   }));
 
-  // Modelo-fonte Campinas: cliente=0, loja=1 → cliente com order baixo, loja com order alto.
-  if (storeIndex > clientIndex) {
+  const clientFieldsOptional = clientInputs.map((input, index) => ({
+    ...mapExistingTemplateInput(input),
+    order: CLIENT_FORM_ORDER_BASE + index,
+    required: false,
+  }));
+
+  // Template com 1 signatário: ZapSign associa todos os campos à loja — só CNPJ fica ativo.
+  if (singleSignerTemplate) {
     return [
-      ...orderFields(clientInputs, STORE_FORM_ORDER_BASE, "client"),
-      ...orderFields(storeInputs, CLIENT_FORM_ORDER_BASE, "store"),
+      ...orderFields(storeInputs, STORE_FORM_ORDER_BASE, "store"),
+      ...clientFieldsOptional,
       ...backgroundOrdered,
     ];
   }
 
+  // Loja: order 1+ (CNPJ). Cliente: order 20+ (radios/RG).
   return [
     ...orderFields(storeInputs, STORE_FORM_ORDER_BASE, "store"),
     ...orderFields(clientInputs, CLIENT_FORM_ORDER_BASE, "client"),
@@ -407,8 +404,8 @@ export async function syncFormFromSourceTemplate(
   cleanTemplateId: string,
   zapsignRequest: ZapSignRequest,
 ): Promise<void> {
-  const source = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${sourceTemplateId}/`);
-  const inputs = pickFormInputsFromSource(source).filter((input) => !isLegacyClientField(input));
+  const cleanDetail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${cleanTemplateId}/`);
+  const inputs = pickFormInputsFromSource(cleanDetail).filter((input) => !isLegacyClientField(input));
 
   await zapsignRequest("/templates/update-form/", {
     method: "POST",
