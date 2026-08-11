@@ -279,7 +279,7 @@ export async function syncFormFromSourceTemplate(
     json: {
       template_id: cleanTemplateId,
       custom_intro:
-        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme o que recebeu e anexe a foto do RG.",
+        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme o que recebeu e anexe fotos do RG (frente e verso).",
       youtube_video_code: "",
       hide_prefilled_fields: true,
       inputs,
@@ -423,7 +423,7 @@ export async function applyCampinasClientForm(
     json: {
       template_id: templateId,
       custom_intro:
-        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme o que recebeu e anexe a foto do RG.",
+        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme o que recebeu e anexe fotos do RG (frente e verso).",
       youtube_video_code: "",
       hide_prefilled_fields: true,
       inputs: [...storeInputs, ...clientInputs],

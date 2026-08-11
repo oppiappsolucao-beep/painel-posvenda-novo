@@ -81,10 +81,18 @@ export const CAMPINAS_CLIENT_UPLOAD_FIELDS: ZapSignTemplateField[] = [
   {
     variable: "",
     input_type: "upload",
-    label: "Foto do RG",
-    help_text: "Tire uma foto nítida do seu documento de identidade (RG)",
+    label: "RG — Frente",
+    help_text: "Tire uma foto nítida da frente do seu documento de identidade (RG)",
     required: true,
     order: 6,
+  },
+  {
+    variable: "",
+    input_type: "upload",
+    label: "RG — Verso",
+    help_text: "Tire uma foto nítida do verso do seu documento de identidade (RG)",
+    required: true,
+    order: 7,
   },
 ];
 
