@@ -2,7 +2,7 @@ import JSZip from "jszip";
 
 const SHADING_PATTERN = /<w:(?:highlight|shd)\b/gi;
 /** Placeholder quebrado no DOCX (faltava "{{" no início). Não altera {{contratante-nome-completo}}. */
-const BROKEN_NOME_PLACEHOLDER_PATTERN = /(?<!\{)nome-completo\}\}/g;
+const BROKEN_NOME_PLACEHOLDER_PATTERN = /(?<![\{-])nome-completo\}\}/g;
 
 const DOC_ACK_TEMPLATE_VARS = [
   "carteirinha",

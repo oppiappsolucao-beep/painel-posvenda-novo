@@ -13,7 +13,7 @@ import {
   templateHasStoreUploadWorkflow,
 } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 16;
+const CACHE_VERSION = 18;
 
 export interface ZapSignTemplateDetail {
   token: string;

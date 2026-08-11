@@ -8,6 +8,7 @@ import {
   CAMPINAS_STORE_FORM_LABELS,
   CAMPINAS_STORE_PREFILLED_VARIABLES,
   campinasClientFormFields,
+  campinasStoreZapSignFormFields,
   campinasStoreFirstFormFields,
 } from "../config/zapsignCampinas.js";
 
@@ -205,7 +206,7 @@ export function buildTemplateFormInputs(detail?: ZapSignTemplateDetail) {
   const { storeIndex, clientIndex } = resolveTemplateSignerIndexes(detail?.signers || []);
 
   if (sourceInputs.length === 0) {
-    const storeInputs = campinasStoreFirstFormFields().map(mapFormField);
+    const storeInputs = campinasStoreZapSignFormFields().map(mapFormField);
     const clientInputs = campinasClientFormFields().map(mapFormField);
     const storeOrdered = storeInputs.map((input, index) => ({
       ...input,
@@ -225,8 +226,18 @@ export function buildTemplateFormInputs(detail?: ZapSignTemplateDetail) {
   }
 
   let clientInputs = sourceInputs.filter((input) => isDocAckRadioInput(input) || isClientUploadInput(input));
-  let storeInputs = sourceInputs.filter((input) => isStoreCnpjInput(input) || isStoreUploadInput(input));
-  storeInputs = dedupeTemplateInputs(storeInputs);
+  let storeInputs = sourceInputs.filter((input) => isStoreCnpjInput(input));
+  if (storeInputs.length === 0) {
+    storeInputs = campinasStoreZapSignFormFields().map((field) => ({
+      variable: field.variable,
+      input_type: field.input_type,
+      label: field.label,
+      help_text: field.help_text,
+      options: field.options,
+      required: field.required,
+      order: field.order,
+    }));
+  }
 
   const existingClientLabels = new Set(
     clientInputs.map((input) => String(input.label || "").trim().toLowerCase()),
@@ -383,10 +394,13 @@ function isClientUploadInput(input: ZapSignTemplateInput): boolean {
   return CAMPINAS_CLIENT_FORM_LABELS.has(label);
 }
 
-/** Copia formulário curado (CNPJ/anexos loja + radios/RG cliente) com order por signatário. */
+/** Copia formulário curado (CNPJ loja + radios/RG cliente) com order por signatário. */
 export function pickFormInputsFromSource(detail: ZapSignTemplateDetail) {
   return buildTemplateFormInputs(detail);
 }
+
+const FORM_INTRO =
+  "Loja: informe o CNPJ da loja para continuar. Cliente: confirme o que recebeu e anexe fotos do RG (frente e verso).";
 
 export async function syncFormFromSourceTemplate(
   sourceTemplateId: string,
@@ -400,8 +414,7 @@ export async function syncFormFromSourceTemplate(
     method: "POST",
     json: {
       template_id: cleanTemplateId,
-      custom_intro:
-        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme o que recebeu e anexe fotos do RG (frente e verso).",
+      custom_intro: FORM_INTRO,
       youtube_video_code: "",
       hide_prefilled_fields: true,
       inputs,
@@ -532,10 +545,7 @@ export async function syncCampinasStoreSignerFromSource(
   }
 }
 
-/**
- * Formulário: signatário 1 (loja) = CNPJ + anexos.
- * Cliente (signatário 2) = radios de documentação + foto do RG.
- */
+/** Formulário: loja = só CNPJ (anexos pelo painel). Cliente = radios + RG. */
 export async function applyCampinasClientForm(
   templateId: string,
   zapsignRequest: ZapSignRequest,
@@ -549,8 +559,7 @@ export async function applyCampinasClientForm(
     method: "POST",
     json: {
       template_id: templateId,
-      custom_intro:
-        "Loja: informe o CNPJ e anexe os documentos do filhote. Cliente: confirme o que recebeu e anexe fotos do RG (frente e verso).",
+      custom_intro: FORM_INTRO,
       youtube_video_code: "",
       hide_prefilled_fields: true,
       inputs,

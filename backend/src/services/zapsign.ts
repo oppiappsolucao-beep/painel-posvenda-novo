@@ -632,7 +632,7 @@ export async function createUnitContractDocument(
     sandbox,
     external_id: externalId,
     folder_path: zapsignFolderPath(unitKey),
-    signer_has_incomplete_fields: false,
+    signer_has_incomplete_fields: true,
     signature_order_active: true,
     brand_name: brandName,
     created_by: (process.env.ZAPSIGN_CREATED_BY || "contato@skoobpet.com.br").trim().toLowerCase(),

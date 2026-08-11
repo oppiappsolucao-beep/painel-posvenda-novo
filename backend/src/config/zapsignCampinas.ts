@@ -188,6 +188,11 @@ export const CAMPINAS_STORE_FORM_FIELDS: ZapSignTemplateField[] = [
   ...CAMPINAS_STORE_UPLOAD_FIELDS,
 ];
 
+/** Formulário do signatário loja no ZapSign: só CNPJ (anexos vão pelo painel SkoobPet). */
+export function campinasStoreZapSignFormFields(): ZapSignTemplateField[] {
+  return [{ ...CAMPINAS_STORE_CNPJ_FIELD, order: 1 }];
+}
+
 /** Formulário do signatário 1 (loja): CNPJ + anexos. Cliente responde radios + foto do RG (signatário 2). */
 export function campinasStoreFirstFormFields(): ZapSignTemplateField[] {
   return CAMPINAS_STORE_FORM_FIELDS.map((field, index) => ({ ...field, order: index + 1 }));
