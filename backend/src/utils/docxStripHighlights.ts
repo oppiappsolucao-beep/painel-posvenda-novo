@@ -14,25 +14,17 @@ const DOC_ACK_TEMPLATE_VARS = [
 ] as const;
 
 /**
- * Na cláusula 3.1, remove rótulos estáticos numerados e deixa só {{var}}.
- * O valor preenchido pelo cliente já traz a linha completa (rótulo + resposta).
+ * Na cláusula 3.1, remove só a numeração ("1. ", "2. ", …) e mantém rótulo + {{var}}.
+ * O cliente preenche a resposta ao assinar; antes disso o rótulo continua visível no PDF.
  */
 export function fixDocumentacaoFilhoteParagraphsInXml(xml: string): string {
   return xml.replace(/<w:p[\s\S]*?<\/w:p>/g, (paragraph) => {
-    for (const variable of DOC_ACK_TEMPLATE_VARS) {
-      const placeholder = `{{${variable}}}`;
-      if (!paragraph.includes(placeholder)) continue;
+    const hasDocAckVar = DOC_ACK_TEMPLATE_VARS.some((variable) =>
+      paragraph.includes(`{{${variable}}}`),
+    );
+    if (!hasDocAckVar) return paragraph;
 
-      const openTag = paragraph.match(/^<w:p[^>]*>/)?.[0] ?? "<w:p>";
-      const afterOpen = paragraph.slice(openTag.length);
-      const pPr = afterOpen.match(/^<w:pPr>[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
-      const runs = paragraph.match(/<w:r[\s\S]*?<\/w:r>/g) ?? [];
-      const run = runs.find((candidate) => candidate.includes(placeholder));
-      if (!run) return paragraph;
-
-      return `${openTag}${pPr}${run}</w:p>`;
-    }
-    return paragraph;
+    return paragraph.replace(/(<w:t(?:\s[^>]*)?>)\d+\.\s*/g, "$1");
   });
 }
 
