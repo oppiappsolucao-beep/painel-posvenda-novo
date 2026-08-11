@@ -45,6 +45,7 @@ import {
 import {
   buildZapSignSheetPatch,
   createUnitContractDocument,
+  fetchZapSignDocumentPdf,
   isZapSignEnabled,
 } from "../services/zapsign.js";
 import {
@@ -446,10 +447,19 @@ router.get("/contracts/preview/:unitKey/:sheetIndex", authMiddleware, requireRol
       return;
     }
 
-    const record = await getSignature(unitKey, sheetIndex);
-    const attachments = await getContractAttachmentBuffers(unitKey, sheetIndex);
-    const pdf = await generateContractPdf(contrato, signatureImages(record), attachments);
     const nome = limparNomeArquivo(String(contrato["Nome"] || "contrato"));
+    const docToken = String(contrato["Documento ZapSign"] || "").trim();
+    let pdf: Buffer | null = null;
+
+    if (docToken && isZapSignEnabled(unitKey)) {
+      pdf = await fetchZapSignDocumentPdf(docToken);
+    }
+
+    if (!pdf) {
+      const record = await getSignature(unitKey, sheetIndex);
+      const attachments = await getContractAttachmentBuffers(unitKey, sheetIndex);
+      pdf = await generateContractPdf(contrato, signatureImages(record), attachments);
+    }
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="contrato_${nome}.pdf"`);

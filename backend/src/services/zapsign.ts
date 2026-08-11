@@ -730,6 +730,30 @@ export async function uploadZapSignExtraDoc(
   });
 }
 
+/** PDF gerado pelo ZapSign (original ou assinado) para pré-visualização no painel. */
+export async function fetchZapSignDocumentPdf(docToken: string): Promise<Buffer | null> {
+  const token = docToken.trim();
+  if (!token) return null;
+
+  try {
+    const doc = await zapsignRequest<{ original_file?: string; signed_file?: string }>(`/docs/${token}/`);
+    const fileUrl = String(doc.signed_file || doc.original_file || "").trim();
+    if (!fileUrl) return null;
+
+    const response = await fetch(fileUrl);
+    if (!response.ok) return null;
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return buffer.length ? buffer : null;
+  } catch (error) {
+    console.warn(
+      "[zapsign] Não foi possível baixar PDF para pré-visualização:",
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  }
+}
+
 export function buildZapSignSheetPatch(
   doc: ZapSignCreatedDocument,
   contrato?: SheetRow,

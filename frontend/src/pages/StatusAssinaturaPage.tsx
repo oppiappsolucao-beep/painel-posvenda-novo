@@ -428,6 +428,16 @@ export function StatusAssinaturaPage() {
                         <td className="px-4 py-4">
                           <div className="font-semibold text-slate-800">{item.nome}</div>
                           <span className="text-sm text-slate-500">{item.identificador}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPreview(item);
+                            }}
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline"
+                          >
+                            Visualizar contrato
+                          </button>
                         </td>
                         <td className="px-4 py-4 text-center align-top min-w-[280px]" data-no-preview>
                           <div className={`font-bold mb-2 ${item.status === "assinado" ? "text-green-700" : "text-slate-900"}`}>
