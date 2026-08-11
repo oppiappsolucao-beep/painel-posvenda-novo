@@ -422,9 +422,44 @@ function resolveClientDocAckFields(sourceInputs: ZapSignTemplateInput[]): ZapSig
   return resolved;
 }
 
-/** Campos visíveis no formulário (somente CNPJ loja + radios/RG cliente). */
+/** Campos visíveis no formulário; demais variáveis do DOCX ficam opcionais (pré-preenchidas via API). */
 export function buildTemplateFormUpdatePayload(detail: ZapSignTemplateDetail) {
-  return buildTemplateFormInputs(detail).filter(shouldExposeInSignerForm);
+  const curated = buildTemplateFormInputs(detail).filter(shouldExposeInSignerForm);
+  const curatedByKey = new Map(curated.map((input) => [templateInputKey(input), input]));
+  const sourceInputs = detail.inputs || [];
+
+  if (sourceInputs.length === 0) {
+    return curated;
+  }
+
+  let backgroundOrder = 900;
+  const merged: ZapSignTemplateInput[] = [];
+
+  for (const input of sourceInputs) {
+    if (isStoreUploadInput(input)) continue;
+
+    const key = templateInputKey(input);
+    const override = curatedByKey.get(key);
+    if (override) {
+      merged.push(override);
+      curatedByKey.delete(key);
+      continue;
+    }
+
+    if (shouldExposeInSignerForm(input)) continue;
+
+    merged.push({
+      ...mapExistingTemplateInput(input),
+      required: false,
+      order: backgroundOrder++,
+    });
+  }
+
+  for (const remaining of curatedByKey.values()) {
+    merged.push(remaining);
+  }
+
+  return dedupeTemplateInputs(merged);
 }
 
 /** Modelo-fonte com anexos da loja embutidos (Foto filhote, Atestado, etc.). */

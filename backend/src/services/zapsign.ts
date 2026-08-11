@@ -4,6 +4,7 @@ import { getUnitByKey } from "../config.js";
 import {
   getZapSignApiBase,
   getZapSignApiToken,
+  getZapSignProductionTemplateId,
   getZapSignTemplateId,
   isZapSignEnabled,
   isZapSignSandbox,
@@ -14,7 +15,7 @@ import {
 import { getUnitStoreEmailsForNotifications } from "./unitEmails.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
 import { isSmtpConfigured, sendContractSignEmail } from "./email.js";
-import { resolveProductionTemplateId, resetCleanTemplateCache } from "./zapsignCleanTemplate.js";
+import { readCachedCleanTemplateId, resolveProductionTemplateId, resetCleanTemplateCache } from "./zapsignCleanTemplate.js";
 import {
   applyCampinasClientForm,
   campinasClientAuthMode,
@@ -126,6 +127,23 @@ async function ensureClientFormConfigured(unitKey: UnitKey, templateId: string):
 }
 
 async function getProductionTemplateId(unitKey: UnitKey, allowRetry = true): Promise<string> {
+  const productionOverride = getZapSignProductionTemplateId(unitKey);
+  if (productionOverride) {
+    cachedProductionTemplateIds.set(unitKey, productionOverride);
+    return productionOverride;
+  }
+
+  const cachedClean = await readCachedCleanTemplateId(unitKey);
+  if (cachedClean) {
+    const cachedDetail = await zapsignRequest<{ inputs?: Array<{ input_type?: string; label?: string; variable?: string }> }>(
+      `/templates/${cachedClean}/`,
+    ).catch(() => null);
+    if (cachedDetail && !templateHasLegacyStoreUploadFields(cachedDetail)) {
+      cachedProductionTemplateIds.set(unitKey, cachedClean);
+      return cachedClean;
+    }
+  }
+
   const { templateId } = getConfig(unitKey);
   if (!templateId) return "";
 

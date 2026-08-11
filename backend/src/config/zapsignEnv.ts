@@ -46,6 +46,19 @@ function envValue(key: string): string {
   return process.env[key]?.trim() || "";
 }
 
+/** Templates limpos em produção (sem anexos legados no link do cliente). */
+const DEFAULT_PRODUCTION_TEMPLATE_IDS: Partial<Record<UnitKey, string>> = {
+  campinas: "e90eab76-5580-4bad-813f-92a00fabcd62",
+  piracicaba: "1e905160-dcce-43cd-a78c-18b2ad5b4af6",
+  indaiatuba: "3cf9c387-d450-4810-8154-3b66721f8588",
+};
+
+/** Template ZapSign de produção (limpo, sem anexos legados). Sobrescreve o modelo-fonte do .env. */
+export function getZapSignProductionTemplateId(unitKey: UnitKey): string {
+  const key = `ZAPSIGN_PRODUCTION_TEMPLATE_ID_${unitKey.toUpperCase()}`;
+  return envValue(key) || DEFAULT_PRODUCTION_TEMPLATE_IDS[unitKey] || "";
+}
+
 /** Template ZapSign da unidade. Se não houver ID próprio, usa o de Campinas (retrocompatível). */
 export function getZapSignTemplateId(unitKey: UnitKey): string {
   const keys = UNIT_TEMPLATE_ENV[unitKey];

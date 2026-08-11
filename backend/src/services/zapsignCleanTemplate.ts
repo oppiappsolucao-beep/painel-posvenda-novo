@@ -13,7 +13,7 @@ import {
   templateHasStoreUploadWorkflow,
 } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 25;
+const CACHE_VERSION = 26;
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -97,6 +97,13 @@ async function writeCache(cache: CleanTemplateCache): Promise<void> {
   memoryCleanTokens.set(cache.unitKey, cache.cleanToken);
 }
 
+/** Token do template limpo em cache (sem anexos legados da loja). */
+export async function readCachedCleanTemplateId(unitKey: UnitKey): Promise<string | null> {
+  const cache = await readCache(unitKey);
+  if (!cache?.cleanToken || cache.useSourceForSigners === true) return null;
+  return cache.cleanToken;
+}
+
 /**
  * Deriva um template ZapSign sem destaque a partir do modelo de exemplo (colorido).
  * O Google Doc / template original permanece intacto; só contratos gerados usam a cópia limpa.
@@ -150,14 +157,10 @@ export async function resolveProductionTemplateId(
     cache.unitKey === unitKey &&
     cache.sourceToken === sourceTemplateId &&
     cache.sourceFileHash === fileHash &&
-    cache.cleanToken
+    cache.cleanToken &&
+    cache.useSourceForSigners !== true
   ) {
     memoryCleanTokens.set(unitKey, cache.cleanToken);
-    if (cache.useSourceForSigners) {
-      console.log(
-        `[zapsign] Formulário loja/cliente via modelo-fonte ${cache.cleanToken} (${unitKey}).`,
-      );
-    }
     return cache.cleanToken;
   }
 

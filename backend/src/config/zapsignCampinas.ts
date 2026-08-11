@@ -207,6 +207,7 @@ export const CAMPINAS_STORE_PREFILLED_VARIABLES = [
   "{{nome-completo}}",
   "{{endereco}}",
   "{{numero}}",
+  "{{complemento}}",
   "{{bairro}}",
   "{{cidade}}",
   "{{uf}}",
