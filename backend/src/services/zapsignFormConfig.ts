@@ -165,10 +165,21 @@ export function buildCleanTemplateSigners(unitKey: UnitKey) {
 }
 
 function isStoreSigner(signer: { qualification?: string; name?: string }): boolean {
+  const qualification = String(signer.qualification || "").toLowerCase();
+  const name = String(signer.name || "").toLowerCase();
   return (
-    String(signer.qualification || "").toLowerCase() === "lojista" ||
-    String(signer.name || "").toLowerCase().includes("loja")
+    qualification === "lojista" ||
+    name.includes("loja") ||
+    name.includes("skoobpet") ||
+    name.includes("skookpet")
   );
+}
+
+function isSameSignerToken(
+  a?: { token?: string },
+  b?: { token?: string },
+): boolean {
+  return Boolean(a?.token && b?.token && a.token === b.token);
 }
 
 export function findStoreSigner<T extends { qualification?: string; name?: string }>(
@@ -181,14 +192,27 @@ export function findStoreSigner<T extends { qualification?: string; name?: strin
   );
 }
 
-export function findClientSigner<T extends { qualification?: string; name?: string }>(
+export function findClientSigner<T extends { qualification?: string; name?: string; token?: string }>(
   signers: T[] = [],
 ): T | undefined {
-  return (
-    signers.find((signer) => String(signer.qualification || "").toLowerCase() === "cliente") ||
-    signers.find((signer) => !isStoreSigner(signer)) ||
-    signers[CAMPINAS_CLIENT_SIGNER_INDEX]
+  if (signers.length <= 1) return undefined;
+
+  const storeSigner = findStoreSigner(signers);
+  const byQualification = signers.find(
+    (signer) => String(signer.qualification || "").toLowerCase() === "cliente",
   );
+  if (byQualification && !isSameSignerToken(byQualification, storeSigner)) {
+    return byQualification;
+  }
+
+  const notStore = signers.find(
+    (signer) => !isStoreSigner(signer) && !isSameSignerToken(signer, storeSigner),
+  );
+  if (notStore) return notStore;
+
+  const byIndex = signers[CAMPINAS_CLIENT_SIGNER_INDEX];
+  if (byIndex && !isSameSignerToken(byIndex, storeSigner)) return byIndex;
+  return undefined;
 }
 
 export function resolveTemplateSignerIndexes(signers: ZapSignTemplateSigner[] = []) {

@@ -449,9 +449,14 @@ async function ensureClientSigner(
 
   const detail = await zapsignRequest<{ signers?: ZapSignSignerResponse[] }>(`/docs/${docToken}/`);
   const signers = detail.signers || [];
+  const storeSigner = findStoreSigner(signers);
   let clientSigner = findClientSigner(signers);
+  const clientMissing =
+    signers.length <= 1 ||
+    !clientSigner?.token ||
+    Boolean(storeSigner?.token && clientSigner?.token === storeSigner.token);
 
-  if (!clientSigner?.token && signers.length <= 1) {
+  if (clientMissing) {
     clientSigner = await addClientSignerToDocument(
       docToken,
       contrato,
@@ -462,11 +467,6 @@ async function ensureClientSigner(
   }
 
   if (!clientSigner?.token) return {};
-
-  const existingUrl = signerResponseUrl(clientSigner);
-  if (!sendAutomaticEmail && !sendAutomaticWhatsapp) {
-    return { signUrl: existingUrl };
-  }
 
   const payload = {
     name: nome,
@@ -743,17 +743,16 @@ export async function createUnitContractDocument(
     json: payload,
   });
 
-  const docDetail = await zapsignRequest<{ signers?: ZapSignSigner[] }>(`/docs/${doc.token}/`);
-
   const storeSendViaZapSign =
     shouldSendSignEmails() && !emailViaSmtp && !isWhatsappDeliveryEnabled(lojaPhone);
   const store = await ensureStoreSigner(unitKey, doc.token, templateId, contrato, storeSendViaZapSign);
 
   const client = await ensureClientSigner(doc.token, contrato, sendViaZapSign, sendWhatsapp);
-  const docSigners = docDetail.signers || doc.signers || [];
+  const refreshedSigners =
+    (await zapsignRequest<{ signers?: ZapSignSigner[] }>(`/docs/${doc.token}/`)).signers || [];
   const clientSignUrl =
     client.signUrl ||
-    signerResponseUrl(findClientSigner(docSigners));
+    signerResponseUrl(findClientSigner(refreshedSigners));
 
   if (!clientSignUrl) {
     throw new Error("ZapSign não retornou link de assinatura do cliente.");
