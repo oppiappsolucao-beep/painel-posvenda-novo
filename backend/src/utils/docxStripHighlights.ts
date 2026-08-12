@@ -12,8 +12,13 @@ const JUSTIFY_BOTH = '<w:jc w:val="both"/>';
 /** Quebra de página OOXML antes do termo de imagem/voz (página separada). */
 const PAGE_BREAK_PARAGRAPH = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
 const IMAGE_TERM_TITLE = /TERMO DE AUTORIZA(?:Ç|c)(?:Ã|A)O DE USO DE IMAGEM E VOZ/i;
-/** Placeholder quebrado no DOCX (faltava "{{" no início). Não altera {{contratante-nome-completo}}. */
-const BROKEN_NOME_PLACEHOLDER_PATTERN = /(?<![\{-])nome-completo\}\}/g;
+/** Placeholders quebrados no DOCX (faltava "{{" no início ou tag partida). */
+const BROKEN_PLACEHOLDER_FIXES: Array<[RegExp, string]> = [
+  [/(?<![\{-])nome-completo\}\}/g, "{{nome-completo}}"],
+  [/(?<!\{)\{celular\}\}/g, "{{celular}}"],
+  [/\{\{e-mai\}\}l/g, "{{e-mail}}"],
+  [/\{\{\{\{nome-completo\}\}/g, "{{nome-completo}}"],
+];
 
 const DOC_ACK_TEMPLATE_VARS = [
   "carteirinha",
@@ -38,9 +43,21 @@ export function fixDocumentacaoFilhoteParagraphsInXml(xml: string): string {
   });
 }
 
-/** Corrige placeholder quebrado no DOCX original (faltava "{{" no início). */
+/** Remove run órfão "{{" imediatamente antes de outro placeholder no mesmo parágrafo. */
+function fixOrphanOpenBraceRunsInXml(xml: string): string {
+  return xml.replace(
+    /<w:t(\s[^>]*)>\{\{<\/w:t><\/w:r>(<w:r[\s\S]*?)<w:t(\s[^>]*)>\{\{([a-z0-9-]+)\}\}<\/w:t>/gi,
+    (_match, _tAttr1, _middle, tAttr2, varName) => `<w:t${tAttr2}>{{${varName}}}</w:t>`,
+  );
+}
+
+/** Corrige placeholders quebrados no DOCX original. */
 export function fixCampinasPlaceholdersInXml(xml: string): string {
-  let result = xml.replace(BROKEN_NOME_PLACEHOLDER_PATTERN, "{{nome-completo}}");
+  let result = xml;
+  for (const [pattern, replacement] of BROKEN_PLACEHOLDER_FIXES) {
+    result = result.replace(pattern, replacement);
+  }
+  result = fixOrphanOpenBraceRunsInXml(result);
   result = fixDocumentacaoFilhoteParagraphsInXml(result);
   return result;
 }
@@ -74,7 +91,10 @@ export function localizeUnitVendorInXml(xml: string, unitKey: UnitKey): string {
 }
 
 export function countBrokenCampinasPlaceholders(docxXml: string): number {
-  return docxXml.match(BROKEN_NOME_PLACEHOLDER_PATTERN)?.length ?? 0;
+  return BROKEN_PLACEHOLDER_FIXES.reduce(
+    (total, [pattern]) => total + (docxXml.match(pattern)?.length ?? 0),
+    0,
+  );
 }
 
 function paragraphPlainText(paragraph: string): string {

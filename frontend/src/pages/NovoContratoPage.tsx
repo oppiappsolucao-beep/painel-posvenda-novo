@@ -162,6 +162,7 @@ export function NovoContratoPage() {
       CEP: cep,
       Estado: estado,
       Cidade: cidade,
+      Bairro: cidade,
       RG: rg,
       "Valor Filhote": valorFilhote,
       "Valor por extenso": valorExtenso,

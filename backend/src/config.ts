@@ -147,7 +147,7 @@ export const config = {
 
 export const DEFAULT_HEADERS = [
   "Nome", "Telefone", "CPF", "E-mail", "Data Compra", "Mês", "Raça", "Sexo", "Cor",
-  "Pelagem", "Endereço", "Número", "Complemento", "CEP", "Estado", "Cidade", "RG",
+  "Pelagem", "Endereço", "Número", "Complemento", "CEP", "Estado", "Cidade", "Bairro", "RG",
   "Valor Filhote", "Valor por extenso", "Forma de pagamento", "Quantidade de parcelas",
   "Vendedora", "Nome do animal", "Espécie", "Microchip", "Nascimento filhote",
   "Observações", "Data preenchimento", "Unidade",

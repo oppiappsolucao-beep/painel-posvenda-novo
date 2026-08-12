@@ -275,12 +275,23 @@ function splitPurchaseDate(dataCompra: string): { day: string; monthName: string
   };
 }
 
+function formatPhoneBr(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return raw.trim();
+}
+
 /** Variáveis preenchidas pela loja ao criar o documento no ZapSign. */
 export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: string; para: string }> {
   const dataCompra = pick(contrato, "Data Compra");
   const { day, monthName, year } = splitPurchaseDate(dataCompra);
   const nome = pick(contrato, "Nome");
-  const telefone = pick(contrato, "Telefone");
+  const telefone = formatPhoneBr(pick(contrato, "Telefone"));
   const email = pick(contrato, "E-mail", "Email");
 
   const prefilled = (value: string) => value || "\u200b";
@@ -315,7 +326,11 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
     ["{{nome-sobrenome}}", prefilled(pick(contrato, "Vendedora"))],
     ["{{contratante-nome-completo}}", prefilled(nome)],
     ["{{celular}}", prefilled(telefone)],
+    // Placeholders quebrados no DOCX (Piracicaba/legado).
+    ["celular}}", prefilled(telefone)],
+    ["{celular}}", prefilled(telefone)],
     ["{{e-mail}}", prefilled(email)],
+    ["{{e-mai}}l", prefilled(email)],
     ["{{exemplo-18}}", prefilled(day)],
     ["{{fevereiro}}", prefilled(monthName)],
     ["{{cpf}}", prefilled(pick(contrato, "CPF"))],

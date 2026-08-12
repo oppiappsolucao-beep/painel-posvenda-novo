@@ -13,7 +13,7 @@ import {
   templateHasStoreUploadWorkflow,
 } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 31;
+const CACHE_VERSION = 32;
 
 /** Só reescreve endereço no DOCX quando a unidade ainda usa o modelo-fonte de Campinas. */
 function shouldLocalizeVendorFromCampinas(unitKey: UnitKey, sourceTemplateId: string): boolean {
