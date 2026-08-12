@@ -13,9 +13,15 @@ import { getZapSignTemplateId, zapsignFolderPath } from "../dist/config/zapsignE
 import { getUnitByKey } from "../dist/config.js";
 import {
   fixCampinasDocxPlaceholders,
-  localizeUnitLabelInDocx,
+  localizeUnitVendorInDocx,
   stripDocxHighlightsVerified,
 } from "../dist/utils/docxStripHighlights.js";
+
+function shouldLocalizeVendorFromCampinas(unitKey, sourceTemplateId) {
+  if (unitKey === "campinas") return false;
+  const campinasSource = getZapSignTemplateId("campinas");
+  return Boolean(campinasSource && sourceTemplateId === campinasSource);
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.join(__dirname, "../data/easypanel-env-restore.txt");
@@ -69,11 +75,10 @@ for (const unitKey of UNITS) {
   const source = await zapsignRequest(`/templates/${sourceTemplateId}/`);
   const docxBuffer = await downloadDocx(source.template_file);
   const { buffer: cleanDocx } = await stripDocxHighlightsVerified(docxBuffer);
-  const localizedDocx = await localizeUnitLabelInDocx(
-    await fixCampinasDocxPlaceholders(cleanDocx),
-    unitLabel,
-    "Campinas",
-  );
+  const fixedDocx = await fixCampinasDocxPlaceholders(cleanDocx);
+  const localizedDocx = shouldLocalizeVendorFromCampinas(unitKey, sourceTemplateId)
+    ? await localizeUnitVendorInDocx(fixedDocx, unitKey)
+    : fixedDocx;
 
   const templateDisplayName = `Contrato Filhotes ${unitLabel} — assinatura`;
   const created = await zapsignRequest("/templates/create/", {

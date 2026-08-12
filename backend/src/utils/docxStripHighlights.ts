@@ -1,4 +1,9 @@
 import JSZip from "jszip";
+import type { UnitKey } from "../config.js";
+import {
+  CAMPINAS_VENDOR_BLOCK_DOCX,
+  getUnitVendorDocxConfig,
+} from "../config/unitVendorDocx.js";
 
 const SHADING_PATTERN = /<w:(?:highlight|shd)\b/gi;
 /** Placeholder quebrado no DOCX (faltava "{{" no início). Não altera {{contratante-nome-completo}}. */
@@ -40,7 +45,26 @@ export function localizeUnitLabelInXml(xml: string, unitLabel: string, sourceLab
     return xml;
   }
   const escaped = sourceLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return xml.replace(new RegExp(escaped, "g"), unitLabel);
+  return xml.replace(new RegExp(escaped, "gi"), unitLabel);
+}
+
+/**
+ * Localiza o contrato para a unidade: bloco VENDEDOR, CNPJ no rodapé e referências à cidade (foro, assinatura).
+ */
+export function localizeUnitVendorInXml(xml: string, unitKey: UnitKey): string {
+  if (unitKey === "campinas") return xml;
+
+  const vendor = getUnitVendorDocxConfig(unitKey);
+  let result = xml;
+
+  if (result.includes(CAMPINAS_VENDOR_BLOCK_DOCX)) {
+    result = result.replace(CAMPINAS_VENDOR_BLOCK_DOCX, vendor.introBlock);
+  }
+
+  result = result.replace(/47\.945\.634\/0002-61/g, vendor.cnpjFormatted);
+  result = result.replace(/CAMPINAS/gi, vendor.cityUpper);
+
+  return result;
 }
 
 export function countBrokenCampinasPlaceholders(docxXml: string): number {
@@ -104,6 +128,30 @@ export async function localizeUnitLabelInDocx(
     if (!file || file.dir || !/\.xml$/i.test(name)) continue;
     const content = await file.async("string");
     const localized = localizeUnitLabelInXml(content, unitLabel, sourceLabel);
+    if (localized !== content) {
+      zip.file(name, localized);
+      changed = true;
+    }
+  }
+
+  if (!changed) return docxBuffer;
+  return Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
+}
+
+export async function localizeUnitVendorInDocx(
+  docxBuffer: Buffer,
+  unitKey: UnitKey,
+): Promise<Buffer> {
+  if (unitKey === "campinas") return docxBuffer;
+
+  const zip = await JSZip.loadAsync(docxBuffer);
+  let changed = false;
+
+  for (const name of Object.keys(zip.files)) {
+    const file = zip.files[name];
+    if (!file || file.dir || !/\.xml$/i.test(name)) continue;
+    const content = await file.async("string");
+    const localized = localizeUnitVendorInXml(content, unitKey);
     if (localized !== content) {
       zip.file(name, localized);
       changed = true;

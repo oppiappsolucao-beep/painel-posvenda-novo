@@ -3,9 +3,9 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import type { UnitKey } from "../config.js";
-import { isZapSignSandbox, zapsignFolderPath } from "../config/zapsignEnv.js";
+import { isZapSignSandbox, zapsignFolderPath, getZapSignTemplateId } from "../config/zapsignEnv.js";
 import { getUnitByKey } from "../config.js";
-import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders, fixCampinasDocxPlaceholders, localizeUnitLabelInDocx } from "../utils/docxStripHighlights.js";
+import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders, fixCampinasDocxPlaceholders, localizeUnitVendorInDocx } from "../utils/docxStripHighlights.js";
 import {
   applyCampinasClientForm,
   buildCleanTemplateSigners,
@@ -13,7 +13,14 @@ import {
   templateHasStoreUploadWorkflow,
 } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 27;
+const CACHE_VERSION = 29;
+
+/** Só reescreve endereço no DOCX quando a unidade ainda usa o modelo-fonte de Campinas. */
+function shouldLocalizeVendorFromCampinas(unitKey: UnitKey, sourceTemplateId: string): boolean {
+  if (unitKey === "campinas") return false;
+  const campinasSource = getZapSignTemplateId("campinas");
+  return Boolean(campinasSource && sourceTemplateId === campinasSource);
+}
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -174,10 +181,10 @@ export async function resolveProductionTemplateId(
         fixed: true,
       }
     : await stripDocxHighlightsVerified(docxBuffer);
-  const localizedDocx =
-    unitKey === "campinas"
-      ? cleanDocx
-      : await localizeUnitLabelInDocx(cleanDocx, unitLabel, "Campinas");
+  const fixedDocx = await fixCampinasDocxPlaceholders(cleanDocx);
+  const localizedDocx = shouldLocalizeVendorFromCampinas(unitKey, sourceTemplateId)
+    ? await localizeUnitVendorInDocx(fixedDocx, unitKey)
+    : fixedDocx;
   if (!skipHighlights) {
     console.log(`[zapsign] neutralizar destaque (${unitKey}): before=${before} after=${after} fixed=${fixed}`);
   }
