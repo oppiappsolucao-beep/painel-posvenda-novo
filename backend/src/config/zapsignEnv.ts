@@ -53,10 +53,21 @@ const DEFAULT_PRODUCTION_TEMPLATE_IDS: Partial<Record<UnitKey, string>> = {
   indaiatuba: "4016c8fb-e378-457a-b839-8e6c11d7e405",
 };
 
+/** Clones antigos (nome/conteúdo Campinas) — ignorados se ainda estiverem no .env de produção. */
+const DEPRECATED_PRODUCTION_TEMPLATE_IDS: Partial<Record<UnitKey, string>> = {
+  piracicaba: "1e905160-dcce-43cd-a78c-18b2ad5b4af6",
+  indaiatuba: "3cf9c387-d450-4810-8154-3b66721f8588",
+};
+
 /** Template ZapSign de produção (limpo, sem anexos legados). Sobrescreve o modelo-fonte do .env. */
 export function getZapSignProductionTemplateId(unitKey: UnitKey): string {
   const key = `ZAPSIGN_PRODUCTION_TEMPLATE_ID_${unitKey.toUpperCase()}`;
-  return envValue(key) || DEFAULT_PRODUCTION_TEMPLATE_IDS[unitKey] || "";
+  const fromEnv = envValue(key);
+  const deprecated = DEPRECATED_PRODUCTION_TEMPLATE_IDS[unitKey];
+  if (fromEnv && deprecated && fromEnv === deprecated) {
+    return DEFAULT_PRODUCTION_TEMPLATE_IDS[unitKey] || fromEnv;
+  }
+  return fromEnv || DEFAULT_PRODUCTION_TEMPLATE_IDS[unitKey] || "";
 }
 
 /** Template ZapSign da unidade. Se não houver ID próprio, usa o de Campinas (retrocompatível). */
