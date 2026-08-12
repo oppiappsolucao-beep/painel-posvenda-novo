@@ -185,11 +185,19 @@ function isSameSignerToken(
 export function findStoreSigner<T extends { qualification?: string; name?: string }>(
   signers: T[] = [],
 ): T | undefined {
-  return (
-    signers.find((signer) => String(signer.qualification || "").toLowerCase() === "lojista") ||
-    signers.find(isStoreSigner) ||
-    signers[CAMPINAS_STORE_SIGNER_INDEX]
+  const byQualification = signers.find(
+    (signer) => String(signer.qualification || "").toLowerCase() === "lojista",
   );
+  if (byQualification) return byQualification;
+
+  const byName = signers.find(isStoreSigner);
+  if (byName) return byName;
+
+  // Só usa índice 0 como loja quando o modelo já tem 2+ signatários (legado loja→cliente).
+  if (signers.length >= 2) {
+    return signers[CAMPINAS_STORE_SIGNER_INDEX];
+  }
+  return undefined;
 }
 
 export function findClientSigner<T extends { qualification?: string; name?: string; token?: string }>(
@@ -197,17 +205,16 @@ export function findClientSigner<T extends { qualification?: string; name?: stri
 ): T | undefined {
   if (signers.length === 0) return undefined;
 
+  const byQualification = signers.find(
+    (signer) => String(signer.qualification || "").toLowerCase() === "cliente",
+  );
+  if (byQualification) return byQualification;
+
   const storeSigner = findStoreSigner(signers);
   if (signers.length === 1 && !storeSigner) {
     return signers[0];
   }
   if (signers.length <= 1) return undefined;
-  const byQualification = signers.find(
-    (signer) => String(signer.qualification || "").toLowerCase() === "cliente",
-  );
-  if (byQualification && !isSameSignerToken(byQualification, storeSigner)) {
-    return byQualification;
-  }
 
   const notStore = signers.find(
     (signer) => !isStoreSigner(signer) && !isSameSignerToken(signer, storeSigner),
