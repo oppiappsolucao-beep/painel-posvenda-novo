@@ -247,8 +247,8 @@ export function NovoContratoPage() {
             <Field label="RG" value={rg} onChange={setRg} />
             <Field label="CEP" value={cep} onChange={setCep} />
             <Select label="Estado" value={estado} onChange={setEstado} options={ESTADOS} />
-            <Select label="Cidade" value={cidadeOpcao} onChange={setCidadeOpcao} options={CIDADES} placeholder="Selecione" />
-            {cidadeOpcao === "Outro" && <Field label="Digite a cidade" value={cidadeOutro} onChange={setCidadeOutro} />}
+            <Select label="Bairro" value={cidadeOpcao} onChange={setCidadeOpcao} options={CIDADES} placeholder="Selecione" />
+            {cidadeOpcao === "Outro" && <Field label="Digite o bairro" value={cidadeOutro} onChange={setCidadeOutro} />}
           </div>
         </Section>
 

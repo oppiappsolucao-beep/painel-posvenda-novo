@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { SheetRow } from "../config.js";
+import { buyerAddressForTemplate } from "../config/zapsignCampinas.js";
 import { ATTACHMENT_KINDS, ATTACHMENT_LABELS, ContractAttachmentImages } from "./contractAttachments.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -150,10 +151,10 @@ export function generateCampinasContractPdf(
     const endereco = v(contrato, "Endereço");
     const numero = v(contrato, "Número");
     const complemento = v(contrato, "Complemento", "");
-    const bairro = v(contrato, "Bairro", "");
     const cep = v(contrato, "CEP");
     const cidade = v(contrato, "Cidade");
     const estado = v(contrato, "Estado");
+    const enderecoComprador = buyerAddressForTemplate(contrato);
     const nomeAnimal = v(contrato, "Nome do animal");
     const especie = v(contrato, "Espécie");
     const raca = v(contrato, "Raça");
@@ -174,7 +175,7 @@ export function generateCampinasContractPdf(
     const cidadeFinal = (cidade || unidade || "CAMPINAS").toUpperCase();
 
     const compTxt = complemento ? `, ${complemento}` : "";
-    const bairroTxt = bairro ? ` - Bairro: ${bairro}` : "";
+    const bairroTxt = enderecoComprador.bairro ? ` - Bairro: ${enderecoComprador.bairro}` : "";
 
     addLogo(doc);
     paragraph(doc, "CONTRATO DE COMPRA E VENDA DE FILHOTE DE COMPANHIA", { bold: true, size: 11.5, align: "center", gap: 0.8 });
@@ -182,7 +183,7 @@ export function generateCampinasContractPdf(
     paragraph(doc, "Pelo presente instrumento, de um lado:");
     paragraph(doc, VENDEDOR);
     paragraph(doc,
-      `${nome}, morador(a) estabelecido(a) à ${endereco}, ${numero}${compTxt}${bairroTxt} - Cidade: ${cidade} - UF: ${estado} - CEP: ${cep}, ` +
+      `${nome}, morador(a) estabelecido(a) à ${endereco}, ${numero}${compTxt}${bairroTxt} - Cidade: ${enderecoComprador.cidade} - UF: ${enderecoComprador.uf} - CEP: ${cep}, ` +
       `inscrito(a) no CPF sob o nº ${cpf}, RG sob o nº ${rg}, contato através do celular: ${telefone} e e-mail: ${email}, denominada simplesmente "COMPRADOR".`,
     );
     paragraph(doc, `Firmam o presente contrato de compra e venda de filhote celebrado entre as partes em ${dataCompra}, para os seguintes efeitos:`);

@@ -249,6 +249,20 @@ function pick(contrato: SheetRow, ...keys: string[]): string {
   return "";
 }
 
+/** Endereço do comprador no contrato: bairro vem do painel; cidade = UF (mesma sigla). */
+export function buyerAddressForTemplate(contrato: SheetRow): {
+  bairro: string;
+  cidade: string;
+  uf: string;
+} {
+  const uf = pick(contrato, "Estado");
+  return {
+    bairro: pick(contrato, "Bairro", "Cidade"),
+    cidade: uf,
+    uf,
+  };
+}
+
 function splitPurchaseDate(dataCompra: string): { day: string; monthName: string; year: string } {
   const parsed = parseDate(dataCompra);
   if (!parsed) {
@@ -270,6 +284,7 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
   const email = pick(contrato, "E-mail", "Email");
 
   const prefilled = (value: string) => value || "\u200b";
+  const enderecoComprador = buyerAddressForTemplate(contrato);
 
   const entries: Array<[string, string]> = [
     ["{{nome-completo}}", prefilled(nome)],
@@ -278,9 +293,9 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
     ["{{endereco}}", prefilled(pick(contrato, "Endereço", "Endereco"))],
     ["{{numero}}", prefilled(pick(contrato, "Número", "Numero"))],
     ["{{complemento}}", prefilled(pick(contrato, "Complemento"))],
-    ["{{bairro}}", prefilled(pick(contrato, "Bairro"))],
-    ["{{cidade}}", prefilled(pick(contrato, "Cidade"))],
-    ["{{uf}}", prefilled(pick(contrato, "Estado"))],
+    ["{{bairro}}", prefilled(enderecoComprador.bairro)],
+    ["{{cidade}}", prefilled(enderecoComprador.cidade)],
+    ["{{uf}}", prefilled(enderecoComprador.uf)],
     ["{{cep}}", prefilled(pick(contrato, "CEP"))],
     ["{{rg}}", prefilled(pick(contrato, "RG"))],
     ["{{data}}", prefilled(dataCompra)],
