@@ -39,6 +39,17 @@ export const DOC_FORM_LABELS: Record<DocFormKind, string> = {
   fotoFilhote: "Foto do filhote",
 };
 
+/** Nome de arquivo ASCII seguro para anexos de e-mail (preserva letras ao remover acentos). */
+export function docFormAttachmentFilename(label: string): string {
+  const ascii = label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "_");
+  return `${ascii}.jpg`;
+}
+
 export const ATTACHMENT_KINDS: AttachmentKind[] = [
   "rgFrente",
   "rgVerso",

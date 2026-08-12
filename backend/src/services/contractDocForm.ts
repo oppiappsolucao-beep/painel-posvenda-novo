@@ -14,6 +14,7 @@ import {
   DOC_FORM_KINDS,
   DOC_FORM_LABELS,
   DocFormKind,
+  docFormAttachmentFilename,
   getContractAttachmentBuffers,
   saveContractAttachments,
 } from "./contractAttachments.js";
@@ -191,7 +192,8 @@ async function trySendDocFormEmails(
 
   const buffers = await getContractAttachmentBuffers(unitKey, sheetIndex);
   const attachments = DOC_FORM_KINDS.filter((kind) => buffers[kind]).map((kind) => ({
-    filename: `${DOC_FORM_LABELS[kind].replace(/[^\w\s-]/g, "").replace(/\s+/g, "_")}.jpg`,
+    filename: docFormAttachmentFilename(DOC_FORM_LABELS[kind]),
+    label: DOC_FORM_LABELS[kind],
     content: buffers[kind]!,
   }));
 

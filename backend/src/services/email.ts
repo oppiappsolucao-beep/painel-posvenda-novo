@@ -168,13 +168,16 @@ export async function sendDocFormAttachmentsEmail(params: {
   clientEmail: string;
   clienteNome: string;
   unitLabel: string;
-  attachments: Array<{ filename: string; content: Buffer }>;
+  attachments: Array<{ filename: string; label?: string; content: Buffer }>;
 }): Promise<void> {
   const { storeEmails, clientEmail, clienteNome, unitLabel, attachments } = params;
   const brand = `SkoobPet ${unitLabel}`;
   const subject = `${brand} — documentação do filhote anexada`;
 
-  const docList = attachments.map((a) => `• ${a.filename.replace(/_/g, " ").replace(/\.jpg$/i, "")}`).join("\n");
+  const attachmentLabel = (attachment: { filename: string; label?: string }) =>
+    attachment.label || attachment.filename.replace(/_/g, " ").replace(/\.jpg$/i, "");
+
+  const docList = attachments.map((a) => `• ${attachmentLabel(a)}`).join("\n");
 
   const text = [
     `Olá,`,
@@ -194,7 +197,7 @@ export async function sendDocFormAttachmentsEmail(params: {
     <p>Olá,</p>
     <p>A documentação do filhote referente ao contrato de <strong>${clienteNome}</strong> foi enviada pelo painel SkoobPet.</p>
     <p><strong>Documentos anexados:</strong></p>
-    <ul>${attachments.map((a) => `<li>${a.filename.replace(/_/g, " ").replace(/\.jpg$/i, "")}</li>`).join("")}</ul>
+    <ul>${attachments.map((a) => `<li>${attachmentLabel(a)}</li>`).join("")}</ul>
     <p><strong>Unidade:</strong> ${unitLabel}</p>
     <p>Abraços,<br><strong>Equipe SkoobPet</strong></p>
   `;
