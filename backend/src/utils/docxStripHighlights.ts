@@ -51,6 +51,20 @@ function fixOrphanOpenBraceRunsInXml(xml: string): string {
   );
 }
 
+/** No bloco PELO COMPRADOR, usa variável dedicada (como CPF/e-mail) para não conflitar com {{celular}} do corpo. */
+export function renameCompradorBlockCelularInXml(xml: string): string {
+  return xml.replace(/<w:p[\s\S]*?<\/w:p>/g, (paragraph) => {
+    const text = (paragraph.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [])
+      .map((x) => x.replace(/<[^>]+>/g, ""))
+      .join("")
+      .trim();
+    if (text !== "{{celular}}" && text !== "{celular}}") return paragraph;
+    return paragraph
+      .replace(/\{\{celular\}\}/g, "{{contratante-celular}}")
+      .replace(/\{celular\}\}/g, "{{contratante-celular}}");
+  });
+}
+
 /** Corrige placeholders quebrados no DOCX original. */
 export function fixCampinasPlaceholdersInXml(xml: string): string {
   let result = xml;
@@ -58,6 +72,7 @@ export function fixCampinasPlaceholdersInXml(xml: string): string {
     result = result.replace(pattern, replacement);
   }
   result = fixOrphanOpenBraceRunsInXml(result);
+  result = renameCompradorBlockCelularInXml(result);
   result = fixDocumentacaoFilhoteParagraphsInXml(result);
   return result;
 }

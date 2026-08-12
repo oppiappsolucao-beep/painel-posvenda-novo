@@ -229,6 +229,7 @@ export const CAMPINAS_STORE_PREFILLED_VARIABLES = [
   "{{parcela}}",
   "{{nome-sobrenome}}",
   "{{contratante-nome-completo}}",
+  "{{contratante-celular}}",
   "{{celular}}",
   "{{e-mail}}",
   "{{exemplo-18}}",
@@ -325,6 +326,9 @@ export function buildCampinasTemplateData(contrato: SheetRow): Array<{ de: strin
     ["{{parcela}}", prefilled(pick(contrato, "Quantidade de parcelas"))],
     ["{{nome-sobrenome}}", prefilled(pick(contrato, "Vendedora"))],
     ["{{contratante-nome-completo}}", prefilled(nome)],
+    ["{{contratante-celular}}", prefilled(telefone)],
+    ["contratante-celular}}", prefilled(telefone)],
+    ["{contratante-celular}}", prefilled(telefone)],
     ["{{celular}}", prefilled(telefone)],
     // Placeholders quebrados no DOCX (Piracicaba/legado).
     ["celular}}", prefilled(telefone)],
