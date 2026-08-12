@@ -208,7 +208,7 @@ export async function resolveProductionTemplateId(
     await syncFormFromSourceTemplate(sourceTemplateId, cleanToken, zapsignRequest);
     const verified = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${cleanToken}/`);
     if (!templateHasStoreUploadWorkflow(verified)) {
-      await applyCampinasClientForm(cleanToken, zapsignRequest);
+      await applyCampinasClientForm(cleanToken, unitKey, zapsignRequest);
       await writeCache({
         version: CACHE_VERSION,
         sandbox: isZapSignSandbox(),
@@ -229,7 +229,7 @@ export async function resolveProductionTemplateId(
       return cleanToken;
     }
 
-    await applyCampinasClientForm(cleanToken, zapsignRequest);
+    await applyCampinasClientForm(cleanToken, unitKey, zapsignRequest);
     await writeCache({
       version: CACHE_VERSION,
       sandbox: isZapSignSandbox(),
@@ -247,7 +247,7 @@ export async function resolveProductionTemplateId(
       `[zapsign] Falha ao configurar formulário no template limpo (${unitKey}):`,
       e instanceof Error ? e.message : e,
     );
-    await applyCampinasClientForm(cleanToken, zapsignRequest).catch(() => undefined);
+    await applyCampinasClientForm(cleanToken, unitKey, zapsignRequest).catch(() => undefined);
     await writeCache({
       version: CACHE_VERSION,
       sandbox: isZapSignSandbox(),

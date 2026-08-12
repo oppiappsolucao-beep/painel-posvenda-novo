@@ -122,7 +122,7 @@ function shouldAutoConfigureCampinasForm(): boolean {
 async function ensureClientFormConfigured(unitKey: UnitKey, templateId: string): Promise<void> {
   if (!templateId || formConfiguredForTemplateId.get(templateId) === unitKey) return;
   if (!shouldAutoConfigureForm()) return;
-  await applyCampinasClientForm(templateId, zapsignRequest);
+  await applyCampinasClientForm(templateId, unitKey, zapsignRequest);
   formConfiguredForTemplateId.set(templateId, unitKey);
 }
 
@@ -415,6 +415,40 @@ function buildClientSignerPayload(
   return payload;
 }
 
+async function addStoreSignerToDocument(
+  unitKey: UnitKey,
+  docToken: string,
+  contrato: SheetRow,
+  sendAutomaticEmail: boolean,
+): Promise<ZapSignSignerResponse> {
+  const lojaNome = zapsignStoreSignerName(unitKey);
+  const configuredEmails = await getUnitStoreEmailsForNotifications(unitKey, contrato);
+  const lojaEmail = String(
+    contrato["E-mail Loja"] || process.env.ZAPSIGN_LOJA_EMAIL || configuredEmails[0] || "",
+  ).trim();
+  const lojaPhone = String(
+    contrato["Telefone Loja"] || process.env.ZAPSIGN_LOJA_PHONE || "",
+  ).replace(/\D/g, "");
+  const storeWhatsapp = isWhatsappDeliveryEnabled(lojaPhone);
+
+  const payload = buildStoreSignerPayload(
+    lojaNome,
+    lojaEmail,
+    lojaPhone,
+    campinasStoreAuthMode(),
+    sendAutomaticEmail,
+    storeWhatsapp,
+  );
+  if (storeWhatsapp) {
+    (payload as Record<string, unknown>).custom_message = zapsignCustomMessage(lojaNome);
+  }
+
+  return zapsignRequest<ZapSignSignerResponse>(`/docs/${docToken}/add-signer/`, {
+    method: "POST",
+    json: payload,
+  });
+}
+
 async function addClientSignerToDocument(
   docToken: string,
   contrato: SheetRow,
@@ -459,7 +493,6 @@ async function ensureClientSigner(
   const storeSigner = findStoreSigner(signers);
   let clientSigner = findClientSigner(signers);
   const clientMissing =
-    signers.length <= 1 ||
     !clientSigner?.token ||
     Boolean(storeSigner?.token && clientSigner?.token === storeSigner.token);
 
@@ -585,9 +618,19 @@ async function ensureStoreSigner(
   const lojaSigner = findStoreSigner(signers);
 
   if (!lojaSigner?.token) {
-    throw new Error(
-      `Template ZapSign sem signatário lojista (1º signatário). Configure: ${zapsignTemplateStoreSignerPanelUrl(templateId)} → Signatário 1`,
+    const added = await addStoreSignerToDocument(
+      unitKey,
+      docToken,
+      contrato,
+      sendAutomaticEmail,
     );
+    const addedUrl = signerResponseUrl(added);
+    return {
+      signUrl: addedUrl || undefined,
+      emailSent: sendAutomaticEmail,
+      email: lojaEmail,
+      whatsappLinkSent: storeWhatsapp && Boolean(lojaPhone),
+    };
   }
 
   const existingUrl = signerResponseUrl(lojaSigner);
@@ -647,7 +690,7 @@ export async function configureUnitTemplateForm(unitKey: UnitKey): Promise<void>
     await syncCampinasStoreSignerFromSource(sourceTemplateId, templateId, zapsignRequest);
   }
 
-  await applyCampinasClientForm(templateId, zapsignRequest);
+  await applyCampinasClientForm(templateId, unitKey, zapsignRequest);
   formConfiguredForTemplateId.set(templateId, unitKey);
 }
 
@@ -684,15 +727,15 @@ export async function createUnitContractDocument(
       error instanceof Error ? error.message : error,
     );
   });
-  await ensureUnitTemplateStoreSigner(templateId, zapsignRequest);
+  await ensureUnitTemplateStoreSigner(templateId, unitKey, zapsignRequest);
 
   const templateDetail = await zapsignRequest<{
     signers?: Array<{ qualification?: string }>;
     inputs?: Array<{ input_type?: string; label?: string }>;
   }>(`/templates/${templateId}/`);
   if (!templateHasStoreUploadWorkflow(templateDetail)) {
-    console.warn(
-      `[zapsign] Template sem 2 signatários (${unitKey}). Configure: ${zapsignTemplateStoreSignerPanelUrl(templateId)}`,
+    console.log(
+      `[zapsign] Template com 1 signatário no modelo (${unitKey}); cliente no create-doc, loja via add-signer.`,
     );
   }
 
@@ -727,10 +770,10 @@ export async function createUnitContractDocument(
 
   const payload = {
     template_id: templateId,
-    signer_name: lojaNome,
-    signer_email: lojaEmail || undefined,
+    signer_name: nome,
+    signer_email: email || undefined,
     signer_phone_country: "55",
-    signer_phone_number: lojaPhone || undefined,
+    signer_phone_number: telefone || undefined,
     lang: "pt-br",
     sandbox,
     external_id: externalId,
@@ -750,11 +793,10 @@ export async function createUnitContractDocument(
     json: payload,
   });
 
+  const client = await ensureClientSigner(doc.token, contrato, sendViaZapSign, sendWhatsapp);
   const storeSendViaZapSign =
     shouldSendSignEmails() && !emailViaSmtp && !isWhatsappDeliveryEnabled(lojaPhone);
   const store = await ensureStoreSigner(unitKey, doc.token, templateId, contrato, storeSendViaZapSign);
-
-  const client = await ensureClientSigner(doc.token, contrato, sendViaZapSign, sendWhatsapp);
   const refreshedSigners =
     (await zapsignRequest<{ signers?: ZapSignSigner[] }>(`/docs/${doc.token}/`)).signers || [];
   const clientSignUrl =
@@ -863,7 +905,7 @@ export function buildZapSignSheetPatch(
     "Link Assinatura": doc.signUrl,
     "Documento ZapSign": doc.docToken,
     "Data Envio": now,
-    "Status Assinatura": "Aguardando loja (ZapSign)",
+    "Status Assinatura": "Aguardando cliente (ZapSign)",
   };
   if (doc.storeSignUrl) patch["Link Assinatura Loja"] = doc.storeSignUrl;
   if (doc.storeEmail) patch["E-mail Loja"] = doc.storeEmail;

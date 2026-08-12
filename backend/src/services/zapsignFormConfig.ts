@@ -195,9 +195,13 @@ export function findStoreSigner<T extends { qualification?: string; name?: strin
 export function findClientSigner<T extends { qualification?: string; name?: string; token?: string }>(
   signers: T[] = [],
 ): T | undefined {
-  if (signers.length <= 1) return undefined;
+  if (signers.length === 0) return undefined;
 
   const storeSigner = findStoreSigner(signers);
+  if (signers.length === 1 && !storeSigner) {
+    return signers[0];
+  }
+  if (signers.length <= 1) return undefined;
   const byQualification = signers.find(
     (signer) => String(signer.qualification || "").toLowerCase() === "cliente",
   );
@@ -296,17 +300,12 @@ export function buildTemplateFormInputs(detail?: ZapSignTemplateDetail) {
           : (input.required ?? true),
     }));
 
-  const clientFieldsForSingleSigner = clientInputs.map((input, index) => ({
-    ...mapExistingTemplateInput(input),
-    order: CLIENT_FORM_ORDER_BASE + index,
-    required: input.required ?? true,
-  }));
-
-  // Template com 1 signatário no modelo: loja preenche CNPJ (order 1+); cliente (adicionado ao doc) usa order 20+.
+  // Template com 1 signatário no modelo: cliente ocupa o slot do create-doc (order 1+);
+  // loja é adicionada via add-signer e recebe CNPJ em order 20+.
   if (singleSignerTemplate) {
     return [
-      ...orderFields(storeInputs, STORE_FORM_ORDER_BASE, "store"),
-      ...clientFieldsForSingleSigner,
+      ...orderFields(clientInputs, STORE_FORM_ORDER_BASE, "client"),
+      ...orderFields(storeInputs, CLIENT_FORM_ORDER_BASE, "store"),
     ];
   }
 
@@ -516,7 +515,7 @@ export function pickFormInputsFromSource(detail: ZapSignTemplateDetail) {
 }
 
 const FORM_INTRO =
-  "Loja: informe o CNPJ da loja para continuar. Cliente: confirme o que recebeu e anexe fotos do RG (frente e verso).";
+  "Cliente: confirme o que recebeu e anexe fotos do RG (frente e verso). Loja: informe o CNPJ da loja para continuar.";
 
 export async function syncFormFromSourceTemplate(
   sourceTemplateId: string,
@@ -599,22 +598,53 @@ export function zapsignTemplateStoreSignerPanelUrl(templateId: string): string {
   return campinasTemplateStoreSignerPanelUrl(templateId);
 }
 
-/** Garante ordem loja (1º) → cliente (2º) no template. */
-export async function ensureUnitTemplateStoreSigner(
+/** Garante loja (1º) + cliente (2º) no modelo — radios do cliente só aparecem com 2 signatários. */
+export async function ensureTemplateTwoSigners(
   templateId: string,
+  unitKey: UnitKey,
   zapsignRequest: ZapSignRequest,
-): Promise<void> {
-  if (!templateId) return;
+): Promise<boolean> {
+  if (!templateId) return false;
 
   const detail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
   const signers = detail.signers || [];
+  const storeSigner = findStoreSigner(signers);
+  const clientSigner = findClientSigner(signers);
 
-  if (signers.length >= 2) return;
+  if (signers.length >= 2 && storeSigner && clientSigner) {
+    return false;
+  }
 
-  console.warn(
-    `[zapsign] Template ${templateId} com ${signers.length} signatário(s). ` +
-      `Configure loja (1º) e cliente (2º) no painel ZapSign: ${zapsignTemplateStoreSignerPanelUrl(templateId)}`,
+  const signersPayload = buildCleanTemplateSigners(unitKey).map((signer) =>
+    mapSignerForTemplateApi(signer as ZapSignTemplateSigner),
   );
+
+  try {
+    await zapsignRequest(`/templates/${templateId}/`, {
+      method: "PUT",
+      json: { signers: signersPayload },
+    });
+    console.log(
+      `[zapsign] Template ${templateId} (${unitKey}): signatários loja→cliente configurados no modelo.`,
+    );
+    return true;
+  } catch (error) {
+    if (isZapSignNoChangeError(error)) return false;
+    console.warn(
+      `[zapsign] Falha ao configurar 2 signatários no template ${templateId} (${unitKey}):`,
+      error instanceof Error ? error.message : error,
+    );
+    return false;
+  }
+}
+
+/** Garante ordem loja (1º) → cliente (2º) no template. */
+export async function ensureUnitTemplateStoreSigner(
+  templateId: string,
+  unitKey: UnitKey,
+  zapsignRequest: ZapSignRequest,
+): Promise<void> {
+  await ensureTemplateTwoSigners(templateId, unitKey, zapsignRequest);
 }
 
 /** @deprecated Use ensureUnitTemplateStoreSigner */
@@ -622,7 +652,7 @@ export async function ensureCampinasTemplateStoreSigner(
   templateId: string,
   zapsignRequest: ZapSignRequest,
 ): Promise<void> {
-  return ensureUnitTemplateStoreSigner(templateId, zapsignRequest);
+  return ensureUnitTemplateStoreSigner(templateId, "campinas", zapsignRequest);
 }
 
 /** Copia ordem loja→cliente do template original. */
@@ -666,9 +696,12 @@ export async function syncCampinasStoreSignerFromSource(
 /** Formulário: loja = só CNPJ (anexos pelo painel). Cliente = radios + RG. */
 export async function applyCampinasClientForm(
   templateId: string,
+  unitKey: UnitKey,
   zapsignRequest: ZapSignRequest,
 ): Promise<void> {
   if (!templateId) return;
+
+  await ensureTemplateTwoSigners(templateId, unitKey, zapsignRequest);
 
   const detail = await zapsignRequest<ZapSignTemplateDetail>(`/templates/${templateId}/`);
   const inputs = buildTemplateFormUpdatePayload(detail);
