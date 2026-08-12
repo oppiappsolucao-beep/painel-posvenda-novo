@@ -6,6 +6,9 @@ import {
 } from "../config/unitVendorDocx.js";
 
 const SHADING_PATTERN = /<w:(?:highlight|shd)\b/gi;
+/** Quebra de página OOXML antes do termo de imagem/voz (página separada). */
+const PAGE_BREAK_PARAGRAPH = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+const IMAGE_TERM_TITLE = /TERMO DE AUTORIZA(?:Ç|c)(?:Ã|A)O DE USO DE IMAGEM E VOZ/i;
 /** Placeholder quebrado no DOCX (faltava "{{" no início). Não altera {{contratante-nome-completo}}. */
 const BROKEN_NOME_PLACEHOLDER_PATTERN = /(?<![\{-])nome-completo\}\}/g;
 
@@ -69,6 +72,80 @@ export function localizeUnitVendorInXml(xml: string, unitKey: UnitKey): string {
 
 export function countBrokenCampinasPlaceholders(docxXml: string): number {
   return docxXml.match(BROKEN_NOME_PLACEHOLDER_PATTERN)?.length ?? 0;
+}
+
+function paragraphBounds(xml: string, indexInside: number): { start: number; end: number } | null {
+  const start = xml.lastIndexOf("<w:p", indexInside);
+  if (start < 0) return null;
+  const end = xml.indexOf("</w:p>", start);
+  if (end < 0) return null;
+  return { start, end: end + 6 };
+}
+
+function previousParagraphBounds(xml: string, paraStart: number): { start: number; end: number } | null {
+  const before = xml.slice(0, paraStart).trimEnd();
+  const start = before.lastIndexOf("<w:p");
+  if (start < 0) return null;
+  const end = before.indexOf("</w:p>", start);
+  if (end < 0) return null;
+  return { start, end: end + 6 };
+}
+
+function paragraphHasImage(para: string): boolean {
+  return /<w:drawing|<w:pict|<wp:inline|<wp:anchor|<v:imagedata/i.test(para);
+}
+
+function hasPageBreakBefore(xml: string, position: number): boolean {
+  const window = xml.slice(Math.max(0, position - 1200), position);
+  return /<w:br[^>]*w:type="page"/i.test(window) || /<w:pageBreakBefore\b/i.test(window);
+}
+
+/** Insere quebra de página antes do termo de autorização de imagem/voz (logo + título). */
+export function insertImageTermPageBreakInXml(xml: string): { xml: string; inserted: boolean } {
+  const match = IMAGE_TERM_TITLE.exec(xml);
+  if (!match || match.index === undefined) {
+    return { xml, inserted: false };
+  }
+
+  const termPara = paragraphBounds(xml, match.index);
+  if (!termPara) return { xml, inserted: false };
+
+  let breakAt = termPara.start;
+  const prevPara = previousParagraphBounds(xml, breakAt);
+  if (prevPara) {
+    const prevContent = xml.slice(prevPara.start, prevPara.end);
+    if (paragraphHasImage(prevContent) && !IMAGE_TERM_TITLE.test(prevContent)) {
+      breakAt = prevPara.start;
+    }
+  }
+
+  if (hasPageBreakBefore(xml, breakAt)) {
+    return { xml, inserted: false };
+  }
+
+  return {
+    xml: xml.slice(0, breakAt) + PAGE_BREAK_PARAGRAPH + xml.slice(breakAt),
+    inserted: true,
+  };
+}
+
+export async function insertImageTermPageBreakInDocx(
+  docxBuffer: Buffer,
+): Promise<{ buffer: Buffer; inserted: boolean }> {
+  const zip = await JSZip.loadAsync(docxBuffer);
+  const docPath = "word/document.xml";
+  const file = zip.file(docPath);
+  if (!file) return { buffer: docxBuffer, inserted: false };
+
+  const content = await file.async("string");
+  const { xml, inserted } = insertImageTermPageBreakInXml(content);
+  if (!inserted) return { buffer: docxBuffer, inserted: false };
+
+  zip.file(docPath, xml);
+  return {
+    buffer: Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" })),
+    inserted: true,
+  };
 }
 
 function countShadingTags(xml: string): number {

@@ -13,6 +13,7 @@ import { getZapSignTemplateId, zapsignFolderPath } from "../dist/config/zapsignE
 import { getUnitByKey } from "../dist/config.js";
 import {
   fixCampinasDocxPlaceholders,
+  insertImageTermPageBreakInDocx,
   localizeUnitVendorInDocx,
   stripDocxHighlightsVerified,
 } from "../dist/utils/docxStripHighlights.js";
@@ -37,7 +38,7 @@ if (!token) {
 }
 
 const base = "https://api.zapsign.com.br/api/v1";
-const UNITS = ["piracicaba", "indaiatuba"];
+const UNITS = ["campinas", "piracicaba", "indaiatuba"];
 
 async function zapsignRequest(pathname, init = {}) {
   const res = await fetch(`${base}${pathname}`, {
@@ -79,13 +80,15 @@ for (const unitKey of UNITS) {
   const localizedDocx = shouldLocalizeVendorFromCampinas(unitKey, sourceTemplateId)
     ? await localizeUnitVendorInDocx(fixedDocx, unitKey)
     : fixedDocx;
+  const { buffer: pagedDocx, inserted } = await insertImageTermPageBreakInDocx(localizedDocx);
+  console.log("Quebra de página no termo:", inserted ? "inserida" : "já existia ou título não encontrado");
 
   const templateDisplayName = `Contrato Filhotes ${unitLabel} — assinatura`;
   const created = await zapsignRequest("/templates/create/", {
     method: "POST",
     json: {
       name: templateDisplayName,
-      base64_docx: localizedDocx.toString("base64"),
+      base64_docx: pagedDocx.toString("base64"),
       lang: "pt-br",
       folder_path: zapsignFolderPath(unitKey),
       signers: buildCleanTemplateSigners(unitKey),

@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import type { UnitKey } from "../config.js";
 import { isZapSignSandbox, zapsignFolderPath, getZapSignTemplateId } from "../config/zapsignEnv.js";
 import { getUnitByKey } from "../config.js";
-import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders, fixCampinasDocxPlaceholders, localizeUnitVendorInDocx } from "../utils/docxStripHighlights.js";
+import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders, fixCampinasDocxPlaceholders, localizeUnitVendorInDocx, insertImageTermPageBreakInDocx } from "../utils/docxStripHighlights.js";
 import {
   applyCampinasClientForm,
   buildCleanTemplateSigners,
@@ -13,7 +13,7 @@ import {
   templateHasStoreUploadWorkflow,
 } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 29;
+const CACHE_VERSION = 30;
 
 /** Só reescreve endereço no DOCX quando a unidade ainda usa o modelo-fonte de Campinas. */
 function shouldLocalizeVendorFromCampinas(unitKey: UnitKey, sourceTemplateId: string): boolean {
@@ -185,6 +185,10 @@ export async function resolveProductionTemplateId(
   const localizedDocx = shouldLocalizeVendorFromCampinas(unitKey, sourceTemplateId)
     ? await localizeUnitVendorInDocx(fixedDocx, unitKey)
     : fixedDocx;
+  const { buffer: pagedDocx, inserted: pageBreakInserted } = await insertImageTermPageBreakInDocx(localizedDocx);
+  if (pageBreakInserted) {
+    console.log(`[zapsign] Quebra de página antes do termo de imagem/voz (${unitKey}).`);
+  }
   if (!skipHighlights) {
     console.log(`[zapsign] neutralizar destaque (${unitKey}): before=${before} after=${after} fixed=${fixed}`);
   }
@@ -196,7 +200,7 @@ export async function resolveProductionTemplateId(
   }
 
   const shadingRemoved = Math.max(0, before - after);
-  const base64Docx = localizedDocx.toString("base64");
+  const base64Docx = pagedDocx.toString("base64");
   const templateDisplayName = `Contrato Filhotes ${unitLabel} — assinatura`;
   const signersForCreate = buildCleanTemplateSigners(unitKey);
 
