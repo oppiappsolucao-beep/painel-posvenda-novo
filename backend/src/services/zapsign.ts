@@ -767,9 +767,12 @@ export async function createUnitContractDocument(
 
   const unit = getUnitByKey(unitKey);
   const brandName = unit ? `SkoobPet ${unit.label}` : (process.env.ZAPSIGN_BRAND_NAME || "SkoobPet").trim();
+  const unitLabel = unit?.label || unitKey;
+  const documentName = `Contrato Filhotes ${unitLabel} — ${nome}`;
 
   const payload = {
     template_id: templateId,
+    name: documentName,
     signer_name: nome,
     signer_email: email || undefined,
     signer_phone_country: "55",

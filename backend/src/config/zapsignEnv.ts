@@ -49,8 +49,8 @@ function envValue(key: string): string {
 /** Templates limpos em produção (sem anexos legados no link do cliente). */
 const DEFAULT_PRODUCTION_TEMPLATE_IDS: Partial<Record<UnitKey, string>> = {
   campinas: "e90eab76-5580-4bad-813f-92a00fabcd62",
-  piracicaba: "1e905160-dcce-43cd-a78c-18b2ad5b4af6",
-  indaiatuba: "3cf9c387-d450-4810-8154-3b66721f8588",
+  piracicaba: "a1d7461a-85c5-4937-bc23-16838ee561bb",
+  indaiatuba: "4016c8fb-e378-457a-b839-8e6c11d7e405",
 };
 
 /** Template ZapSign de produção (limpo, sem anexos legados). Sobrescreve o modelo-fonte do .env. */

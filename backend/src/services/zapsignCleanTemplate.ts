@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import type { UnitKey } from "../config.js";
 import { isZapSignSandbox, zapsignFolderPath } from "../config/zapsignEnv.js";
 import { getUnitByKey } from "../config.js";
-import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders, fixCampinasDocxPlaceholders } from "../utils/docxStripHighlights.js";
+import { stripDocxHighlightsVerified, countBrokenCampinasPlaceholders, fixCampinasDocxPlaceholders, localizeUnitLabelInDocx } from "../utils/docxStripHighlights.js";
 import {
   applyCampinasClientForm,
   buildCleanTemplateSigners,
@@ -13,7 +13,7 @@ import {
   templateHasStoreUploadWorkflow,
 } from "./zapsignFormConfig.js";
 
-const CACHE_VERSION = 26;
+const CACHE_VERSION = 27;
 
 export interface ZapSignTemplateDetail {
   token: string;
@@ -164,6 +164,8 @@ export async function resolveProductionTemplateId(
     return cache.cleanToken;
   }
 
+  const unitLabel = getUnitByKey(unitKey)?.label || unitKey;
+
   const { buffer: cleanDocx, before, after, fixed } = skipHighlights
     ? {
         buffer: await fixCampinasDocxPlaceholders(docxBuffer),
@@ -172,6 +174,10 @@ export async function resolveProductionTemplateId(
         fixed: true,
       }
     : await stripDocxHighlightsVerified(docxBuffer);
+  const localizedDocx =
+    unitKey === "campinas"
+      ? cleanDocx
+      : await localizeUnitLabelInDocx(cleanDocx, unitLabel, "Campinas");
   if (!skipHighlights) {
     console.log(`[zapsign] neutralizar destaque (${unitKey}): before=${before} after=${after} fixed=${fixed}`);
   }
@@ -183,15 +189,14 @@ export async function resolveProductionTemplateId(
   }
 
   const shadingRemoved = Math.max(0, before - after);
-  const base64Docx = cleanDocx.toString("base64");
-  const unitLabel = getUnitByKey(unitKey)?.label || unitKey;
-  const sourceSigners = detail.signers || [];
+  const base64Docx = localizedDocx.toString("base64");
+  const templateDisplayName = `Contrato Filhotes ${unitLabel} — assinatura`;
   const signersForCreate = buildCleanTemplateSigners(unitKey);
 
   const created = await zapsignRequest<ZapSignTemplateDetail>("/templates/create/", {
     method: "POST",
     json: {
-      name: `${detail.name || unitLabel} — assinatura`,
+      name: templateDisplayName,
       base64_docx: base64Docx,
       lang: "pt-br",
       folder_path: zapsignFolderPath(unitKey),

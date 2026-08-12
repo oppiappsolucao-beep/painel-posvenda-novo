@@ -34,6 +34,15 @@ export function fixCampinasPlaceholdersInXml(xml: string): string {
   return result;
 }
 
+/** Substitui rótulo da unidade-fonte (Campinas) pelo nome da unidade de destino no DOCX. */
+export function localizeUnitLabelInXml(xml: string, unitLabel: string, sourceLabel = "Campinas"): string {
+  if (!unitLabel.trim() || unitLabel.trim().toLowerCase() === sourceLabel.toLowerCase()) {
+    return xml;
+  }
+  const escaped = sourceLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return xml.replace(new RegExp(escaped, "g"), unitLabel);
+}
+
 export function countBrokenCampinasPlaceholders(docxXml: string): number {
   return docxXml.match(BROKEN_NOME_PLACEHOLDER_PATTERN)?.length ?? 0;
 }
@@ -76,6 +85,33 @@ function isNeutralShading(xml: string): boolean {
     ...xml.matchAll(/<w:shd\b(?![^>]*w:fill="FFFFFF")[^>]*>/gi),
   ];
   return bad.length === 0;
+}
+
+export async function localizeUnitLabelInDocx(
+  docxBuffer: Buffer,
+  unitLabel: string,
+  sourceLabel = "Campinas",
+): Promise<Buffer> {
+  if (!unitLabel.trim() || unitLabel.trim().toLowerCase() === sourceLabel.toLowerCase()) {
+    return docxBuffer;
+  }
+
+  const zip = await JSZip.loadAsync(docxBuffer);
+  let changed = false;
+
+  for (const name of Object.keys(zip.files)) {
+    const file = zip.files[name];
+    if (!file || file.dir || !/\.xml$/i.test(name)) continue;
+    const content = await file.async("string");
+    const localized = localizeUnitLabelInXml(content, unitLabel, sourceLabel);
+    if (localized !== content) {
+      zip.file(name, localized);
+      changed = true;
+    }
+  }
+
+  if (!changed) return docxBuffer;
+  return Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }));
 }
 
 export async function fixCampinasDocxPlaceholders(docxBuffer: Buffer): Promise<Buffer> {

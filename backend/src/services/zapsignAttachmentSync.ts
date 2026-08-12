@@ -13,8 +13,9 @@ import {
   getContractAttachmentBuffers,
 } from "./contractAttachments.js";
 import { imageBufferToPdfBase64 } from "./imageToPdf.js";
-import { isZapSignEnabled } from "../config/zapsignEnv.js";
+import { getZapSignApiBase, getZapSignApiToken, isZapSignEnabled } from "../config/zapsignEnv.js";
 import { uploadZapSignExtraDoc } from "./zapsign.js";
+import { findClientSigner } from "./zapsignFormConfig.js";
 import { formatDateBr, todaySaoPaulo } from "../utils/formatters.js";
 import fs from "fs/promises";
 import path from "path";
@@ -45,6 +46,32 @@ function recordKey(unitKey: UnitKey, sheetIndex: number): string {
 
 function bufferHash(buffer: Buffer): string {
   return crypto.createHash("sha256").update(buffer).digest("hex");
+}
+
+interface ZapSignDocSigner {
+  token?: string;
+  status?: string;
+  qualification?: string;
+  name?: string;
+}
+
+async function fetchDocSigners(docToken: string): Promise<ZapSignDocSigner[]> {
+  const apiToken = getZapSignApiToken();
+  if (!apiToken) return [];
+  const res = await fetch(`${getZapSignApiBase()}/docs/${docToken}/`, {
+    headers: { Authorization: `Bearer ${apiToken}` },
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { signers?: ZapSignDocSigner[] };
+  return data.signers || [];
+}
+
+/** Evita upload de anexos enquanto o cliente está preenchendo/assinando (invalida o formulário). */
+function clientIsActivelySigning(signers: ZapSignDocSigner[]): boolean {
+  const client = findClientSigner(signers);
+  if (!client) return false;
+  const status = String(client.status || "").trim().toLowerCase();
+  return status === "link-opened" || status === "viewed" || status === "signed_part";
 }
 
 async function readFileMetaStore(): Promise<DocFormMetaStore> {
@@ -162,6 +189,17 @@ export async function syncDocFormAttachmentsToZapSign(
   const buffers = await getContractAttachmentBuffers(unitKey, sheetIndex);
   const syncMap = await loadZapsignSyncMap(unitKey, sheetIndex);
   let lastError: string | undefined;
+
+  const signers = await fetchDocSigners(docToken);
+  if (clientIsActivelySigning(signers)) {
+    return buildZapsignSyncStatus(
+      contrato,
+      unitKey,
+      syncMap,
+      buffers as Partial<Record<DocFormKind, Buffer>>,
+      "Cliente em assinatura — anexos serão enviados após concluir o formulário.",
+    );
+  }
 
   for (const kind of DOC_FORM_KINDS) {
     const buffer = buffers[kind];
