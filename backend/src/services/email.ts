@@ -116,13 +116,15 @@ export async function sendContractSignEmail(params: {
       ? `${brand} — contrato aguardando assinatura da loja`
       : `${brand} — seu contrato está pronto para assinatura`;
 
-  const intro =
+  const introBody =
     papel === "loja"
-      ? `Olá ${nome},\n\nO cliente já assinou (ou o contrato está pronto). Sua assinatura como loja é necessária para concluir o documento.`
-      : `Olá ${nome},\n\nSeu contrato de compra do filhote está pronto para revisão e assinatura.\n\nAbra o link abaixo, confirme seus dados e responda sobre a documentação do filhote.`;
+      ? "O cliente já assinou (ou o contrato está pronto). Sua assinatura como loja é necessária para concluir o documento."
+      : "Seu contrato de compra do filhote está pronto para revisão e assinatura.\n\nAbra o link abaixo, confirme seus dados e responda sobre a documentação do filhote.";
 
   const text = [
-    intro,
+    `Olá ${nome},`,
+    "",
+    introBody,
     "",
     signUrl,
     "",
@@ -132,7 +134,7 @@ export async function sendContractSignEmail(params: {
 
   const html = `
     <p>Olá <strong>${nome}</strong>,</p>
-    <p>${intro.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p>
+    <p>${introBody.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p>
     <p style="margin:24px 0">
       <a href="${signUrl}" style="display:inline-block;background:#1e3a5f;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
         Abrir contrato para assinar

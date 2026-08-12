@@ -6,6 +6,9 @@ import {
 } from "../config/unitVendorDocx.js";
 
 const SHADING_PATTERN = /<w:(?:highlight|shd)\b/gi;
+/** Recuo pendente para parágrafos com bullet manual (•). */
+const BULLET_HANGING_IND = '<w:ind w:left="360" w:hanging="360"/>';
+const JUSTIFY_BOTH = '<w:jc w:val="both"/>';
 /** Quebra de página OOXML antes do termo de imagem/voz (página separada). */
 const PAGE_BREAK_PARAGRAPH = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
 const IMAGE_TERM_TITLE = /TERMO DE AUTORIZA(?:Ç|c)(?:Ã|A)O DE USO DE IMAGEM E VOZ/i;
@@ -72,6 +75,94 @@ export function localizeUnitVendorInXml(xml: string, unitKey: UnitKey): string {
 
 export function countBrokenCampinasPlaceholders(docxXml: string): number {
   return docxXml.match(BROKEN_NOME_PLACEHOLDER_PATTERN)?.length ?? 0;
+}
+
+function paragraphPlainText(paragraph: string): string {
+  return (paragraph.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [])
+    .map((x) => x.replace(/<[^>]+>/g, ""))
+    .join("");
+}
+
+function ensureParagraphProperties(paragraph: string): string {
+  if (paragraph.includes("<w:pPr>")) return paragraph;
+  return paragraph.replace(/<w:p([^>]*)>/, "<w:p$1><w:pPr></w:pPr>");
+}
+
+function upsertIndent(paragraph: string, indentXml: string): string {
+  const withPPr = ensureParagraphProperties(paragraph);
+  if (/<w:ind[^/>]*\/>/.test(withPPr)) {
+    return withPPr.replace(/<w:ind[^/>]*\/>/, indentXml);
+  }
+  return withPPr.replace(/<w:pPr>/, `<w:pPr>${indentXml}`);
+}
+
+function upsertJustify(paragraph: string): string {
+  const withPPr = ensureParagraphProperties(paragraph);
+  if (/<w:jc w:val="both"/.test(withPPr)) return withPPr;
+  if (/<w:jc w:val="[^"]+"/.test(withPPr)) {
+    return withPPr.replace(/<w:jc w:val="[^"]+"/, JUSTIFY_BOTH);
+  }
+  return withPPr.replace(/<w:pPr>/, `<w:pPr>${JUSTIFY_BOTH}`);
+}
+
+/**
+ * Ajusta alinhamento do corpo do contrato: justificado e recuo pendente nos bullets (•).
+ * Preserva parágrafos centralizados ou explicitamente alinhados à esquerda.
+ */
+export function fixContractTextAlignmentInXml(xml: string): {
+  xml: string;
+  bulletsFixed: number;
+  justified: number;
+} {
+  let bulletsFixed = 0;
+  let justified = 0;
+
+  const result = xml.replace(/<w:p[\s\S]*?<\/w:p>/g, (paragraph) => {
+    const text = paragraphPlainText(paragraph).trim();
+    if (!text) return paragraph;
+
+    let updated = paragraph;
+    const isCenter = /<w:jc w:val="center"/.test(updated);
+    const isLeft = /<w:jc w:val="left"/.test(updated);
+
+    if (/^•\s/.test(text)) {
+      const before = updated;
+      updated = upsertIndent(updated, BULLET_HANGING_IND);
+      if (updated !== before) bulletsFixed += 1;
+    }
+
+    if (!isCenter && !isLeft) {
+      const before = updated;
+      updated = upsertJustify(updated);
+      if (updated !== before) justified += 1;
+    }
+
+    return updated;
+  });
+
+  return { xml: result, bulletsFixed, justified };
+}
+
+export async function fixContractTextAlignmentInDocx(
+  docxBuffer: Buffer,
+): Promise<{ buffer: Buffer; bulletsFixed: number; justified: number }> {
+  const zip = await JSZip.loadAsync(docxBuffer);
+  const docPath = "word/document.xml";
+  const file = zip.file(docPath);
+  if (!file) return { buffer: docxBuffer, bulletsFixed: 0, justified: 0 };
+
+  const content = await file.async("string");
+  const { xml, bulletsFixed, justified } = fixContractTextAlignmentInXml(content);
+  if (bulletsFixed === 0 && justified === 0) {
+    return { buffer: docxBuffer, bulletsFixed, justified };
+  }
+
+  zip.file(docPath, xml);
+  return {
+    buffer: Buffer.from(await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" })),
+    bulletsFixed,
+    justified,
+  };
 }
 
 function paragraphBounds(xml: string, indexInside: number): { start: number; end: number } | null {

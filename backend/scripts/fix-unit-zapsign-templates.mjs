@@ -13,6 +13,7 @@ import { getZapSignTemplateId, zapsignFolderPath } from "../dist/config/zapsignE
 import { getUnitByKey } from "../dist/config.js";
 import {
   fixCampinasDocxPlaceholders,
+  fixContractTextAlignmentInDocx,
   insertImageTermPageBreakInDocx,
   localizeUnitVendorInDocx,
   stripDocxHighlightsVerified,
@@ -82,13 +83,15 @@ for (const unitKey of UNITS) {
     : fixedDocx;
   const { buffer: pagedDocx, inserted } = await insertImageTermPageBreakInDocx(localizedDocx);
   console.log("Quebra de página no termo:", inserted ? "inserida" : "já existia ou título não encontrado");
+  const { buffer: alignedDocx, bulletsFixed, justified } = await fixContractTextAlignmentInDocx(pagedDocx);
+  console.log("Alinhamento:", { bulletsFixed, justified });
 
   const templateDisplayName = `Contrato Filhotes ${unitLabel} — assinatura`;
   const created = await zapsignRequest("/templates/create/", {
     method: "POST",
     json: {
       name: templateDisplayName,
-      base64_docx: pagedDocx.toString("base64"),
+      base64_docx: alignedDocx.toString("base64"),
       lang: "pt-br",
       folder_path: zapsignFolderPath(unitKey),
       signers: buildCleanTemplateSigners(unitKey),
