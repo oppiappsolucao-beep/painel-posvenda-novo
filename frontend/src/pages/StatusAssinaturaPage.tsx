@@ -65,6 +65,8 @@ export function StatusAssinaturaPage() {
 
   const assinadosCount = filteredItems.filter((item) => item.status === "assinado").length;
   const pendentesCount = filteredItems.filter((item) => item.status === "pendente").length;
+  const anexosPendentesContratos = filteredItems.filter((item) => !item.docForm.completo).length;
+  const anexosPendentesArquivos = filteredItems.reduce((sum, item) => sum + item.docForm.pendentes.length, 0);
 
   useEffect(() => {
     if (!linkModal || !linkInputRef.current) return;
@@ -219,7 +221,7 @@ export function StatusAssinaturaPage() {
           {copyFeedback}
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         <KpiCard
           title="✅ Contratos assinados"
           value={isLoading ? "—" : assinadosCount}
@@ -233,6 +235,17 @@ export function StatusAssinaturaPage() {
           subtitle="aguardando assinatura"
           accent="#dc2626"
           valueColor="#dc2626"
+        />
+        <KpiCard
+          title="📎 Anexos pendentes"
+          value={isLoading ? "—" : anexosPendentesContratos}
+          subtitle={
+            isLoading
+              ? "aguardando envio de documentos"
+              : `${anexosPendentesArquivos} arquivo(s) em ${anexosPendentesContratos} contrato(s)`
+          }
+          accent={COLORS.wine}
+          valueColor={COLORS.wine}
         />
       </div>
 
