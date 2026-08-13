@@ -21,14 +21,11 @@ import {
   applyCampinasClientForm,
   campinasClientAuthMode,
   campinasStoreAuthMode,
-  ensureUnitTemplateStoreSigner,
   findClientSigner,
   findStoreSigner,
-  syncCampinasStoreSignerFromSource,
   templateHasLegacyStoreUploadFields,
   templateHasStoreUploadWorkflow,
   zapsignStoreSignerName,
-  zapsignTemplateStoreSignerPanelUrl,
 } from "./zapsignFormConfig.js";
 
 export interface ZapSignConfig {
@@ -671,24 +668,19 @@ async function ensureStoreSigner(
 }
 
 export async function ensureProductionTemplate(unitKey: UnitKey): Promise<string> {
-  return getProductionTemplateId(unitKey);
+  return getZapSignTemplateId(unitKey);
 }
 
 /** @deprecated Use ensureProductionTemplate("campinas") */
 export async function ensureCampinasProductionTemplate(): Promise<string> {
-  return getProductionTemplateId("campinas");
+  return getZapSignTemplateId("campinas");
 }
 
 export async function configureUnitTemplateForm(unitKey: UnitKey): Promise<void> {
   if (!shouldAutoConfigureForm()) return;
 
-  const templateId = await getProductionTemplateId(unitKey);
+  const templateId = getZapSignTemplateId(unitKey);
   if (!templateId) return;
-
-  const sourceTemplateId = getConfig(unitKey).templateId;
-  if (sourceTemplateId && sourceTemplateId !== templateId) {
-    await syncCampinasStoreSignerFromSource(sourceTemplateId, templateId, zapsignRequest);
-  }
 
   await applyCampinasClientForm(templateId, unitKey, zapsignRequest);
   formConfiguredForTemplateId.set(templateId, unitKey);
@@ -742,29 +734,18 @@ export async function createUnitContractDocument(
   externalId: string,
 ): Promise<ZapSignCreatedDocument> {
   const { sandbox } = getConfig(unitKey);
-  let templateId = await getProductionTemplateId(unitKey);
+  const templateId = getZapSignTemplateId(unitKey);
   if (!templateId) {
     throw new Error(`Template ZapSign não configurado para ${unitKey}.`);
   }
-  if (isSourceTemplateId(unitKey, templateId)) {
-    console.warn(
-      `[zapsign] create-doc (${unitKey}) recebeu modelo-fonte ${templateId}; forçando template limpo.`,
-    );
-    templateId = await resolveCleanProductionTemplateId(unitKey);
-  }
-  console.log(`[zapsign] create-doc (${unitKey}) template_id=${templateId}`);
+  console.log(
+    `[zapsign] create-doc (${unitKey}) template_id=${templateId} pasta=${zapsignFolderPath(unitKey)}`,
+  );
   if (sandbox) {
     console.log(
       `[zapsign] Ambiente ${zapSignEnvironmentLabel()} (${getZapSignApiBase()}) — ${unitKey}.`,
     );
   }
-  await ensureClientFormConfigured(unitKey, templateId).catch((error) => {
-    console.warn(
-      `[zapsign] Formulário do template ignorado (${unitKey}):`,
-      error instanceof Error ? error.message : error,
-    );
-  });
-  await ensureUnitTemplateStoreSigner(templateId, unitKey, zapsignRequest);
 
   const templateDetail = await zapsignRequest<{
     signers?: Array<{ qualification?: string }>;
@@ -895,9 +876,10 @@ export async function createCampinasContractDocument(
 export async function warmUpZapSignTemplates(): Promise<void> {
   for (const unitKey of ZAPSIGN_UNIT_KEYS) {
     if (!isZapSignEnabled(unitKey)) continue;
-    await getProductionTemplateId(unitKey);
-    await configureUnitTemplateForm(unitKey);
-    console.log(`[zapsign] Template de produção e formulário prontos (${unitKey}).`);
+    const templateId = getZapSignTemplateId(unitKey);
+    console.log(
+      `[zapsign] Usando modelo da pasta (${unitKey}): ${templateId} → ${zapsignFolderPath(unitKey)}`,
+    );
   }
 }
 

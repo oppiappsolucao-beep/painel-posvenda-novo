@@ -75,18 +75,13 @@ export function getZapSignProductionTemplateId(unitKey: UnitKey): string {
   return fromEnv || DEFAULT_PRODUCTION_TEMPLATE_IDS[unitKey] || "";
 }
 
-/** Template ZapSign da unidade. Se não houver ID próprio, usa o de Campinas (retrocompatível). */
+/** Modelo ZapSign da pasta da unidade (não cria cópia). */
 export function getZapSignTemplateId(unitKey: UnitKey): string {
   const keys = UNIT_TEMPLATE_ENV[unitKey];
   if (isZapSignSandbox()) {
-    return (
-      envValue(keys.sandbox) ||
-      envValue(keys.prod) ||
-      envValue(UNIT_TEMPLATE_ENV.campinas.sandbox) ||
-      envValue(UNIT_TEMPLATE_ENV.campinas.prod)
-    );
+    return envValue(keys.sandbox) || envValue(keys.prod);
   }
-  return envValue(keys.prod) || envValue(UNIT_TEMPLATE_ENV.campinas.prod);
+  return envValue(keys.prod);
 }
 
 /** @deprecated Use getZapSignTemplateId("campinas") */
@@ -94,11 +89,9 @@ export function getZapSignTemplateIdCampinas(): string {
   return getZapSignTemplateId("campinas");
 }
 
+/** Sempre o modelo que está na pasta da unidade (Campinas, Piracicaba, Indaiatuba). */
 export function getActiveZapSignTemplateId(unitKey: UnitKey): string {
-  if (isZapSignSandbox()) {
-    return getZapSignTemplateId(unitKey);
-  }
-  return getZapSignProductionTemplateId(unitKey) || getZapSignTemplateId(unitKey);
+  return getZapSignTemplateId(unitKey);
 }
 
 export function isZapSignEnabled(unitKey: UnitKey): boolean {
@@ -110,6 +103,15 @@ export function zapSignEnvironmentLabel(): string {
   return isZapSignSandbox() ? "sandbox" : "produção";
 }
 
+const UNIT_FOLDER_NAMES: Record<UnitKey, string> = {
+  campinas: "Campinas",
+  piracicaba: "Piracicaba",
+  indaiatuba: "Indaiatuba",
+};
+
+/** Caminho da pasta na ZapSign — precisa coincidir com o nome visível no painel. */
 export function zapsignFolderPath(unitKey: UnitKey): string {
-  return `/${unitKey}/`;
+  const override = envValue(`ZAPSIGN_FOLDER_PATH_${unitKey.toUpperCase()}`);
+  const name = (override || UNIT_FOLDER_NAMES[unitKey]).replace(/^\/+|\/+$/g, "");
+  return `/${name}/`;
 }

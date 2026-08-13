@@ -114,9 +114,9 @@ async function start() {
     maybeSyncEmployeesFromSheets(true).catch((e) => {
       console.warn("[employees] sync inicial:", e instanceof Error ? e.message : e);
     });
-    if (process.env.ZAPSIGN_CONFIGURE_FORM !== "false" && ZAPSIGN_UNIT_KEYS.some(isZapSignEnabled)) {
+    if (ZAPSIGN_UNIT_KEYS.some(isZapSignEnabled)) {
       warmUpZapSignTemplates().catch((e) => {
-        console.warn("[zapsign] template/form:", e instanceof Error ? e.message : e);
+        console.warn("[zapsign] template:", e instanceof Error ? e.message : e);
       });
     }
   } catch (e) {
