@@ -27,6 +27,17 @@ async function readBlobError(data: Blob): Promise<string> {
   }
 }
 
+export interface HealthInfo {
+  ok: boolean;
+  version: string;
+  build: string | null;
+}
+
+export async function fetchHealth(): Promise<HealthInfo> {
+  const { data } = await axios.get<HealthInfo>("/api/health");
+  return data;
+}
+
 export type UserRole = "operacao" | "financeiro";
 export type UnitKey = "campinas" | "piracicaba" | "indaiatuba";
 

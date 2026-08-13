@@ -83,9 +83,18 @@ app.use("/api/zapsign", zapsignRoutes);
 app.use("/api/settings", settingsRoutes);
 
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(publicDir));
+  app.use(
+    express.static(publicDir, {
+      setHeaders(res, filePath) {
+        if (filePath.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        }
+      },
+    }),
+  );
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api")) return next();
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(path.join(publicDir, "index.html"), (err) => {
       if (err) next(err);
     });

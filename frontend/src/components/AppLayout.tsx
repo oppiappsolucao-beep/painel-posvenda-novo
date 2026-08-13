@@ -2,6 +2,7 @@ import { ReactNode, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Logo } from "./Logo";
+import { AppVersion } from "./AppVersion";
 import { COLORS } from "../lib/utils";
 
 interface AppLayoutProps {
@@ -88,6 +89,8 @@ export function AppLayout({ title, caption, emoji, children, requireFinance }: A
       ) : (
         children
       )}
+
+      <AppVersion className="mt-6 text-slate-400" />
     </div>
   );
 }

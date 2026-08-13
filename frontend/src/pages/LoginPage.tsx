@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { isLoginPending2fa } from "../lib/api";
 import { COLORS } from "../lib/utils";
 import { Logo } from "../components/Logo";
+import { AppVersion } from "../components/AppVersion";
 
 const TWO_FA_EMAIL = "contato@skoobpet.com.br";
 
@@ -284,6 +285,7 @@ function LoginShell({
           </button>
           <div className="mt-4 text-center">{footer}</div>
         </form>
+        <AppVersion className="mt-4 text-white/80 drop-shadow-sm" />
       </div>
     </div>
   );
