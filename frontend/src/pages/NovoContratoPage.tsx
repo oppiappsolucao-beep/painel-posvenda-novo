@@ -132,6 +132,41 @@ export function NovoContratoPage() {
   const raca = racaOpcao === "Outro" ? racaOutro : racaOpcao;
   const cidade = cidadeOpcao === "Outro" ? cidadeOutro : cidadeOpcao;
 
+  const resetFormFields = () => {
+    setNome("");
+    setTelefone("");
+    setCpf("");
+    setCpfError("");
+    setEmail("");
+    setEndereco("");
+    setNumero("");
+    setComplemento("");
+    setCep("");
+    setEstado("");
+    setCidadeOpcao("");
+    setCidadeOutro("");
+    setRg("");
+    setNomeAnimal("");
+    setEspecie("");
+    setRacaOpcao("");
+    setRacaOutro("");
+    setMicrochip("");
+    setNascimento("");
+    setSexo("");
+    setPelagem("");
+    setCor("");
+    setObservacoes("");
+    setDataCompra(hoje);
+    setValorFilhote("");
+    setValorExtenso("");
+    setFormaPagamento("");
+    setParcelas("");
+    setVendedora("");
+    setEmailLoja("");
+    setMes(monthKeyNow());
+    setLinkCopied(false);
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
@@ -182,14 +217,14 @@ export function NovoContratoPage() {
 
     try {
       const result = await saveContract(contrato);
+      const savedUrl = result.clientSignUrl || "";
       if (result.provider === "zapsign") {
         setSuccess(result.message || "Contrato enviado ao ZapSign. Compartilhe o link abaixo com o cliente.");
       } else {
         setSuccess("Contrato salvo com sucesso! PDF baixado automaticamente.");
       }
-      if (result.clientSignUrl) {
-        setClientSignUrl(result.clientSignUrl);
-      }
+      resetFormFields();
+      if (savedUrl) setClientSignUrl(savedUrl);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao salvar contrato.");
     } finally {
