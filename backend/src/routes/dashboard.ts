@@ -22,6 +22,38 @@ import {
   todayMonthKey,
   todaySaoPaulo,
 } from "../utils/formatters.js";
+
+const CONTRATO_CAMPOS_OBRIGATORIOS: Record<string, string> = {
+  Nome: "Nome do comprador",
+  Telefone: "WhatsApp",
+  CPF: "CPF",
+  "E-mail": "E-mail",
+  Endereço: "Endereço",
+  Número: "Nº da residência",
+  CEP: "CEP",
+  Estado: "Estado",
+  Cidade: "Bairro",
+  RG: "RG",
+  Raça: "Raça",
+  Sexo: "Sexo",
+  Cor: "Cor",
+  Pelagem: "Pelagem",
+  Espécie: "Espécie",
+  Microchip: "Microchip",
+  "Nascimento filhote": "Nascimento do filhote",
+  "Data Compra": "Data da compra",
+  "Valor Filhote": "Valor do filhote",
+  "Valor por extenso": "Valor por extenso",
+  "Forma de pagamento": "Forma de pagamento",
+  "Quantidade de parcelas": "Quantidade de parcelas",
+  Vendedora: "Vendedora",
+};
+
+function camposObrigatoriosFaltando(contrato: Record<string, string>): string[] {
+  return Object.entries(CONTRATO_CAMPOS_OBRIGATORIOS)
+    .filter(([k]) => !String(contrato[k] || "").trim())
+    .map(([, label]) => label);
+}
 import { getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } from "../config.js";
 import {
   deleteContractRows,
@@ -497,10 +529,9 @@ router.post("/contracts/register-zapsign", authMiddleware, requireRole("operacao
       return;
     }
 
-    const obrigatorios = ["Nome", "Telefone", "CPF", "E-mail", "Raça", "Sexo", "Cor", "Pelagem", "Data Compra", "Valor Filhote"];
-    const faltando = obrigatorios.filter((k) => !String(contrato[k] || "").trim());
+    const faltando = camposObrigatoriosFaltando(contrato);
     if (faltando.length) {
-      res.status(400).json({ error: `Preencha: ${faltando.join(", ")}` });
+      res.status(400).json({ error: `Preencha os campos obrigatórios: ${faltando.join(", ")}` });
       return;
     }
 
@@ -568,10 +599,9 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
 
     const contrato = (body.contrato && typeof body.contrato === "object" ? body.contrato : body) as Record<string, string>;
     const anexos = body.anexos;
-    const obrigatorios = ["Nome", "Telefone", "CPF", "E-mail", "Raça", "Sexo", "Cor", "Pelagem", "Data Compra", "Valor Filhote"];
-    const faltando = obrigatorios.filter((k) => !String(contrato[k] || "").trim());
+    const faltando = camposObrigatoriosFaltando(contrato);
     if (faltando.length) {
-      res.status(400).json({ error: `Preencha: ${faltando.join(", ")}` });
+      res.status(400).json({ error: `Preencha os campos obrigatórios: ${faltando.join(", ")}` });
       return;
     }
 

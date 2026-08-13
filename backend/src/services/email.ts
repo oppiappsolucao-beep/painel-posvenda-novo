@@ -227,3 +227,59 @@ export async function sendDocFormAttachmentsEmail(params: {
     throw new Error(friendlySmtpError(error));
   }
 }
+
+/** Avisa o cliente quando um documento já enviado foi substituído/retificado. */
+export async function sendDocFormRectificationEmail(params: {
+  clientEmail: string;
+  clienteNome: string;
+  unitLabel: string;
+  documentLabels: string[];
+}): Promise<void> {
+  const { clientEmail, clienteNome, unitLabel, documentLabels } = params;
+  if (!clientEmail || !documentLabels.length) return;
+
+  const brand = `SkoobPet ${unitLabel}`;
+  const docsText = documentLabels.map((d) => `• ${d}`).join("\n");
+  const subject = `${brand} — documento retificado no seu contrato`;
+
+  const text = [
+    `Olá, ${clienteNome},`,
+    ``,
+    `Informamos que o(s) seguinte(s) documento(s) do seu contrato foi(foram) retificado(s) pela loja:`,
+    docsText,
+    ``,
+    `Unidade: ${unitLabel}`,
+    ``,
+    `Em caso de dúvidas, entre em contato com a loja.`,
+    ``,
+    `Abraços,`,
+    `Equipe SkoobPet`,
+  ].join("\n");
+
+  const html = `
+    <p>Olá, <strong>${clienteNome}</strong>,</p>
+    <p>Informamos que o(s) seguinte(s) documento(s) do seu contrato foi(foram) <strong>retificado(s)</strong> pela loja:</p>
+    <ul>${documentLabels.map((d) => `<li>${d}</li>`).join("")}</ul>
+    <p><strong>Unidade:</strong> ${unitLabel}</p>
+    <p>Em caso de dúvidas, entre em contato com a loja.</p>
+    <p>Abraços,<br><strong>Equipe SkoobPet</strong></p>
+  `;
+
+  const mail = getTransporter();
+  if (!mail) {
+    throw new Error("Servidor de e-mail não configurado. Defina SMTP_HOST, SMTP_USER e SMTP_PASS.");
+  }
+
+  try {
+    await mail.sendMail({
+      from: config.smtp.from,
+      replyTo: config.smtp.from,
+      to: clientEmail,
+      subject,
+      text,
+      html,
+    });
+  } catch (error) {
+    throw new Error(friendlySmtpError(error));
+  }
+}

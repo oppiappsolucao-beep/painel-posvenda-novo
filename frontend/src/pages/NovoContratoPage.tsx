@@ -6,7 +6,8 @@ import { useAuth } from "../context/AuthContext";
 import { saveContract, fetchEmployees, fetchBreeds, type PetSpecies } from "../lib/api";
 import {
   CIDADES, ESTADOS, RACAS_CANINA, RACAS_FELINA,
-  COLORS, copyToClipboardSync, defaultUnitFilter, formatCpfInput, formatDateInput, isCpfComplete, monthKeyNow,
+  COLORS, copyToClipboardSync, defaultUnitFilter, formatCpfInput, formatDateInput, formatDateBrInput,
+  formatMoneyInput, formatPhoneBrInput, isCpfComplete, isDateBrComplete, isPhoneBrComplete, monthKeyNow,
 } from "../lib/utils";
 
 export function NovoContratoPage() {
@@ -129,9 +130,6 @@ export function NovoContratoPage() {
   if (!loading && !user) return <Navigate to="/login" replace />;
   if (!loading && hasRole("financeiro")) return <Navigate to="/financeiro" replace />;
 
-  const raca = racaOpcao === "Outro" ? racaOutro : racaOpcao;
-  const cidade = cidadeOpcao === "Outro" ? cidadeOutro : cidadeOpcao;
-
   const resetFormFields = () => {
     setNome("");
     setTelefone("");
@@ -175,8 +173,36 @@ export function NovoContratoPage() {
     setLinkCopied(false);
     setCpfError("");
 
-    if (!isCpfComplete(cpf)) {
-      setCpfError("CPF obrigatório no formato 123.456.789-00 (11 dígitos).");
+    const racaVal = racaOpcao === "Outro" ? racaOutro : racaOpcao;
+    const cidadeVal = cidadeOpcao === "Outro" ? cidadeOutro : cidadeOpcao;
+
+    const missing: string[] = [];
+    if (!nome.trim()) missing.push("Nome do comprador");
+    if (!email.trim()) missing.push("E-mail");
+    if (!endereco.trim()) missing.push("Endereço");
+    if (!isCpfComplete(cpf)) missing.push("CPF");
+    if (!numero.trim()) missing.push("Nº da residência");
+    if (!isPhoneBrComplete(telefone)) missing.push("WhatsApp");
+    if (!rg.trim()) missing.push("RG");
+    if (!cep.trim()) missing.push("CEP");
+    if (!estado.trim()) missing.push("Estado");
+    if (!cidadeVal.trim()) missing.push("Bairro");
+    if (!sexo) missing.push("Sexo");
+    if (!especie) missing.push("Espécie");
+    if (!pelagem) missing.push("Pelagem");
+    if (!racaVal.trim()) missing.push("Raça");
+    if (!microchip.trim()) missing.push("Microchip");
+    if (!isDateBrComplete(nascimento)) missing.push("Nascimento do filhote");
+    if (!cor.trim()) missing.push("Cor");
+    if (!isDateBrComplete(dataCompra)) missing.push("Data da compra");
+    if (!valorFilhote.trim()) missing.push("Valor do filhote");
+    if (!valorExtenso.trim()) missing.push("Valor por extenso");
+    if (!formaPagamento.trim()) missing.push("Forma de pagamento");
+    if (!parcelas.trim()) missing.push("Quantidade de parcelas");
+    if (!vendedora.trim()) missing.push("Vendedora");
+
+    if (missing.length) {
+      setError(`Preencha os campos obrigatórios: ${missing.join(", ")}`);
       return;
     }
 
@@ -189,7 +215,7 @@ export function NovoContratoPage() {
       "E-mail": email,
       "Data Compra": dataCompra,
       Mês: mes,
-      Raça: raca,
+      Raça: racaVal,
       Sexo: sexo,
       Cor: cor,
       Pelagem: pelagem,
@@ -198,8 +224,8 @@ export function NovoContratoPage() {
       Complemento: complemento,
       CEP: cep,
       Estado: estado,
-      Cidade: cidade,
-      Bairro: cidade,
+      Cidade: cidadeVal,
+      Bairro: cidadeVal,
       RG: rg,
       "Valor Filhote": valorFilhote,
       "Valor por extenso": valorExtenso,
@@ -278,7 +304,7 @@ export function NovoContratoPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="Nome do comprador" value={nome} onChange={setNome} required />
             <Field label="E-mail" value={email} onChange={setEmail} required />
-            <Field label="Endereço" value={endereco} onChange={setEndereco} />
+            <Field label="Endereço" value={endereco} onChange={setEndereco} required />
             <CpfField
               label="CPF"
               value={cpf}
@@ -288,43 +314,67 @@ export function NovoContratoPage() {
               }}
               error={cpfError}
             />
-            <Field label="Nº da residência" value={numero} onChange={setNumero} />
-            <Field label="Contato (WhatsApp)" value={telefone} onChange={setTelefone} required />
+            <Field label="Nº da residência" value={numero} onChange={setNumero} required />
+            <Field
+              label="Contato (WhatsApp)"
+              value={telefone}
+              onChange={(v) => setTelefone(formatPhoneBrInput(v))}
+              required
+              placeholder="Ex: (11) 98765-4321"
+            />
             <Field label="Complemento" value={complemento} onChange={setComplemento} />
-            <Field label="RG" value={rg} onChange={setRg} />
-            <Field label="CEP" value={cep} onChange={setCep} />
-            <Select label="Estado" value={estado} onChange={setEstado} options={ESTADOS} />
-            <Select label="Bairro" value={cidadeOpcao} onChange={setCidadeOpcao} options={CIDADES} placeholder="Selecione" />
-            {cidadeOpcao === "Outro" && <Field label="Digite o bairro" value={cidadeOutro} onChange={setCidadeOutro} />}
+            <Field label="RG" value={rg} onChange={setRg} required />
+            <Field label="CEP" value={cep} onChange={setCep} required placeholder="Ex: 13087-654" />
+            <Select label="Estado" value={estado} onChange={setEstado} options={ESTADOS} required />
+            <Select label="Bairro" value={cidadeOpcao} onChange={setCidadeOpcao} options={CIDADES} placeholder="Selecione" required />
+            {cidadeOpcao === "Outro" && <Field label="Digite o bairro" value={cidadeOutro} onChange={setCidadeOutro} required />}
           </div>
         </Section>
 
         <Section title="Dados do filhote" icon="🐾">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="Nome do animal" value={nomeAnimal} onChange={setNomeAnimal} />
-            <Radio label="Sexo" value={sexo} onChange={setSexo as (v: string) => void} options={["FÊMEA", "MACHO"]} />
-            <Radio label="Espécie" value={especie} onChange={setEspecie as (v: string) => void} options={["CANINA", "FELINA"]} />
-            <Radio label="Pelagem" value={pelagem} onChange={setPelagem as (v: string) => void} options={["CURTA", "LONGA"]} />
+            <Radio label="Sexo" value={sexo} onChange={setSexo as (v: string) => void} options={["FÊMEA", "MACHO"]} required />
+            <Radio label="Espécie" value={especie} onChange={setEspecie as (v: string) => void} options={["CANINA", "FELINA"]} required />
+            <Radio label="Pelagem" value={pelagem} onChange={setPelagem as (v: string) => void} options={["CURTA", "LONGA"]} required />
             {especie && (
               <>
-                <Select label="Raça" value={racaOpcao} onChange={setRacaOpcao} options={racas} placeholder="Selecione" />
-                {racaOpcao === "Outro" && <Field label="Digite a raça" value={racaOutro} onChange={setRacaOutro} />}
+                <Select label="Raça" value={racaOpcao} onChange={setRacaOpcao} options={racas} placeholder="Selecione" required />
+                {racaOpcao === "Outro" && <Field label="Digite a raça" value={racaOutro} onChange={setRacaOutro} required />}
               </>
             )}
-            <Field label="Microchip" value={microchip} onChange={setMicrochip} />
-            <Field label="Nascimento (DD/MM/AAAA)" value={nascimento} onChange={setNascimento} placeholder="DD/MM/AAAA" />
+            <Field label="Microchip" value={microchip} onChange={setMicrochip} required />
+            <Field
+              label="Nascimento (DD/MM/AAAA)"
+              value={nascimento}
+              onChange={(v) => setNascimento(formatDateBrInput(v))}
+              placeholder="Ex: 15/08/2026"
+              required
+            />
             <Field label="Cor" value={cor} onChange={setCor} required />
             <Field label="Observações" value={observacoes} onChange={setObservacoes} />
-            <Field label="Data da compra (DD/MM/AAAA)" value={dataCompra} onChange={setDataCompra} required />
+            <Field
+              label="Data da compra (DD/MM/AAAA)"
+              value={dataCompra}
+              onChange={(v) => setDataCompra(formatDateBrInput(v))}
+              placeholder="Ex: 15/08/2026"
+              required
+            />
           </div>
         </Section>
 
         <Section title="Dados da venda" icon="🛒">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Valor do filhote" value={valorFilhote} onChange={setValorFilhote} required placeholder="Ex: 4500,00" />
-            <Field label="Valor por extenso" value={valorExtenso} onChange={setValorExtenso} />
-            <Field label="Forma de pagamento" value={formaPagamento} onChange={setFormaPagamento} />
-            <Field label="Quantidade de parcelas" value={parcelas} onChange={setParcelas} />
+            <Field
+              label="Valor do filhote"
+              value={valorFilhote}
+              onChange={(v) => setValorFilhote(formatMoneyInput(v))}
+              required
+              placeholder="Ex: 4.500,00"
+            />
+            <Field label="Valor por extenso" value={valorExtenso} onChange={setValorExtenso} required placeholder="Ex: sete mil reais" />
+            <Field label="Forma de pagamento" value={formaPagamento} onChange={setFormaPagamento} required placeholder="Ex: Crédito e Pix" />
+            <Field label="Quantidade de parcelas" value={parcelas} onChange={setParcelas} required placeholder="Ex: 7 parcelas" />
             {employees.length > 0 ? (
               <SelectField
                 label="Vendedora"
@@ -441,13 +491,18 @@ function CpfField({ label, value, onChange, error }: {
   );
 }
 
-function Select({ label, value, onChange, options, placeholder }: {
-  label: string; value: string; onChange: (v: string) => void; options: string[]; placeholder?: string;
+function Select({ label, value, onChange, options, placeholder, required }: {
+  label: string; value: string; onChange: (v: string) => void; options: string[]; placeholder?: string; required?: boolean;
 }) {
   return (
     <label className="block">
-      <span className="text-sm font-semibold text-slate-600">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-white">
+      <span className="text-sm font-semibold text-slate-600">{label}{required && " *"}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-white"
+      >
         <option value="">{placeholder || "Selecione"}</option>
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -455,12 +510,12 @@ function Select({ label, value, onChange, options, placeholder }: {
   );
 }
 
-function Radio({ label, value, onChange, options }: {
-  label: string; value: string; onChange: (v: string) => void; options: string[];
+function Radio({ label, value, onChange, options, required }: {
+  label: string; value: string; onChange: (v: string) => void; options: string[]; required?: boolean;
 }) {
   return (
     <fieldset>
-      <legend className="text-sm font-semibold text-slate-600 mb-2">{label}</legend>
+      <legend className="text-sm font-semibold text-slate-600 mb-2">{label}{required && " *"}</legend>
       <div className="flex flex-wrap gap-4">
         {options.map((o) => (
           <label key={o} className="flex items-center gap-2 cursor-pointer">

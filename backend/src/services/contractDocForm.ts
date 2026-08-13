@@ -9,7 +9,7 @@ import {
   dbSetDocFormEmailSentAt,
 } from "../db/docFormStore.js";
 import { isDatabaseEnabled } from "../db/client.js";
-import { sendDocFormAttachmentsEmail } from "./email.js";
+import { sendDocFormAttachmentsEmail, sendDocFormRectificationEmail } from "./email.js";
 import {
   DOC_FORM_KINDS,
   DOC_FORM_LABELS,
@@ -227,7 +227,30 @@ export async function saveDocFormAttachments(
     throw new Error("Nenhuma imagem válida enviada.");
   }
 
+  const existingBuffers = await getContractAttachmentBuffers(unitKey, sheetIndex);
+  const replacedKinds = entries
+    .filter(([kind]) => Boolean(existingBuffers[kind as DocFormKind]?.length))
+    .map(([kind]) => kind as DocFormKind);
+
   await saveContractAttachments(unitKey, sheetIndex, Object.fromEntries(entries));
+
+  if (replacedKinds.length) {
+    const clientEmail = resolveClientEmail(contrato);
+    if (clientEmail) {
+      try {
+        const unitLabel = getUnitByKey(unitKey)?.label || unitKey;
+        const clienteNome = String(contrato["Nome"] || "Cliente").trim();
+        await sendDocFormRectificationEmail({
+          clientEmail,
+          clienteNome,
+          unitLabel,
+          documentLabels: replacedKinds.map((kind) => DOC_FORM_LABELS[kind]),
+        });
+      } catch (e) {
+        console.warn("[doc-form] e-mail de retificação:", e instanceof Error ? e.message : e);
+      }
+    }
+  }
 
   let zapsignSync: ZapsignAttachmentSyncStatus | undefined;
   try {

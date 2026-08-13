@@ -67,6 +67,42 @@ export function isCpfComplete(value: string): boolean {
   return /^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(value.trim());
 }
 
+/** Máscara celular BR: (11) 98765-4321 */
+export function formatPhoneBrInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length === 0) return "";
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+export function isPhoneBrComplete(value: string): boolean {
+  return /^\(\d{2}\) \d{4,5}-\d{4}$/.test(value.trim());
+}
+
+/** Máscara data: DD/MM/AAAA */
+export function formatDateBrInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+export function isDateBrComplete(value: string): boolean {
+  return /^\d{2}\/\d{2}\/\d{4}$/.test(value.trim());
+}
+
+/** Valor monetário: 4.500,00 */
+export function formatMoneyInput(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  const cents = parseInt(digits, 10);
+  const formatted = (cents / 100).toFixed(2).replace(".", ",");
+  const [intPart, decPart] = formatted.split(",");
+  const intFmt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${intFmt},${decPart}`;
+}
+
 /** Cópia síncrona — funciona dentro do gesto de clique do usuário. */
 export function copyToClipboardSync(text: string): boolean {
   if (!text) return false;
