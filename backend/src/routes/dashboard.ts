@@ -80,6 +80,7 @@ import {
   fetchZapSignDocumentPdf,
   isZapSignEnabled,
 } from "../services/zapsign.js";
+import { syncZapSignRowsForStatus } from "../services/zapsignSignatureSync.js";
 import {
   getContractAttachmentBuffers,
   saveContractAttachments,
@@ -251,17 +252,18 @@ function isContratoAssinado(
     return isContratoAssinadoInApp(record);
   }
 
+  const dataCliente = String(row["Data Assinatura Cliente"] || "").trim();
+  const dataLoja = String(row["Data Assinatura Loja"] || "").trim();
+  if (dataCliente && dataLoja) return true;
+
   const st = norm(statusCol ? row[statusCol] : row["Status"]);
   if (st) {
-    if (st.includes("nao assin") || st.includes("não assin") || st.includes("pendent") || st.includes("aguard")) {
-      return false;
-    }
+    if (st.includes("nao assin") || st.includes("não assin")) return false;
+    if (st.includes("pendent") || st.includes("aguard")) return false;
     if (st.includes("assin")) return true;
   }
-  return Boolean(
-    String(row["Data Assinatura Cliente"] || "").trim() ||
-    String(row["Data Assinatura Loja"] || "").trim(),
-  );
+
+  return Boolean(dataCliente && dataLoja);
 }
 
 function getDisparoEm(row: Record<string, string>, record?: SignatureRecord | null): string {
@@ -322,7 +324,12 @@ function buildStatusAssinaturaData(
       : String(row["Link Assinatura"] || "").trim();
     const identificador = `contrato_${limparNomeArquivo(nomeCliente || `registro_${index + 1}`)}.pdf`;
     const assinatura = buildSignatureProgress(row, item.unitKey, record);
-    const podeAssinarLoja = Boolean(record?.clienteSignedAt && !record?.lojaSignedAt);
+    const dataClienteAssinatura = String(row["Data Assinatura Cliente"] || "").trim();
+    const dataLojaAssinatura = String(row["Data Assinatura Loja"] || "").trim();
+    const podeAssinarLoja = Boolean(
+      (record?.clienteSignedAt && !record?.lojaSignedAt) ||
+      (dataClienteAssinatura && !dataLojaAssinatura && String(row["Link Assinatura Loja"] || "").trim()),
+    );
     const docForm = docFormMap.get(signatureKey(item.unitKey, item.sheetIndex)) || {
       anexos: {
         carteirinhaFrente: { enviado: false },
@@ -454,11 +461,12 @@ router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async 
     const dataFim = String(req.query.dataFim || req.query.data || req.query.dataInicio || "");
     const status = String(req.query.status || "todos");
     const loaded = await loadRowsForUser(req.user!);
+    const syncedLoaded = await syncZapSignRowsForStatus(loaded);
     const signatures = await loadSignaturesMap();
     const docFormMap = await loadDocFormStatusMap(
-      loaded.map((item) => ({ unitKey: item.unitKey, sheetIndex: item.sheetIndex, contrato: item.data })),
+      syncedLoaded.map((item) => ({ unitKey: item.unitKey, sheetIndex: item.sheetIndex, contrato: item.data })),
     );
-    res.json(buildStatusAssinaturaData(loaded, nome, dataInicio, dataFim, status, signatures, docFormMap));
+    res.json(buildStatusAssinaturaData(syncedLoaded, nome, dataInicio, dataFim, status, signatures, docFormMap));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });

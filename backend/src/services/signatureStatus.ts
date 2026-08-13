@@ -125,12 +125,12 @@ function buildFromZapSignRow(row: SheetRow, unitKey: UnitKey): SignatureProgress
   const lojaNome = zapsignStoreSignerName(unitKey) || loja.nome;
   const lojaEmail = String(row["E-mail Loja"] || loja.email).trim();
 
-  const clienteStatus = dataLoja
-    ? inferStatusFromDate(dataCliente, enviado)
+  const clienteStatus = inferStatusFromDate(dataCliente, enviado);
+  const lojaStatus = dataCliente
+    ? inferStatusFromDate(dataLoja, enviado)
     : enviado
       ? "aguardando"
       : "nao_enviado";
-  const lojaStatus = inferStatusFromDate(dataLoja, enviado);
 
   const signatarios: SignatarioItem[] = [
     {

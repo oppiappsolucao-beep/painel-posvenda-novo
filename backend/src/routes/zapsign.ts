@@ -9,6 +9,7 @@ import {
 } from "../services/zapsign.js";
 import { updateContractRow } from "../services/sheets.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
+import { findClientSigner, findStoreSigner } from "../services/zapsignFormConfig.js";
 import { authMiddleware, requireRole } from "../middleware/auth.js";
 
 const router = Router();
@@ -16,6 +17,29 @@ const router = Router();
 function parseUnitKey(value: string): UnitKey | null {
   const key = value.trim().toLowerCase() as UnitKey;
   return ZAPSIGN_UNIT_KEYS.includes(key) ? key : null;
+}
+
+function formatSignedAt(iso: string | null | undefined): string {
+  const raw = String(iso || "").trim();
+  if (!raw) return formatDateTimeBr(todaySaoPaulo());
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return formatDateTimeBr(d);
+}
+
+function isSignerSigned(signer?: { status?: string; signed_at?: string | null } | null): boolean {
+  if (!signer) return false;
+  if (String(signer.signed_at || "").trim()) return true;
+  const status = String(signer.status || "").trim().toLowerCase();
+  return status === "signed" || status === "assinado";
+}
+
+function buildStatusAssinaturaLabel(dataCliente: string, dataLoja: string, docStatus: string): string {
+  if (docStatus === "signed" || docStatus === "assinado") return "Assinado (ZapSign)";
+  if (dataCliente && dataLoja) return "Assinado (ZapSign)";
+  if (dataLoja) return "Loja assinou (ZapSign)";
+  if (dataCliente) return "Cliente assinou (ZapSign)";
+  return "Aguardando cliente (ZapSign)";
 }
 
 async function configureUnit(unitKey: UnitKey, res: import("express").Response): Promise<void> {
@@ -56,16 +80,17 @@ router.post("/configure/:unitKey", authMiddleware, requireRole("financeiro"), as
 router.post("/webhook", async (req, res) => {
   try {
     const event = req.body as {
+      event_type?: string;
       event?: string;
       status?: string;
       token?: string;
       external_id?: string;
-      signers?: Array<{ status?: string; signed_at?: string; qualification?: string }>;
+      signers?: Array<{ status?: string; signed_at?: string | null; qualification?: string; name?: string }>;
     };
 
     const docToken = String(event.token || "").trim();
     const externalId = String(event.external_id || "").trim();
-    const status = String(event.status || "").trim().toLowerCase();
+    const docStatus = String(event.status || "").trim().toLowerCase();
 
     const colonIndex = externalId.indexOf(":");
     if (colonIndex <= 0) {
@@ -85,16 +110,28 @@ router.post("/webhook", async (req, res) => {
       return;
     }
 
-    if (status === "assinado" || status === "signed") {
-      const signedAt =
-        event.signers?.find((s) => s.signed_at)?.signed_at ||
-        formatDateTimeBr(todaySaoPaulo());
+    const signers = event.signers || [];
+    const clientSigner = findClientSigner(signers);
+    const storeSigner = findStoreSigner(signers);
 
-      await updateContractRow(unitKey, sheetIndex, {
-        "Status Assinatura": "Assinado (ZapSign)",
-        "Data Assinatura Cliente": signedAt,
-        "Documento ZapSign": docToken,
-      });
+    const patch: Record<string, string> = {};
+    if (docToken) patch["Documento ZapSign"] = docToken;
+
+    if (isSignerSigned(clientSigner)) {
+      patch["Data Assinatura Cliente"] = formatSignedAt(clientSigner?.signed_at);
+    }
+    if (isSignerSigned(storeSigner)) {
+      patch["Data Assinatura Loja"] = formatSignedAt(storeSigner?.signed_at);
+    }
+
+    const dataCliente = patch["Data Assinatura Cliente"] || "";
+    const dataLoja = patch["Data Assinatura Loja"] || "";
+    if (dataCliente || dataLoja || docStatus === "signed" || docStatus === "assinado") {
+      patch["Status Assinatura"] = buildStatusAssinaturaLabel(dataCliente, dataLoja, docStatus);
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await updateContractRow(unitKey, sheetIndex, patch);
     }
 
     res.json({ ok: true });
