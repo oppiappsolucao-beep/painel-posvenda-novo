@@ -85,6 +85,42 @@ export function campinasClientAuthMode(): string {
   return "tokenEmail";
 }
 
+export interface ZapSignSignerAuth {
+  auth_mode: string;
+  require_document_photo: boolean;
+}
+
+/** Usa a autenticação configurada no modelo da pasta; env só entra se o modelo não tiver. */
+export function resolveClientSignerAuth(
+  templateSigner?: Pick<ZapSignTemplateSigner, "auth_mode" | "require_document_photo"> | null,
+): ZapSignSignerAuth {
+  if (templateSigner) {
+    return {
+      auth_mode: String(templateSigner.auth_mode || "").trim() || campinasClientAuthMode(),
+      require_document_photo: templateSigner.require_document_photo !== false,
+    };
+  }
+  return {
+    auth_mode: campinasClientAuthMode(),
+    require_document_photo: process.env.ZAPSIGN_CLIENT_REQUIRE_DOCUMENT_PHOTO === "true",
+  };
+}
+
+export function resolveStoreSignerAuth(
+  templateSigner?: Pick<ZapSignTemplateSigner, "auth_mode" | "require_document_photo"> | null,
+): ZapSignSignerAuth {
+  if (templateSigner) {
+    return {
+      auth_mode: String(templateSigner.auth_mode || "").trim() || campinasStoreAuthMode(),
+      require_document_photo: Boolean(templateSigner.require_document_photo),
+    };
+  }
+  return {
+    auth_mode: campinasStoreAuthMode(),
+    require_document_photo: false,
+  };
+}
+
 function mapFormField(field: {
   variable: string;
   input_type: string;
