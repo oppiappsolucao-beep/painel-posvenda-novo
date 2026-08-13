@@ -253,6 +253,8 @@ export interface StatusAssinaturaResponse {
 export async function fetchStatusAssinatura(params: {
   nome?: string;
   data?: string;
+  dataInicio?: string;
+  dataFim?: string;
   status?: string;
 }) {
   const { data } = await api.get<StatusAssinaturaResponse>("/dashboard/status-assinatura", { params });

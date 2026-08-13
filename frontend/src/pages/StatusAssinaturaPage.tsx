@@ -28,7 +28,8 @@ function formatIsoDateBr(iso: string): string {
 export function StatusAssinaturaPage() {
   const { user, loading } = useAuth();
   const [nome, setNome] = useState("");
-  const [dataConsulta, setDataConsulta] = useState(todayIsoDate);
+  const [dataInicio, setDataInicio] = useState(todayIsoDate);
+  const [dataFim, setDataFim] = useState(todayIsoDate);
   const [sortMode, setSortMode] = useState<SortMode>("alfabetica");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
@@ -47,8 +48,8 @@ export function StatusAssinaturaPage() {
   const linkInputRef = useRef<HTMLInputElement>(null);
 
   const queryParams = useMemo(
-    () => ({ nome: nome.trim(), data: dataConsulta, status: "todos" as const }),
-    [nome, dataConsulta],
+    () => ({ nome: nome.trim(), dataInicio, dataFim, status: "todos" as const }),
+    [nome, dataInicio, dataFim],
   );
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -95,7 +96,9 @@ export function StatusAssinaturaPage() {
 
   const clearFilters = () => {
     setNome("");
-    setDataConsulta(todayIsoDate());
+    const hoje = todayIsoDate();
+    setDataInicio(hoje);
+    setDataFim(hoje);
   };
 
   const closePreview = () => {
@@ -214,7 +217,11 @@ export function StatusAssinaturaPage() {
     <AppLayout
       title="Status De Assinatura"
       emoji="✍️"
-      caption={data ? `${formatIsoDateBr(dataConsulta)} • ${filteredItems.length} contrato(s)` : undefined}
+      caption={
+        data
+          ? `${formatIsoDateBr(dataInicio)}${dataInicio !== dataFim ? ` — ${formatIsoDateBr(dataFim)}` : ""} • ${filteredItems.length} contrato(s)`
+          : undefined
+      }
     >
       {copyFeedback && (
         <div className="mb-3 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-2">
@@ -251,12 +258,21 @@ export function StatusAssinaturaPage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-end">
-          <label className="block sm:w-44 shrink-0">
-            <span className="text-sm font-semibold text-slate-600">Data</span>
+          <label className="block sm:w-40 shrink-0">
+            <span className="text-sm font-semibold text-slate-600">Data início</span>
             <input
               type="date"
-              value={dataConsulta}
-              onChange={(e) => setDataConsulta(e.target.value)}
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/20"
+            />
+          </label>
+          <label className="block sm:w-40 shrink-0">
+            <span className="text-sm font-semibold text-slate-600">Data fim</span>
+            <input
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/20"
             />
           </label>
@@ -362,7 +378,7 @@ export function StatusAssinaturaPage() {
                   {filteredItems.length === 0 ? (
                     <tr>
                       <td colSpan={3} className="px-4 py-16 text-center text-slate-400">
-                        Nenhum contrato em {formatIsoDateBr(dataConsulta)}
+                        Nenhum contrato entre {formatIsoDateBr(dataInicio)} e {formatIsoDateBr(dataFim)}
                         {nome.trim() ? ` para "${nome.trim()}"` : ""}.
                       </td>
                     </tr>
@@ -480,7 +496,7 @@ export function StatusAssinaturaPage() {
               </table>
             </div>
             <div className="px-4 py-2 text-center text-xs text-slate-500 border-t border-slate-100 bg-white rounded-b-2xl">
-              {filteredItems.length} contrato(s) em {formatIsoDateBr(dataConsulta)}
+              {filteredItems.length} contrato(s) entre {formatIsoDateBr(dataInicio)} e {formatIsoDateBr(dataFim)}
               {sortMode === "alfabetica" ? " • ordem alfabética" : " • último enviado"}
             </div>
           </div>

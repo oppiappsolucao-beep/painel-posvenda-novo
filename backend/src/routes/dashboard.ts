@@ -266,7 +266,8 @@ function getSortTimestamp(row: Record<string, string>): number {
 function buildStatusAssinaturaData(
   loaded: LoadedRow[],
   nome: string,
-  dataConsulta: string,
+  dataInicio: string,
+  dataFim: string,
   statusFilter: string,
   signatures: Map<string, SignatureRecord>,
   docFormMap: Map<string, import("../services/contractDocForm.js").DocFormStatus>,
@@ -333,13 +334,21 @@ function buildStatusAssinaturaData(
     filtered = filtered.filter((item) => norm(item.nome).includes(nomeQuery));
   }
 
-  if (dataConsulta) {
-    const day = parseDate(dataConsulta);
-    if (day) {
-      const start = new Date(day);
+  if (dataInicio || dataFim) {
+    const startDay = dataInicio ? parseDate(dataInicio) : null;
+    const endDay = dataFim ? parseDate(dataFim) : startDay;
+    if (startDay || endDay) {
+      const start = startDay ? new Date(startDay) : new Date(endDay!);
       start.setHours(0, 0, 0, 0);
-      const end = new Date(day);
+      const end = endDay ? new Date(endDay) : new Date(startDay!);
       end.setHours(23, 59, 59, 999);
+      if (start.getTime() > end.getTime()) {
+        const swap = new Date(start);
+        start.setTime(end.getTime());
+        end.setTime(swap.getTime());
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+      }
       filtered = filtered.filter(
         (item) => item.referenciaData && item.referenciaData >= start && item.referenciaData <= end,
       );
@@ -409,14 +418,15 @@ router.get("/visao-geral", authMiddleware, requireRole("operacao"), async (req: 
 router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async (req: AuthRequest, res) => {
   try {
     const nome = String(req.query.nome || "");
-    const dataConsulta = String(req.query.data || req.query.dataInicio || "");
+    const dataInicio = String(req.query.dataInicio || req.query.data || "");
+    const dataFim = String(req.query.dataFim || req.query.data || req.query.dataInicio || "");
     const status = String(req.query.status || "todos");
     const loaded = await loadRowsForUser(req.user!);
     const signatures = await loadSignaturesMap();
     const docFormMap = await loadDocFormStatusMap(
       loaded.map((item) => ({ unitKey: item.unitKey, sheetIndex: item.sheetIndex, contrato: item.data })),
     );
-    res.json(buildStatusAssinaturaData(loaded, nome, dataConsulta, status, signatures, docFormMap));
+    res.json(buildStatusAssinaturaData(loaded, nome, dataInicio, dataFim, status, signatures, docFormMap));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });
