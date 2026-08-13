@@ -48,23 +48,28 @@ function envValue(key: string): string {
 
 /** Modelos cadastrados manualmente no ZapSign (produção). */
 const DEFAULT_PRODUCTION_TEMPLATE_IDS: Partial<Record<UnitKey, string>> = {
-  campinas: "0fedf414-7278-4204-bb1c-6bafd091a3fe",
-  piracicaba: "15c7d2a6-28fb-4747-9f1a-a9d3a4fd7978",
-  indaiatuba: "d6104d85-fca6-42e9-9c9d-821c3abf9d0a",
+  campinas: "e002f686-e44b-4ffe-b652-7da740ba9b37",
+  piracicaba: "9ffd3b75-6379-4df3-a432-fa726848cb49",
+  indaiatuba: "eef0c6fe-6b7b-4d59-9f94-4b42a22fd6c2",
 };
 
-/** Clones antigos (nome/conteúdo Campinas) — ignorados se ainda estiverem no .env de produção. */
-const DEPRECATED_PRODUCTION_TEMPLATE_IDS: Partial<Record<UnitKey, string>> = {
-  piracicaba: "fce2c847-c3bb-4299-ae4d-2dc7ed9ec8aa",
-  indaiatuba: "6abc2391-34ad-468a-a0bc-4a0610cb6a1b",
-};
+/** IDs antigos/incorretos — se ainda estiverem no .env, usa o default correto da unidade. */
+const DEPRECATED_PRODUCTION_TEMPLATE_ID_SET = new Set([
+  "0fedf414-7278-4204-bb1c-6bafd091a3fe",
+  "15c7d2a6-28fb-4747-9f1a-a9d3a4fd7978",
+  "d6104d85-fca6-42e9-9c9d-821c3abf9d0a",
+  "573218e2-ab92-4b16-b92c-8dab4dd01a1a",
+  "acb861b1-f2eb-47ec-abc9-e3770f8c923b",
+  "8b0250de-04a1-4280-95b8-6ffd0b65257e",
+  "fce2c847-c3bb-4299-ae4d-2dc7ed9ec8aa",
+  "6abc2391-34ad-468a-a0bc-4a0610cb6a1b",
+]);
 
 /** Template ZapSign de produção (limpo, sem anexos legados). Sobrescreve o modelo-fonte do .env. */
 export function getZapSignProductionTemplateId(unitKey: UnitKey): string {
   const key = `ZAPSIGN_PRODUCTION_TEMPLATE_ID_${unitKey.toUpperCase()}`;
   const fromEnv = envValue(key);
-  const deprecated = DEPRECATED_PRODUCTION_TEMPLATE_IDS[unitKey];
-  if (fromEnv && deprecated && fromEnv === deprecated) {
+  if (fromEnv && DEPRECATED_PRODUCTION_TEMPLATE_ID_SET.has(fromEnv)) {
     return DEFAULT_PRODUCTION_TEMPLATE_IDS[unitKey] || fromEnv;
   }
   return fromEnv || DEFAULT_PRODUCTION_TEMPLATE_IDS[unitKey] || "";
