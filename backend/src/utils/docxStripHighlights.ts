@@ -306,6 +306,27 @@ function neutralizeHighlightFromXml(xml: string): string {
   return result;
 }
 
+function stripBoldTags(xml: string): string {
+  return xml
+    .replace(/<w:b\b[^/>]*\/>/gi, "")
+    .replace(/<w:b\b[^>]*>[\s\S]*?<\/w:b>/gi, "")
+    .replace(/<w:bCs\b[^/>]*\/>/gi, "")
+    .replace(/<w:bCs\b[^>]*>[\s\S]*?<\/w:bCs>/gi, "");
+}
+
+/** Tira negrito só dos parágrafos que têm variável {{...}} — o valor preenchido não fica em destaque. */
+export function stripPlaceholderBoldFromXml(xml: string): string {
+  return xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (paragraph) => {
+    const plain = paragraph.replace(/<[^>]+>/g, "");
+    if (!/\{\{/.test(plain) && !/\}\}/.test(plain)) return paragraph;
+    return stripBoldTags(paragraph);
+  });
+}
+
+function sanitizeFilledFieldFormattingInXml(xml: string): string {
+  return stripPlaceholderBoldFromXml(neutralizeHighlightFromXml(xml));
+}
+
 function isNeutralShading(xml: string): boolean {
   const bad = [
     ...xml.matchAll(/<w:highlight\b(?![^>]*w:val="white")[^>]*>/gi),
@@ -397,6 +418,28 @@ export async function countDocxShadingTags(docxBuffer: Buffer): Promise<number> 
   return total;
 }
 
+export async function countPlaceholderEmphasis(docxBuffer: Buffer): Promise<{ highlight: number; bold: number }> {
+  const zip = await JSZip.loadAsync(docxBuffer);
+  let highlight = 0;
+  let bold = 0;
+
+  for (const name of Object.keys(zip.files)) {
+    const file = zip.files[name];
+    if (!file || file.dir || !/\.xml$/i.test(name)) continue;
+    const xml = await file.async("string");
+    highlight += countShadingTags(xml);
+    xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (paragraph) => {
+      const plain = paragraph.replace(/<[^>]+>/g, "");
+      if ((/\{\{/.test(plain) || /\}\}/.test(plain)) && /<w:b\b/i.test(paragraph)) {
+        bold += 1;
+      }
+      return paragraph;
+    });
+  }
+
+  return { highlight, bold };
+}
+
 export async function countDocxNonNeutralShading(docxBuffer: Buffer): Promise<number> {
   const zip = await JSZip.loadAsync(docxBuffer);
   let total = 0;
@@ -422,7 +465,7 @@ export async function stripDocxHighlights(docxBuffer: Buffer): Promise<Buffer> {
     if (!file || file.dir || !/\.xml$/i.test(name)) continue;
 
     const content = await file.async("string");
-    const cleaned = fixCampinasPlaceholdersInXml(neutralizeHighlightFromXml(content));
+    const cleaned = fixCampinasPlaceholdersInXml(sanitizeFilledFieldFormattingInXml(content));
     if (cleaned !== content) {
       zip.file(name, cleaned);
     }

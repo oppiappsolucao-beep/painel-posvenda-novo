@@ -17,6 +17,7 @@ import { getUnitStoreEmailsForNotifications } from "./unitEmails.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
 import { isSmtpConfigured, sendContractSignEmail } from "./email.js";
 import { readCachedCleanTemplateId, resolveProductionTemplateId, resetCleanTemplateCache } from "./zapsignCleanTemplate.js";
+import { countDocxNonNeutralShading, countPlaceholderEmphasis, stripDocxHighlights } from "../utils/docxStripHighlights.js";
 import {
   applyCampinasClientForm,
   findClientSigner,
@@ -529,13 +530,30 @@ async function ensureClientSigner(
 
 function zapsignBrandSettings(): { brand_name: string; created_by: string } {
   return {
-    brand_name: (process.env.ZAPSIGN_BRAND_NAME || "SkoobPet").trim(),
-    created_by: (process.env.ZAPSIGN_CREATED_BY || "contato@skoobpet.com.br").trim().toLowerCase(),
+    brand_name: zapsignRequesterBrand(),
+    created_by: zapsignCreatedByEmail(),
   };
 }
 
+const BLOCKED_CREATED_BY = new Set([
+  "desenvolv.oppitech@gmail.com",
+  "oppiappsolucao@gmail.com",
+]);
+
+function zapsignRequesterBrand(): string {
+  const fromEnv = (process.env.ZAPSIGN_BRAND_NAME || "").trim();
+  if (fromEnv && !/^skoobpet(\s|$)/i.test(fromEnv)) return fromEnv;
+  return "Loja SkoobPet";
+}
+
+function zapsignCreatedByEmail(_unitKey?: UnitKey): string {
+  const requested = (process.env.ZAPSIGN_CREATED_BY || "").trim().toLowerCase();
+  if (requested && !BLOCKED_CREATED_BY.has(requested)) return requested;
+  return "contato@skoobpet.com.br";
+}
+
 function zapsignCustomMessage(nome: string): string {
-  const brand = (process.env.ZAPSIGN_BRAND_NAME || "SkoobPet").trim();
+  const brand = zapsignRequesterBrand();
   return [
     `Olá ${nome},`,
     "",
@@ -711,6 +729,53 @@ export async function configureCampinasTemplateForm(): Promise<void> {
   return configureUnitTemplateForm("campinas");
 }
 
+const sanitizedFolderTemplates = new Set<string>();
+
+async function downloadTemplateDocx(templateFile: string): Promise<Buffer> {
+  const response = await fetch(templateFile);
+  if (!response.ok) {
+    throw new Error(`Falha ao baixar modelo ZapSign (${response.status}).`);
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
+
+/** Atualiza o DOCX do modelo da pasta (mesmo ID) para campos sem negrito/destaque. */
+async function ensureFolderTemplatePlainFields(templateId: string, unitKey: UnitKey): Promise<void> {
+  if (!templateId || sanitizedFolderTemplates.has(templateId)) return;
+
+  const detail = await zapsignRequest<{
+    token?: string;
+    name?: string;
+    template_file?: string;
+  }>(`/templates/${templateId}/`);
+  const templateFile = detail.template_file?.trim();
+  if (!templateFile) {
+    console.warn(`[zapsign] template_file ausente para sanitizar campos (${unitKey}).`);
+    return;
+  }
+
+  const original = await downloadTemplateDocx(templateFile);
+  const emphasis = await countPlaceholderEmphasis(original);
+  const leftoverHighlight = await countDocxNonNeutralShading(original);
+  if (emphasis.bold === 0 && leftoverHighlight === 0) {
+    sanitizedFolderTemplates.add(templateId);
+    return;
+  }
+
+  const cleaned = await stripDocxHighlights(original);
+  await zapsignRequest(`/templates/${templateId}/`, {
+    method: "PUT",
+    json: {
+      name: detail.name,
+      base64_docx: cleaned.toString("base64"),
+    },
+  });
+  sanitizedFolderTemplates.add(templateId);
+  console.log(
+    `[zapsign] Modelo da pasta (${unitKey}) atualizado sem negrito/destaque nos campos: ${templateId}`,
+  );
+}
+
 export async function createUnitContractDocument(
   unitKey: UnitKey,
   contrato: SheetRow,
@@ -724,6 +789,12 @@ export async function createUnitContractDocument(
   console.log(
     `[zapsign] create-doc (${unitKey}) template_id=${templateId} pasta=${zapsignFolderPath(unitKey)}`,
   );
+  await ensureFolderTemplatePlainFields(templateId, unitKey).catch((error) => {
+    console.warn(
+      `[zapsign] Não foi possível limpar negrito do modelo (${unitKey}):`,
+      error instanceof Error ? error.message : error,
+    );
+  });
   if (sandbox) {
     console.log(
       `[zapsign] Ambiente ${zapSignEnvironmentLabel()} (${getZapSignApiBase()}) — ${unitKey}.`,
@@ -777,7 +848,7 @@ export async function createUnitContractDocument(
   }
 
   const unit = getUnitByKey(unitKey);
-  const brandName = unit ? `SkoobPet ${unit.label}` : (process.env.ZAPSIGN_BRAND_NAME || "SkoobPet").trim();
+  const brandName = zapsignRequesterBrand();
   const unitLabel = unit?.label || unitKey;
   const documentName = `Contrato Filhotes ${unitLabel} — ${nome}`;
 
@@ -795,7 +866,7 @@ export async function createUnitContractDocument(
     signer_has_incomplete_fields: true,
     signature_order_active: true,
     brand_name: brandName,
-    created_by: (process.env.ZAPSIGN_CREATED_BY || "contato@skoobpet.com.br").trim().toLowerCase(),
+    created_by: zapsignCreatedByEmail(unitKey),
     send_automatic_email: false,
     send_automatic_whatsapp: false,
     custom_message: "",
