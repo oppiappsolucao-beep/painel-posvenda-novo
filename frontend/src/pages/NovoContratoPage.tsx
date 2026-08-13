@@ -15,6 +15,7 @@ export function NovoContratoPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [clientSignUrl, setClientSignUrl] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -136,6 +137,7 @@ export function NovoContratoPage() {
     setError("");
     setSuccess("");
     setClientSignUrl("");
+    setLinkCopied(false);
     setCpfError("");
 
     if (!isCpfComplete(cpf)) {
@@ -218,13 +220,22 @@ export function NovoContratoPage() {
               />
               <button
                 type="button"
-                onClick={() => copyToClipboardSync(clientSignUrl)}
-                className="px-4 py-2 rounded-lg text-white font-semibold text-sm shrink-0"
-                style={{ background: COLORS.navy }}
+                onClick={() => {
+                  const copied = copyToClipboardSync(clientSignUrl);
+                  if (copied) {
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 2500);
+                  }
+                }}
+                className="px-4 py-2 rounded-lg text-white font-semibold text-sm shrink-0 min-w-[7.5rem]"
+                style={{ background: linkCopied ? "#16a34a" : COLORS.navy }}
               >
-                Copiar link
+                {linkCopied ? "Copiado!" : "Copiar link"}
               </button>
             </div>
+            {linkCopied && (
+              <p className="text-sm font-medium text-green-700">Link copiado para a área de transferência.</p>
+            )}
           </div>
         )}
 
