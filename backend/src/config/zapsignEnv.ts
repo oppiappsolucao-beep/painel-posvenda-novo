@@ -46,11 +46,11 @@ function envValue(key: string): string {
   return process.env[key]?.trim() || "";
 }
 
-/** Templates limpos em produção (sem anexos legados no link do cliente). */
+/** Modelos cadastrados manualmente no ZapSign (produção). */
 const DEFAULT_PRODUCTION_TEMPLATE_IDS: Partial<Record<UnitKey, string>> = {
-  campinas: "e90eab76-5580-4bad-813f-92a00fabcd62",
-  piracicaba: "a1c22bb4-5ddd-4ce5-9458-7b4fb2e278c7",
-  indaiatuba: "6fcfc99e-a138-410b-b508-51812f89f321",
+  campinas: "0fedf414-7278-4204-bb1c-6bafd091a3fe",
+  piracicaba: "15c7d2a6-28fb-4747-9f1a-a9d3a4fd7978",
+  indaiatuba: "d6104d85-fca6-42e9-9c9d-821c3abf9d0a",
 };
 
 /** Clones antigos (nome/conteúdo Campinas) — ignorados se ainda estiverem no .env de produção. */
@@ -87,6 +87,13 @@ export function getZapSignTemplateId(unitKey: UnitKey): string {
 /** @deprecated Use getZapSignTemplateId("campinas") */
 export function getZapSignTemplateIdCampinas(): string {
   return getZapSignTemplateId("campinas");
+}
+
+export function getActiveZapSignTemplateId(unitKey: UnitKey): string {
+  if (isZapSignSandbox()) {
+    return getZapSignTemplateId(unitKey);
+  }
+  return getZapSignProductionTemplateId(unitKey) || getZapSignTemplateId(unitKey);
 }
 
 export function isZapSignEnabled(unitKey: UnitKey): boolean {

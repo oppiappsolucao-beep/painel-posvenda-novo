@@ -2,10 +2,9 @@ import { Router } from "express";
 import { UnitKey, getUnitByKey } from "../config.js";
 import { ZAPSIGN_UNIT_KEYS } from "../config/zapsignEnv.js";
 import {
-  configureUnitTemplateForm,
-  ensureProductionTemplate,
+  configureAllExistingUnitTemplates,
+  configureExistingUnitTemplate,
   isZapSignEnabled,
-  resetProductionTemplateCache,
 } from "../services/zapsign.js";
 import { updateContractRow } from "../services/sheets.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
@@ -49,14 +48,12 @@ async function configureUnit(unitKey: UnitKey, res: import("express").Response):
   }
 
   try {
-    await resetProductionTemplateCache(unitKey);
-    const templateId = await ensureProductionTemplate(unitKey);
-    await configureUnitTemplateForm(unitKey);
+    const templateId = await configureExistingUnitTemplate(unitKey);
     res.json({
       ok: true,
       unitKey,
       templateId,
-      message: `Template de produção (${unitKey}) recriado e formulário configurado.`,
+      message: `Modelo existente (${unitKey}) configurado: loja 1º, cliente 2º, radios + RG.`,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -75,6 +72,24 @@ router.post("/configure/:unitKey", authMiddleware, requireRole("financeiro"), as
     return;
   }
   await configureUnit(unitKey, res);
+});
+
+router.post("/configure-all", authMiddleware, requireRole("financeiro"), async (_req, res) => {
+  try {
+    const results = await configureAllExistingUnitTemplates();
+    const failed = results.filter((item) => !item.ok);
+    res.json({
+      ok: failed.length === 0,
+      results,
+      message:
+        failed.length === 0
+          ? "Três modelos configurados: loja 1º, cliente 2º, radios + RG (sem criar modelos novos)."
+          : `${failed.length} unidade(s) com erro.`,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
+  }
 });
 
 router.post("/webhook", async (req, res) => {

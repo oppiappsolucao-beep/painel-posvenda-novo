@@ -138,16 +138,21 @@ function mapSignerForTemplateApi(signer: ZapSignTemplateSigner) {
   };
 }
 
-/** Signatários loja→cliente para template limpo (fallback se source não tiver 2). */
+/** Signatários loja (1º) → cliente (2º) para template existente. */
 export function buildCleanTemplateSigners(unitKey: UnitKey) {
+  const lojaEmail = (process.env.ZAPSIGN_LOJA_EMAIL || "contato@skoobpet.com.br").trim();
   return [
     {
       name: zapsignStoreSignerName(unitKey),
+      email: lojaEmail,
       auth_mode: campinasStoreAuthMode(),
       qualification: "lojista",
       blank_email: false,
       blank_phone: false,
       lock_name: true,
+      lock_email: true,
+      require_selfie_photo: false,
+      require_document_photo: false,
     },
     {
       name: "{{contratante-nome-completo}}",
@@ -159,7 +164,8 @@ export function buildCleanTemplateSigners(unitKey: UnitKey) {
       blank_email: false,
       blank_phone: false,
       lock_name: true,
-      require_document_photo: true,
+      require_selfie_photo: false,
+      require_document_photo: false,
     },
   ];
 }
@@ -393,7 +399,8 @@ function mapClientSignerFromSource(signer: ZapSignTemplateSigner) {
     blank_email: false,
     blank_phone: false,
     lock_name: true,
-    require_document_photo: true,
+    require_selfie_photo: false,
+    require_document_photo: false,
   };
 }
 
@@ -619,7 +626,11 @@ export async function ensureTemplateTwoSigners(
   const clientSigner = findClientSigner(signers);
 
   if (signers.length >= 2 && storeSigner && clientSigner) {
-    return false;
+    const storeIndex = signers.indexOf(storeSigner);
+    const clientIndex = signers.indexOf(clientSigner);
+    if (storeIndex >= 0 && clientIndex >= 0 && storeIndex < clientIndex) {
+      return false;
+    }
   }
 
   const signersPayload = buildCleanTemplateSigners(unitKey).map((signer) =>
@@ -636,7 +647,12 @@ export async function ensureTemplateTwoSigners(
     );
     return true;
   } catch (error) {
-    if (isZapSignNoChangeError(error)) return false;
+    if (isZapSignNoChangeError(error)) {
+      console.warn(
+        `[zapsign] Template ${templateId} (${unitKey}): signatários não alteráveis via API — configure loja (1º) e cliente (2º) no painel ZapSign.`,
+      );
+      return false;
+    }
     console.warn(
       `[zapsign] Falha ao configurar 2 signatários no template ${templateId} (${unitKey}):`,
       error instanceof Error ? error.message : error,

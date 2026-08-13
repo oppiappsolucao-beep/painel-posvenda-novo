@@ -6,6 +6,7 @@ import {
   getZapSignApiToken,
   getZapSignProductionTemplateId,
   getZapSignTemplateId,
+  getActiveZapSignTemplateId,
   isZapSignEnabled,
   isZapSignSandbox,
   zapSignEnvironmentLabel,
@@ -377,9 +378,8 @@ function isWhatsappDeliveryEnabled(telefone: string): boolean {
 
 function clientRequiresDocumentPhoto(): boolean {
   const explicit = process.env.ZAPSIGN_CLIENT_REQUIRE_DOCUMENT_PHOTO?.trim();
-  if (explicit === "false") return false;
   if (explicit === "true") return true;
-  return true;
+  return false;
 }
 
 function buildClientSignerPayload(
@@ -692,6 +692,43 @@ export async function configureUnitTemplateForm(unitKey: UnitKey): Promise<void>
 
   await applyCampinasClientForm(templateId, unitKey, zapsignRequest);
   formConfiguredForTemplateId.set(templateId, unitKey);
+}
+
+/** Configura signatários e formulário no modelo existente — sem criar template novo. */
+export async function configureExistingUnitTemplate(unitKey: UnitKey): Promise<string> {
+  if (!isZapSignEnabled(unitKey)) {
+    throw new Error(`ZapSign não configurado para ${unitKey}.`);
+  }
+
+  const templateId = getActiveZapSignTemplateId(unitKey);
+  if (!templateId) {
+    throw new Error(`Template ZapSign não definido para ${unitKey}.`);
+  }
+
+  await applyCampinasClientForm(templateId, unitKey, zapsignRequest);
+  formConfiguredForTemplateId.set(templateId, unitKey);
+  return templateId;
+}
+
+/** Configura os 3 modelos manuais (loja 1º, cliente 2º, radios + RG). */
+export async function configureAllExistingUnitTemplates(): Promise<
+  Array<{ unitKey: UnitKey; templateId: string; ok: boolean; error?: string }>
+> {
+  const results: Array<{ unitKey: UnitKey; templateId: string; ok: boolean; error?: string }> = [];
+  for (const unitKey of ZAPSIGN_UNIT_KEYS) {
+    try {
+      const templateId = await configureExistingUnitTemplate(unitKey);
+      results.push({ unitKey, templateId, ok: true });
+    } catch (e) {
+      results.push({
+        unitKey,
+        templateId: getActiveZapSignTemplateId(unitKey) || "",
+        ok: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  return results;
 }
 
 /** @deprecated Use configureUnitTemplateForm("campinas") */
