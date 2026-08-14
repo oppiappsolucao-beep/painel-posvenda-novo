@@ -59,6 +59,7 @@ import { getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } from "../config.js";
 import {
   deleteContractRows,
   getContractRow,
+  loadAllUnitRowsWithWarnings,
   loadRowsForUser,
   pruneAllSheetsToDemo,
   saveContract,
@@ -441,10 +442,12 @@ router.get("/financeiro", authMiddleware, requireRole("financeiro"), async (req:
   try {
     const mes = String(req.query.mes || todayMonthKey());
     const unidade = String(req.query.unidade || "Todas");
-    const loaded = await loadRowsForUser(req.user!);
-    res.json(buildFinanceiroData(toSheetRows(loaded), mes, unidade));
+    const { rows: loaded, warnings } = await loadAllUnitRowsWithWarnings();
+    const payload = buildFinanceiroData(toSheetRows(loaded), mes, unidade);
+    res.json(warnings.length ? { ...payload, warnings } : payload);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
   }
 });
 

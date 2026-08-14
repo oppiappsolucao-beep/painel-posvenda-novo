@@ -49,6 +49,13 @@ function getDrive() {
 
 const resolvedSheetCache = new Map<UnitKey, ResolvedUnitConfig>();
 
+const SHEET_ROWS_CACHE_TTL_MS = 45_000;
+let sheetRowsCache: { loadedAt: number; rows: LoadedRow[] } | null = null;
+
+export function invalidateSheetRowsCache(): void {
+  sheetRowsCache = null;
+}
+
 const TAB_CANDIDATES = ["Folha1", "Página1", "Pagina1"];
 
 async function resolveSheetTab(sheetId: string, preferredTab: string): Promise<string> {
@@ -188,23 +195,63 @@ export async function loadUnitRows(unit: UnitConfig): Promise<LoadedRow[]> {
   }));
 }
 
+async function loadAllUnitRowsInternal(): Promise<{ rows: LoadedRow[]; failures: string[] }> {
+  const results = await Promise.all(
+    getConfiguredUnits().map(async (unit) => {
+      try {
+        const rows = await loadUnitRows(unit);
+        return { rows, failure: "" };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[sheets] ${unit.label}: ${message}`);
+        return { rows: [] as LoadedRow[], failure: `${unit.label}: ${message}` };
+      }
+    }),
+  );
+
+  const rows: LoadedRow[] = [];
+  const failures: string[] = [];
+  for (const result of results) {
+    if (result.failure) failures.push(result.failure);
+    else rows.push(...result.rows);
+  }
+  return { rows, failures };
+}
+
 export async function loadAllUnitRows(): Promise<LoadedRow[]> {
-  const loaded: LoadedRow[] = [];
-  for (const unit of getConfiguredUnits()) {
-    try {
-      const rows = await loadUnitRows(unit);
-      loaded.push(...rows);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[sheets] ${unit.label}: ${message}`);
-    }
+  const now = Date.now();
+  if (sheetRowsCache && now - sheetRowsCache.loadedAt < SHEET_ROWS_CACHE_TTL_MS) {
+    return sheetRowsCache.rows;
   }
 
-  if (!loaded.length) {
-    throw new Error("Nenhuma planilha carregada. Verifique SHEET_ID_* ou compartilhe as planilhas com a service account.");
+  const { rows, failures } = await loadAllUnitRowsInternal();
+  if (!rows.length) {
+    const detail = failures.length ? ` Detalhes: ${failures.join(" | ")}` : "";
+    throw new Error(
+      `Nenhuma planilha carregada. Verifique SHEET_ID_* e credenciais GCP (GCP_CLIENT_EMAIL / GCP_PRIVATE_KEY).${detail}`,
+    );
   }
 
-  return loaded;
+  sheetRowsCache = { loadedAt: now, rows };
+  return rows;
+}
+
+export async function loadAllUnitRowsWithWarnings(): Promise<{ rows: LoadedRow[]; warnings: string[] }> {
+  const now = Date.now();
+  if (sheetRowsCache && now - sheetRowsCache.loadedAt < SHEET_ROWS_CACHE_TTL_MS) {
+    return { rows: sheetRowsCache.rows, warnings: [] };
+  }
+
+  const { rows, failures } = await loadAllUnitRowsInternal();
+  if (!rows.length) {
+    const detail = failures.length ? ` Detalhes: ${failures.join(" | ")}` : "";
+    throw new Error(
+      `Nenhuma planilha carregada. Verifique SHEET_ID_* e credenciais GCP (GCP_CLIENT_EMAIL / GCP_PRIVATE_KEY).${detail}`,
+    );
+  }
+
+  sheetRowsCache = { loadedAt: now, rows };
+  return { rows, warnings: failures };
 }
 
 export async function loadRowsForUser(user: AuthPayload): Promise<LoadedRow[]> {
@@ -292,6 +339,7 @@ export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promis
 
   if (process.platform === "win32") {
     await saveContractWindows(contrato, resolved);
+    invalidateSheetRowsCache();
     return sheetIndex;
   }
 
@@ -306,6 +354,7 @@ export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promis
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
   });
+  invalidateSheetRowsCache();
   return sheetIndex;
 }
 
@@ -336,6 +385,7 @@ export async function updateContractRow(
     valueInputOption: "USER_ENTERED",
     requestBody: { values },
   });
+  invalidateSheetRowsCache();
 }
 
 async function saveContractWindows(contrato: SheetRow, unit: ResolvedUnitConfig): Promise<void> {
@@ -390,6 +440,7 @@ export async function deleteContractRows(unitKey: UnitKey, sheetIndices: number[
     requestBody: { requests },
   });
 
+  invalidateSheetRowsCache();
   return unique.length;
 }
 

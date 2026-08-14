@@ -105,7 +105,16 @@ export function FinanceiroDashboard() {
       )}
 
       {hasRole("financeiro") && isLoading && <div className="text-center py-12 text-slate-500">Carregando...</div>}
-      {hasRole("financeiro") && error && <div className="bg-red-50 text-red-700 rounded-xl p-4">Erro ao carregar dados.</div>}
+      {hasRole("financeiro") && error && (
+        <div className="bg-red-50 text-red-700 rounded-xl p-4 text-sm">
+          Erro ao carregar dados: {error instanceof Error ? error.message : "Erro desconhecido"}
+        </div>
+      )}
+      {hasRole("financeiro") && data?.warnings?.length > 0 && (
+        <div className="bg-amber-50 text-amber-900 rounded-xl p-4 text-sm mb-4">
+          Algumas planilhas não carregaram: {data.warnings.join(" • ")}
+        </div>
+      )}
 
       {hasRole("financeiro") && data && (
         <>

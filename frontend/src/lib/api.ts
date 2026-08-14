@@ -185,8 +185,12 @@ export async function fetchOperacao(mes: string, unidade: string) {
 }
 
 export async function fetchFinanceiro(mes: string, unidade: string) {
-  const { data } = await api.get("/dashboard/financeiro", { params: { mes, unidade } });
-  return data;
+  try {
+    const { data } = await api.get("/dashboard/financeiro", { params: { mes, unidade } });
+    return data;
+  } catch (err) {
+    throwApiError(err, "Erro ao carregar dados financeiros.");
+  }
 }
 
 export async function fetchVisaoGeral(mes: string, unidade: string) {
