@@ -263,6 +263,11 @@ async function zapsignRequest<T>(
       payload.detail
         ? String(payload.detail)
         : text || `Erro ZapSign (${response.status})`;
+    if (/no template matches/i.test(detail)) {
+      throw new Error(
+        `ZapSign não encontrou o modelo (${path}). Confira se o ID do modelo da pasta ainda existe na conta.`,
+      );
+    }
     throw new Error(detail);
   }
 
@@ -870,6 +875,14 @@ export async function createUnitContractDocument(
   const doc = await zapsignRequest<ZapSignDocResponse>("/models/create-doc/", {
     method: "POST",
     json: payload,
+  }).catch((error) => {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (/não encontrou o modelo|no template matches/i.test(msg)) {
+      throw new Error(
+        `ZapSign não encontrou o modelo da pasta ${unitLabel} (id ${templateId}). Atualize ZAPSIGN_TEMPLATE_ID_${unitKey.toUpperCase()} no EasyPanel para o modelo novo.`,
+      );
+    }
+    throw error;
   });
 
   const client = await ensureClientSigner(doc.token, contrato, sendViaZapSign, sendWhatsapp, clientAuth);
