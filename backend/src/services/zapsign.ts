@@ -789,12 +789,6 @@ export async function createUnitContractDocument(
   console.log(
     `[zapsign] create-doc (${unitKey}) template_id=${templateId} pasta=${zapsignFolderPath(unitKey)}`,
   );
-  await ensureFolderTemplatePlainFields(templateId, unitKey).catch((error) => {
-    console.warn(
-      `[zapsign] Não foi possível limpar negrito do modelo (${unitKey}):`,
-      error instanceof Error ? error.message : error,
-    );
-  });
   if (sandbox) {
     console.log(
       `[zapsign] Ambiente ${zapSignEnvironmentLabel()} (${getZapSignApiBase()}) — ${unitKey}.`,
