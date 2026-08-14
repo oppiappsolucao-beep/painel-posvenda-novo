@@ -30,6 +30,7 @@ export function NovoContratoPage() {
   const [estado, setEstado] = useState("");
   const [cidadeOpcao, setCidadeOpcao] = useState("");
   const [cidadeOutro, setCidadeOutro] = useState("");
+  const [bairro, setBairro] = useState("");
   const [rg, setRg] = useState("");
 
   const [nomeAnimal, setNomeAnimal] = useState("");
@@ -100,6 +101,7 @@ export function NovoContratoPage() {
     setCep("13087-654");
     setEstado("SP");
     setCidadeOpcao("Campinas");
+    setBairro("Parque Imperador");
     setNomeAnimal("Mel");
     setSexo("FÊMEA");
     setEspecie("CANINA");
@@ -143,6 +145,7 @@ export function NovoContratoPage() {
     setEstado("");
     setCidadeOpcao("");
     setCidadeOutro("");
+    setBairro("");
     setRg("");
     setNomeAnimal("");
     setEspecie("");
@@ -186,7 +189,8 @@ export function NovoContratoPage() {
     if (!rg.trim()) missing.push("RG");
     if (!cep.trim()) missing.push("CEP");
     if (!estado.trim()) missing.push("Estado");
-    if (!cidadeVal.trim()) missing.push("Bairro");
+    if (!cidadeVal.trim()) missing.push("Cidade");
+    if (!bairro.trim()) missing.push("Bairro");
     if (!sexo) missing.push("Sexo");
     if (!especie) missing.push("Espécie");
     if (!pelagem) missing.push("Pelagem");
@@ -225,7 +229,7 @@ export function NovoContratoPage() {
       CEP: cep,
       Estado: estado,
       Cidade: cidadeVal,
-      Bairro: cidadeVal,
+      Bairro: bairro.trim(),
       RG: rg,
       "Valor Filhote": valorFilhote,
       "Valor por extenso": valorExtenso,
@@ -326,8 +330,9 @@ export function NovoContratoPage() {
             <Field label="RG" value={rg} onChange={setRg} required />
             <Field label="CEP" value={cep} onChange={setCep} required placeholder="Ex: 13087-654" />
             <Select label="Estado" value={estado} onChange={setEstado} options={ESTADOS} required />
-            <Select label="Bairro" value={cidadeOpcao} onChange={setCidadeOpcao} options={CIDADES} placeholder="Selecione" required />
-            {cidadeOpcao === "Outro" && <Field label="Digite o bairro" value={cidadeOutro} onChange={setCidadeOutro} required />}
+            <Select label="Cidade" value={cidadeOpcao} onChange={setCidadeOpcao} options={CIDADES} placeholder="Selecione" required />
+            {cidadeOpcao === "Outro" && <Field label="Digite a cidade" value={cidadeOutro} onChange={setCidadeOutro} required />}
+            <Field label="Bairro" value={bairro} onChange={setBairro} required />
           </div>
         </Section>
 

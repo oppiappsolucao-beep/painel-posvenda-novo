@@ -250,7 +250,7 @@ function pick(contrato: SheetRow, ...keys: string[]): string {
   return "";
 }
 
-/** Endereço do comprador no contrato: bairro vem do painel; cidade = UF (mesma sigla). */
+/** Endereço do comprador no contrato: bairro e cidade vêm do painel. */
 export function buyerAddressForTemplate(contrato: SheetRow): {
   bairro: string;
   cidade: string;
@@ -258,8 +258,8 @@ export function buyerAddressForTemplate(contrato: SheetRow): {
 } {
   const uf = pick(contrato, "Estado");
   return {
-    bairro: pick(contrato, "Bairro", "Cidade"),
-    cidade: uf,
+    bairro: pick(contrato, "Bairro"),
+    cidade: pick(contrato, "Cidade"),
     uf,
   };
 }
