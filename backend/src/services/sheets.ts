@@ -225,10 +225,11 @@ export async function loadAllUnitRows(): Promise<LoadedRow[]> {
   }
 
   const { rows, failures } = await loadAllUnitRowsInternal();
-  if (!rows.length) {
-    const detail = failures.length ? ` Detalhes: ${failures.join(" | ")}` : "";
+  const unitCount = getConfiguredUnits().length;
+  if (failures.length === unitCount) {
+    const detail = failures.join(" | ");
     throw new Error(
-      `Nenhuma planilha carregada. Verifique SHEET_ID_* e credenciais GCP (GCP_CLIENT_EMAIL / GCP_PRIVATE_KEY).${detail}`,
+      `Nenhuma planilha carregada. Verifique SHEET_ID_* e credenciais GCP (GCP_CLIENT_EMAIL / GCP_PRIVATE_KEY). Detalhes: ${detail}`,
     );
   }
 
@@ -243,10 +244,11 @@ export async function loadAllUnitRowsWithWarnings(): Promise<{ rows: LoadedRow[]
   }
 
   const { rows, failures } = await loadAllUnitRowsInternal();
-  if (!rows.length) {
-    const detail = failures.length ? ` Detalhes: ${failures.join(" | ")}` : "";
+  const unitCount = getConfiguredUnits().length;
+  if (failures.length === unitCount) {
+    const detail = failures.join(" | ");
     throw new Error(
-      `Nenhuma planilha carregada. Verifique SHEET_ID_* e credenciais GCP (GCP_CLIENT_EMAIL / GCP_PRIVATE_KEY).${detail}`,
+      `Nenhuma planilha carregada. Verifique SHEET_ID_* e credenciais GCP (GCP_CLIENT_EMAIL / GCP_PRIVATE_KEY). Detalhes: ${detail}`,
     );
   }
 

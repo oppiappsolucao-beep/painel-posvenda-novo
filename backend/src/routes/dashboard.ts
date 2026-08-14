@@ -55,7 +55,7 @@ function camposObrigatoriosFaltando(contrato: Record<string, string>): string[] 
     .filter(([k]) => !String(contrato[k] || "").trim())
     .map(([, label]) => label);
 }
-import { getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } from "../config.js";
+import { getConfiguredUnits, getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } from "../config.js";
 import {
   deleteContractRows,
   getContractRow,
@@ -185,6 +185,12 @@ function buildOperacaoData(rows: Record<string, string>[], mes: string, unidade:
   };
 }
 
+function financeiroFilterUnits(rows: Record<string, string>[], unidadeCol: string | null): string[] {
+  const fromRows = getUniqueUnits(rows, unidadeCol);
+  if (fromRows.length > 1) return fromRows;
+  return ["Todas", ...getConfiguredUnits().map((unit) => unit.label)];
+}
+
 function buildFinanceiroData(rows: Record<string, string>[], mes: string, unidade: string) {
   const c = getColumns(rows);
   const fMes = filterRows(rows, c.mes, mes, c.unidade, unidade);
@@ -225,7 +231,7 @@ function buildFinanceiroData(rows: Record<string, string>[], mes: string, unidad
   return {
     total: rows.length,
     meses: getUniqueMonths(rows, c.mes),
-    unidades: getUniqueUnits(rows, c.unidade),
+    unidades: financeiroFilterUnits(rows, c.unidade),
     kpis: {
       faturamentoTotal: faturamento,
       faturamentoTotalFmt: moneyBr(faturamento),
