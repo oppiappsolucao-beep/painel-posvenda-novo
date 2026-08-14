@@ -65,7 +65,12 @@ export function StatusAssinaturaPage() {
   }, [data?.items, sortMode]);
 
   const assinadosCount = filteredItems.filter((item) => item.status === "assinado").length;
-  const pendentesCount = filteredItems.filter((item) => item.status === "pendente").length;
+  const pendentesLojaCount = filteredItems.filter((item) =>
+    item.assinatura.signatarios.find((s) => s.papel === "Loja")?.status !== "assinado",
+  ).length;
+  const pendentesClienteCount = filteredItems.filter((item) =>
+    item.assinatura.signatarios.find((s) => s.papel === "Cliente")?.status !== "assinado",
+  ).length;
   const anexosPendentesContratos = filteredItems.filter((item) => !item.docForm.completo).length;
   const anexosPendentesArquivos = filteredItems.reduce((sum, item) => sum + item.docForm.pendentes.length, 0);
 
@@ -228,20 +233,30 @@ export function StatusAssinaturaPage() {
           {copyFeedback}
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <KpiCard
           title="✅ Contratos assinados"
           value={isLoading ? "—" : assinadosCount}
-          subtitle="documentos concluídos"
+          subtitle="loja e cliente concluídos"
           accent="#16a34a"
           valueColor="#16a34a"
+          valueSize={32}
         />
         <KpiCard
-          title="⏳ Contratos pendentes"
-          value={isLoading ? "—" : pendentesCount}
-          subtitle="aguardando assinatura"
+          title="🏬 Pendentes loja"
+          value={isLoading ? "—" : pendentesLojaCount}
+          subtitle="aguardando assinatura da loja"
+          accent="#c2410c"
+          valueColor="#c2410c"
+          valueSize={32}
+        />
+        <KpiCard
+          title="👤 Pendentes clientes"
+          value={isLoading ? "—" : pendentesClienteCount}
+          subtitle="aguardando assinatura do cliente"
           accent="#dc2626"
           valueColor="#dc2626"
+          valueSize={32}
         />
         <KpiCard
           title="📎 Anexos pendentes"
@@ -253,6 +268,7 @@ export function StatusAssinaturaPage() {
           }
           accent={COLORS.wine}
           valueColor={COLORS.wine}
+          valueSize={32}
         />
       </div>
 
@@ -408,7 +424,7 @@ export function StatusAssinaturaPage() {
                           </button>
                         </td>
                         <td className="px-4 py-3" data-no-preview>
-                          <div className={`text-sm font-bold mb-1 ${item.status === "assinado" ? "text-green-700" : "text-slate-800"}`}>
+                          <div className={`text-sm font-bold mb-1 ${overallStatusClass(item)}`}>
                             {item.statusLabel}
                           </div>
                           <SignatureProgressCompact assinatura={item.assinatura} />
@@ -743,6 +759,14 @@ function sortItems<T extends { nome: string; disparoEm: string; atualizadoEm: st
     const tb = parseBrDateTime(b.disparoEm) || parseBrDateTime(b.atualizadoEm);
     return tb - ta;
   });
+}
+
+function overallStatusClass(item: StatusAssinaturaItem): string {
+  if (item.status === "assinado") return "text-green-700";
+  if (item.statusLabel === "Aguardando loja") return "text-orange-700";
+  if (item.statusLabel === "Aguardando cliente") return "text-red-700";
+  if (item.statusLabel === "Não enviado") return "text-slate-500";
+  return "text-slate-800";
 }
 
 function signatureStatusColor(status: SignatarioItem["status"]): string {

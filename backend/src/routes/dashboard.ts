@@ -66,7 +66,12 @@ import {
   updateContractRow,
 } from "../services/sheets.js";
 import { generateContractPdf } from "../services/pdf.js";
-import { buildSignatureProgress, isContratoAssinadoInApp } from "../services/signatureStatus.js";
+import {
+  buildSignatureProgress,
+  contractOverallStatus,
+  isContratoAssinadoInApp,
+  isSignatarioPendente,
+} from "../services/signatureStatus.js";
 import {
   clientSignUrl,
   createSignatureSession,
@@ -245,8 +250,8 @@ function signatureKey(unitKey: UnitKey, sheetIndex: number): string {
 
 function isContratoAssinado(
   row: Record<string, string>,
-  statusCol: string | null,
-  unitKey: UnitKey,
+  _statusCol: string | null,
+  _unitKey: UnitKey,
   record?: SignatureRecord | null,
 ): boolean {
   if (record) {
@@ -257,19 +262,16 @@ function isContratoAssinado(
   const dataLoja = String(row["Data Assinatura Loja"] || "").trim();
   if (dataCliente && dataLoja) return true;
 
-  const st = norm(statusCol ? row[statusCol] : row["Status"]);
-  if (st) {
-    if (st.includes("nao assin") || st.includes("não assin")) return false;
-    if (st.includes("pendent") || st.includes("aguard")) return false;
-    if (st.includes("assin")) return true;
+  const st = norm(row["Status Assinatura"] || row["Status"]);
+  if (st.includes("nao assin") || st.includes("não assin") || st.includes("pendent") || st.includes("aguard")) {
+    return false;
   }
-
-  return Boolean(dataCliente && dataLoja);
+  return st.includes("assinado (zapsign)") || st === "assinado";
 }
 
 function getDisparoEm(row: Record<string, string>, record?: SignatureRecord | null): string {
   if (record?.sentAt) return record.sentAt;
-  return String(row["Data Envio"] || row["Documento ZapSign"] || "").trim();
+  return String(row["Data Envio"] || row["Documento ZapSign"] || row["Link Assinatura"] || "").trim();
 }
 
 function getAtualizadoEm(row: Record<string, string>, record?: SignatureRecord | null): string {
@@ -325,6 +327,7 @@ function buildStatusAssinaturaData(
       : String(row["Link Assinatura"] || "").trim();
     const identificador = `contrato_${limparNomeArquivo(nomeCliente || `registro_${index + 1}`)}.pdf`;
     const assinatura = buildSignatureProgress(row, item.unitKey, record);
+    const overall = contractOverallStatus(assinatura);
     const dataClienteAssinatura = String(row["Data Assinatura Cliente"] || "").trim();
     const dataLojaAssinatura = String(row["Data Assinatura Loja"] || "").trim();
     const podeAssinarLoja = Boolean(
@@ -351,8 +354,8 @@ function buildStatusAssinaturaData(
       unitKey: item.unitKey,
       nome: nomeCliente || "Sem nome",
       identificador,
-      status: assinado ? "assinado" as const : "pendente" as const,
-      statusLabel: assinado ? "Assinado" : "Não assinado",
+      status: assinado || overall.status === "assinado" ? "assinado" as const : "pendente" as const,
+      statusLabel: assinado ? "Assinado" : overall.statusLabel,
       disparoEm: disparoEm || "—",
       atualizadoEm: atualizadoEm || "—",
       dataCompra: String(row["Data Compra"] || "").trim() || "—",
@@ -416,6 +419,8 @@ function buildStatusAssinaturaData(
     resumo: {
       assinados: items.filter((i) => i.status === "assinado").length,
       pendentes: items.filter((i) => i.status === "pendente").length,
+      pendentesLoja: items.filter((i) => isSignatarioPendente(i.assinatura, "Loja")).length,
+      pendentesCliente: items.filter((i) => isSignatarioPendente(i.assinatura, "Cliente")).length,
     },
     items,
   };

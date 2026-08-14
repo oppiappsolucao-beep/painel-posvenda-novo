@@ -22,7 +22,7 @@ export function KpiCard({
       className="bg-white rounded-2xl p-4 shadow-md min-h-[120px] overflow-hidden"
       style={{ borderLeft: `8px solid ${accent}` }}
     >
-      <div className="text-sm font-black text-slate-600">{title}</div>
+      <div className="text-sm font-black text-slate-600 leading-snug">{title}</div>
       <div
         className="font-black leading-tight mt-1.5 break-words"
         style={{ fontSize: valueSize, color: valueColor }}

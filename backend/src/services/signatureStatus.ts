@@ -36,6 +36,76 @@ function statusLabel(status: SignatarioStatus): string {
   }
 }
 
+function sheetField(row: SheetRow, ...names: string[]): string {
+  for (const name of names) {
+    const direct = String(row[name] || "").trim();
+    if (direct) return direct;
+  }
+  const keys = Object.keys(row);
+  for (const name of names) {
+    const target = name.trim().toLowerCase();
+    const key = keys.find((k) => k.replace(/\u00a0/g, " ").trim().toLowerCase() === target);
+    if (key) {
+      const value = String(row[key] || "").trim();
+      if (value) return value;
+    }
+  }
+  return "";
+}
+
+export function rowHasZapSignDispatch(row: SheetRow): boolean {
+  if (
+    sheetField(
+      row,
+      "Documento ZapSign",
+      "Link Assinatura",
+      "Link Assinatura Loja",
+      "Data Envio",
+    )
+  ) {
+    return true;
+  }
+  const status = sheetField(row, "Status Assinatura", "Status");
+  return /zapsign|aguardando cliente|aguardando loja|cliente assinou|loja assinou/i.test(status);
+}
+
+export function findSignatario(progress: SignatureProgress, papel: string): SignatarioItem | undefined {
+  const target = papel.trim().toLowerCase();
+  return progress.signatarios.find((item) => item.papel.trim().toLowerCase() === target);
+}
+
+export function isSignatarioPendente(progress: SignatureProgress, papel: string): boolean {
+  const signatario = findSignatario(progress, papel);
+  return !signatario || signatario.status !== "assinado";
+}
+
+export function contractOverallStatus(progress: SignatureProgress): {
+  status: "assinado" | "pendente";
+  statusLabel: string;
+} {
+  const cliente = findSignatario(progress, "Cliente");
+  const loja = findSignatario(progress, "Loja");
+  const clienteOk = cliente?.status === "assinado";
+  const lojaOk = loja?.status === "assinado";
+
+  if (clienteOk && lojaOk) {
+    return { status: "assinado", statusLabel: "Assinado" };
+  }
+  if (clienteOk) {
+    return { status: "pendente", statusLabel: "Aguardando loja" };
+  }
+  if (lojaOk) {
+    return { status: "pendente", statusLabel: "Aguardando cliente" };
+  }
+  if (cliente?.status === "pendente") {
+    return { status: "pendente", statusLabel: "Aguardando cliente" };
+  }
+  if (cliente?.status === "nao_enviado" && loja?.status === "nao_enviado") {
+    return { status: "pendente", statusLabel: "Não enviado" };
+  }
+  return { status: "pendente", statusLabel: "Não assinado" };
+}
+
 function inferStatusFromDate(dateValue: string, enviado: boolean): SignatarioStatus {
   if (String(dateValue || "").trim()) return "assinado";
   if (enviado) return "pendente";
@@ -116,14 +186,14 @@ function buildZapSignEmpty(row: SheetRow, unitKey: UnitKey): SignatureProgress {
 }
 
 function buildFromZapSignRow(row: SheetRow, unitKey: UnitKey): SignatureProgress {
-  const enviado = Boolean(String(row["Data Envio"] || row["Documento ZapSign"] || "").trim());
-  const dataCliente = String(row["Data Assinatura Cliente"] || "").trim();
-  const dataLoja = String(row["Data Assinatura Loja"] || "").trim();
-  const linkCliente = String(row["Link Assinatura"] || "").trim();
-  const linkLoja = String(row["Link Assinatura Loja"] || "").trim();
+  const enviado = rowHasZapSignDispatch(row);
+  const dataCliente = sheetField(row, "Data Assinatura Cliente");
+  const dataLoja = sheetField(row, "Data Assinatura Loja");
+  const linkCliente = sheetField(row, "Link Assinatura");
+  const linkLoja = sheetField(row, "Link Assinatura Loja");
   const loja = lojaSignatario(unitKey);
   const lojaNome = zapsignStoreSignerName(unitKey) || loja.nome;
-  const lojaEmail = String(row["E-mail Loja"] || loja.email).trim();
+  const lojaEmail = sheetField(row, "E-mail Loja") || loja.email;
 
   const clienteStatus = inferStatusFromDate(dataCliente, enviado);
   const lojaStatus = dataCliente
@@ -170,18 +240,16 @@ export function buildSignatureProgress(
   if (record) return buildFromRecord(record, row, unitKey);
 
   if (isZapSignEnabled(unitKey)) {
-    const zapsignDoc = String(row["Documento ZapSign"] || "").trim();
-    const linkZapSign = String(row["Link Assinatura"] || "").trim();
-    if (zapsignDoc || linkZapSign) {
+    if (rowHasZapSignDispatch(row)) {
       return buildFromZapSignRow(row, unitKey);
     }
     return buildZapSignEmpty(row, unitKey);
   }
 
-  const enviado = Boolean(String(row["Data Envio"] || row["Documento ZapSign"] || "").trim());
-  const dataCliente = String(row["Data Assinatura Cliente"] || "").trim();
-  const dataLoja = String(row["Data Assinatura Loja"] || "").trim();
-  const linkGeral = String(row["Link Assinatura"] || "").trim();
+  const enviado = rowHasZapSignDispatch(row);
+  const dataCliente = sheetField(row, "Data Assinatura Cliente");
+  const dataLoja = sheetField(row, "Data Assinatura Loja");
+  const linkGeral = sheetField(row, "Link Assinatura");
   const loja = lojaSignatario(unitKey);
 
   const clienteStatus = inferStatusFromDate(dataCliente, enviado);

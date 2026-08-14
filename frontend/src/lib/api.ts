@@ -257,7 +257,12 @@ export interface StatusAssinaturaItem {
 
 export interface StatusAssinaturaResponse {
   total: number;
-  resumo: { assinados: number; pendentes: number };
+  resumo: {
+    assinados: number;
+    pendentes: number;
+    pendentesLoja?: number;
+    pendentesCliente?: number;
+  };
   items: StatusAssinaturaItem[];
 }
 

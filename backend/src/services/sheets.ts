@@ -319,7 +319,8 @@ export async function updateContractRow(
 
   const resolved = await resolveUnitSheet(unit);
   assertUnitSheet(resolved);
-  const { headers, rows } = await loadSheetValues(resolved);
+  const headers = await ensureHeaders(resolved);
+  const { rows } = await loadSheetValues(resolved);
   if (sheetIndex < 0 || sheetIndex >= rows.length) {
     throw new Error("Contrato não encontrado na planilha.");
   }
