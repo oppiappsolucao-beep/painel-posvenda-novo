@@ -1,6 +1,6 @@
 import { buildCampinasTemplateData } from "../config/zapsignCampinas.js";
 import type { SheetRow, UnitKey } from "../config.js";
-import { getUnitByKey } from "../config.js";
+import { getCanonicalUnitStoreEmail, getUnitByKey } from "../config.js";
 import {
   getZapSignApiBase,
   getZapSignApiToken,
@@ -13,7 +13,7 @@ import {
   zapsignFolderPath,
   ZAPSIGN_UNIT_KEYS,
 } from "../config/zapsignEnv.js";
-import { getUnitStoreEmailsForNotifications } from "./unitEmails.js";
+import { getUnitStoreEmailForSigning } from "./unitEmails.js";
 import { formatDateTimeBr, todaySaoPaulo } from "../utils/formatters.js";
 import { isSmtpConfigured, sendContractSignEmail } from "./email.js";
 import { readCachedCleanTemplateId, resolveProductionTemplateId, resetCleanTemplateCache } from "./zapsignCleanTemplate.js";
@@ -422,10 +422,7 @@ async function addStoreSignerToDocument(
   auth: ZapSignSignerAuth,
 ): Promise<ZapSignSignerResponse> {
   const lojaNome = zapsignStoreSignerName(unitKey);
-  const configuredEmails = await getUnitStoreEmailsForNotifications(unitKey, contrato);
-  const lojaEmail = String(
-    contrato["E-mail Loja"] || process.env.ZAPSIGN_LOJA_EMAIL || configuredEmails[0] || "",
-  ).trim();
+  const lojaEmail = getUnitStoreEmailForSigning(unitKey);
   const lojaPhone = String(
     contrato["Telefone Loja"] || process.env.ZAPSIGN_LOJA_PHONE || "",
   ).replace(/\D/g, "");
@@ -611,10 +608,7 @@ async function ensureStoreSigner(
   auth: ZapSignSignerAuth,
 ): Promise<{ signUrl?: string; emailSent: boolean; email?: string; whatsappLinkSent: boolean }> {
   const lojaNome = zapsignStoreSignerName(unitKey);
-  const configuredEmails = await getUnitStoreEmailsForNotifications(unitKey, contrato);
-  const lojaEmail = String(
-    contrato["E-mail Loja"] || process.env.ZAPSIGN_LOJA_EMAIL || configuredEmails[0] || "",
-  ).trim();
+  const lojaEmail = getUnitStoreEmailForSigning(unitKey);
   const lojaPhone = String(
     contrato["Telefone Loja"] || process.env.ZAPSIGN_LOJA_PHONE || "",
   ).replace(/\D/g, "");
@@ -824,10 +818,7 @@ export async function createUnitContractDocument(
   const email = String(contrato["E-mail"] || "").trim();
   const telefone = String(contrato.Telefone || "").replace(/\D/g, "");
   const lojaNome = zapsignStoreSignerName(unitKey);
-  const configuredEmails = await getUnitStoreEmailsForNotifications(unitKey, contrato);
-  const lojaEmail = String(
-    contrato["E-mail Loja"] || process.env.ZAPSIGN_LOJA_EMAIL || configuredEmails[0] || "",
-  ).trim();
+  const lojaEmail = getUnitStoreEmailForSigning(unitKey);
   const lojaPhone = String(
     contrato["Telefone Loja"] || process.env.ZAPSIGN_LOJA_PHONE || "",
   ).replace(/\D/g, "");
@@ -992,6 +983,7 @@ export async function fetchZapSignDocumentPdf(docToken: string): Promise<Buffer 
 export function buildZapSignSheetPatch(
   doc: ZapSignCreatedDocument,
   contrato?: SheetRow,
+  unitKey?: UnitKey,
 ): Record<string, string> {
   const now = formatDateTimeBr(todaySaoPaulo());
   const patch: Record<string, string> = {
@@ -1001,7 +993,10 @@ export function buildZapSignSheetPatch(
     "Status Assinatura": "Aguardando cliente (ZapSign)",
   };
   if (doc.storeSignUrl) patch["Link Assinatura Loja"] = doc.storeSignUrl;
-  if (doc.storeEmail) patch["E-mail Loja"] = doc.storeEmail;
-  else if (contrato?.["E-mail Loja"]) patch["E-mail Loja"] = String(contrato["E-mail Loja"]);
+  const storeEmail =
+    doc.storeEmail?.trim() ||
+    (unitKey ? getCanonicalUnitStoreEmail(unitKey) : "") ||
+    String(contrato?.["E-mail Loja"] || "").trim();
+  if (storeEmail) patch["E-mail Loja"] = storeEmail;
   return patch;
 }

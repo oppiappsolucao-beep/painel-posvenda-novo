@@ -90,11 +90,14 @@ export function getUnitByKey(key: UnitKey): UnitConfig | undefined {
   return units.find((unit) => unit.key === key);
 }
 
-/** @deprecated Prefer getUnitStoreEmailsForNotifications — retorna e-mail padrão da unidade. */
-export function resolveUnitStoreEmail(unitKey: UnitKey, contrato?: SheetRow): string {
-  const fromSheet = contrato ? String(contrato["E-mail Loja"] || "").trim() : "";
-  if (fromSheet) return fromSheet;
-  return getUnitByKey(unitKey)?.storeEmail || "contato@skoobpet.com.br";
+/** E-mail fixo da loja para assinatura ZapSign e referência nas configurações. */
+export function getCanonicalUnitStoreEmail(unitKey: UnitKey): string {
+  return getUnitByKey(unitKey)?.storeEmail?.trim() || "";
+}
+
+/** @deprecated Use getCanonicalUnitStoreEmail — ignora e-mail digitado no contrato. */
+export function resolveUnitStoreEmail(unitKey: UnitKey, _contrato?: SheetRow): string {
+  return getCanonicalUnitStoreEmail(unitKey) || "contato@skoobpet.com.br";
 }
 
 export function unitKeyFromLabel(label: string): UnitKey | null {

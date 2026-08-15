@@ -58,7 +58,7 @@ function camposObrigatoriosFaltando(contrato: Record<string, string>): string[] 
     .filter(([k]) => !String(contrato[k] || "").trim())
     .map(([, label]) => label);
 }
-import { getConfiguredUnits, getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } from "../config.js";
+import { getCanonicalUnitStoreEmail, getConfiguredUnits, getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } from "../config.js";
 import {
   deleteContractRows,
   getContractRow,
@@ -596,6 +596,7 @@ router.post("/contracts/register-zapsign", authMiddleware, requireRole("operacao
     const now = todaySaoPaulo();
     contrato["Data preenchimento"] = `${formatDateBr(now)} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
     contrato["Unidade"] = contrato["Unidade"] || unit.label;
+    contrato["E-mail Loja"] = getCanonicalUnitStoreEmail(unitKey);
 
     const sheetIndex = await saveContract(contrato, unit);
     const patch = buildZapSignSheetPatch(
@@ -605,9 +606,10 @@ router.post("/contracts/register-zapsign", authMiddleware, requireRole("operacao
         status: "pending",
         emailSent: false,
         storeSignUrl: String(zapsign.storeSignUrl || "").trim() || undefined,
-        storeEmail: String(zapsign.storeEmail || contrato["E-mail Loja"] || "").trim() || undefined,
+        storeEmail: getCanonicalUnitStoreEmail(unitKey),
       },
       contrato,
+      unitKey,
     );
     await updateContractRow(unitKey, sheetIndex, patch);
 
@@ -651,8 +653,13 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
       contrato["Mês"] = normalizeMonthKey(monthKeyFromDate(parseDate(contrato["Data Compra"])));
     }
 
+    const saveUnitKey = req.user!.unit || getUnitByEmail(req.user!.username)?.key;
+    if (saveUnitKey) {
+      contrato["E-mail Loja"] = getCanonicalUnitStoreEmail(saveUnitKey);
+    }
+
     const sheetIndex = await saveContractForUser(contrato, req.user!);
-    const unitKey = req.user!.unit || getUnitByEmail(req.user!.username)?.key;
+    const unitKey = saveUnitKey;
 
     if (unitKey && isZapSignEnabled(unitKey)) {
       const zapsignDoc = await createUnitContractDocument(
@@ -660,7 +667,7 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
         contrato,
         `${unitKey}:${sheetIndex}`,
       );
-      await updateContractRow(unitKey, sheetIndex, buildZapSignSheetPatch(zapsignDoc, contrato));
+      await updateContractRow(unitKey, sheetIndex, buildZapSignSheetPatch(zapsignDoc, contrato, unitKey));
 
       const message = zapsignDoc.emailSent && zapsignDoc.clientEmail
         ? `Contrato enviado ao ZapSign. Link de assinatura enviado de contato@skoobpet.com.br para ${zapsignDoc.clientEmail}.`

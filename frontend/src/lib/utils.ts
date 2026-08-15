@@ -112,6 +112,10 @@ export function defaultUnitFilter(unit?: string): string {
   return "Todas";
 }
 
+export function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 export function formatCpfInput(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 11);
   if (digits.length <= 3) return digits;

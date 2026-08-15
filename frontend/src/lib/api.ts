@@ -462,10 +462,12 @@ export async function fetchSettingsUnits() {
 }
 
 export async function fetchUnitEmails(unit?: UnitKey) {
-  const { data } = await api.get<{ unitKey: UnitKey; unitLabel: string; items: UnitEmailItem[] }>(
-    "/settings/emails",
-    { params: unit ? { unit } : undefined },
-  );
+  const { data } = await api.get<{
+    unitKey: UnitKey;
+    unitLabel: string;
+    canonicalEmail?: string;
+    items: UnitEmailItem[];
+  }>("/settings/emails", { params: unit ? { unit } : undefined });
   return data;
 }
 

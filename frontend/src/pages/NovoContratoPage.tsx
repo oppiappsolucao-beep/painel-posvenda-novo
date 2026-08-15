@@ -52,7 +52,6 @@ export function NovoContratoPage() {
   const [formaPagamento, setFormaPagamento] = useState("");
   const [parcelas, setParcelas] = useState("");
   const [vendedora, setVendedora] = useState("");
-  const [emailLoja, setEmailLoja] = useState("");
   const [mes, setMes] = useState(monthKeyNow());
   const [unidade, setUnidade] = useState(() => defaultUnitFilter(user?.unit) === "Todas" ? "Campinas" : defaultUnitFilter(user?.unit));
 
@@ -169,7 +168,6 @@ export function NovoContratoPage() {
     setFormaPagamento("");
     setParcelas("");
     setVendedora("");
-    setEmailLoja("");
     setMes(monthKeyNow());
     setLinkCopied(false);
   };
@@ -243,7 +241,6 @@ export function NovoContratoPage() {
       "Forma de pagamento": formaPagamento,
       "Quantidade de parcelas": parcelas,
       Vendedora: vendedora,
-      ...(emailLoja.trim() ? { "E-mail Loja": emailLoja.trim() } : {}),
       "Nome do animal": nomeAnimal,
       Espécie: especie,
       Microchip: microchip,
@@ -398,13 +395,6 @@ export function NovoContratoPage() {
             ) : (
               <Field label="Vendedora" value={vendedora} onChange={setVendedora} placeholder="Cadastre no acesso Controle" />
             )}
-            <Field
-              label="E-mail da loja (assinatura ZapSign)"
-              value={emailLoja}
-              onChange={setEmailLoja}
-              type="email"
-              placeholder="Ex: responsavel@loja.com"
-            />
             <Field label="Mês" value={mes} onChange={setMes} />
             <Field label="Unidade" value={unidade} onChange={setUnidade} readOnly={!!user?.unit} />
           </div>

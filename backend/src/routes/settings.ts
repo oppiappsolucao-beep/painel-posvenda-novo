@@ -1,7 +1,11 @@
 import { Router } from "express";
-import { getConfiguredUnits, getUnitByKey, unitKeyFromLabel, UnitKey } from "../config.js";
+import { getCanonicalUnitStoreEmail, getConfiguredUnits, getUnitByKey, unitKeyFromLabel, UnitKey } from "../config.js";
 import { authMiddleware, requireRole, AuthRequest } from "../middleware/auth.js";
-import { addUnitEmail, listUnitEmails, removeUnitEmail } from "../services/unitEmails.js";
+import {
+  addUnitEmail,
+  listUnitEmails,
+  removeUnitEmail,
+} from "../services/unitEmails.js";
 
 const router = Router();
 
@@ -48,6 +52,7 @@ router.get("/emails", authMiddleware, requireRole("operacao"), async (req: AuthR
     res.json({
       unitKey,
       unitLabel: unit?.label || unitKey,
+      canonicalEmail: getCanonicalUnitStoreEmail(unitKey),
       items,
     });
   } catch (e) {
