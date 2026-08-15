@@ -44,9 +44,14 @@ function extractMonthNumFromKey(monthKey: string): number | null {
   return null;
 }
 
-/** Normaliza "8/2026" / "Agosto/2026" → "08/2026" para alinhar com a planilha. */
+/** Normaliza "8/2026", "2026-08", "Agosto/2026" → "08/2026" para alinhar com a planilha. */
 export function normalizeMonthKey(monthKey: string): string {
   const s = String(monthKey || "").trim();
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})$/);
+  if (iso) {
+    const mm = String(parseInt(iso[2], 10)).padStart(2, "0");
+    return `${mm}/${iso[1]}`;
+  }
   const m = s.match(/^(\d{1,2})\s*\/\s*(\d{4})$/);
   if (m) {
     const mm = String(parseInt(m[1], 10)).padStart(2, "0");

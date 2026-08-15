@@ -29,7 +29,15 @@ export function VisaoGeralPage() {
   if (!loading && !user) return <Navigate to="/login" replace />;
 
   return (
-    <AppLayout title="Visão Geral" emoji="📊" caption={data ? `Total de registros: ${data.total}` : undefined}>
+    <AppLayout
+      title="Visão Geral"
+      emoji="📊"
+      caption={
+        data
+          ? `Vendas em ${mes}: ${data.financeiro?.totalVendas ?? data.kpis.vendasMes ?? 0} • ${data.total} registro(s) na unidade`
+          : undefined
+      }
+    >
       {data && (
         <FilterBar meses={data.meses} unidades={data.unidades} mes={mes} unidade={unidade} onMesChange={setMes} onUnidadeChange={setUnidade} />
       )}

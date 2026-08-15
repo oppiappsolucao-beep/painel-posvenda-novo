@@ -68,6 +68,11 @@ export function extractYearFromMonthKey(monthKey: string): string | null {
 
 export function extractMonthNumFromMonthKey(monthKey: string): number | null {
   const s = String(monthKey).trim();
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})$/);
+  if (iso) {
+    const mm = parseInt(iso[2], 10);
+    if (mm >= 1 && mm <= 12) return mm;
+  }
   const m = s.match(/^\s*(\d{1,2})\s*\/\s*\d{4}\s*$/);
   if (m) {
     const mm = parseInt(m[1], 10);
@@ -104,9 +109,14 @@ export function todayMonthKey(): string {
   return `${mm}/${now.getFullYear()}`;
 }
 
-/** Normaliza "8/2026" / "Agosto/2026" → "08/2026" para bater com a planilha e o filtro da UI. */
+/** Normaliza "8/2026", "2026-08", "Agosto/2026" → "08/2026" para bater com a planilha e o filtro da UI. */
 export function normalizeMonthKey(monthKey: string): string {
   const s = String(monthKey || "").trim();
+  const iso = s.match(/^(\d{4})[-/](\d{1,2})$/);
+  if (iso) {
+    const mm = String(parseInt(iso[2], 10)).padStart(2, "0");
+    return `${mm}/${iso[1]}`;
+  }
   const m = s.match(/^(\d{1,2})\s*\/\s*(\d{4})$/);
   if (m) {
     const mm = String(parseInt(m[1], 10)).padStart(2, "0");
@@ -120,6 +130,31 @@ export function normalizeMonthKey(monthKey: string): string {
   return s;
 }
 
+/** Mês efetivo da linha: coluna Mês ou fallback pela Data Compra. */
+export function getRowMonthKey(
+  row: Record<string, string>,
+  mesCol: string | null,
+  dataCompraCol?: string | null,
+): string {
+  if (mesCol) {
+    const raw = String(row[mesCol] || "").trim();
+    if (raw) {
+      const normalized = normalizeMonthKey(raw);
+      if (/^\d{2}\/\d{4}$/.test(normalized)) return normalized;
+    }
+  }
+  const dateCols = dataCompraCol
+    ? [dataCompraCol]
+    : ["Data Compra", "Data compra", "Data da compra"];
+  for (const col of dateCols) {
+    const val = row[col];
+    if (!val) continue;
+    const normalized = normalizeMonthKey(monthKeyFromDate(parseDate(val)));
+    if (/^\d{2}\/\d{4}$/.test(normalized)) return normalized;
+  }
+  return "";
+}
+
 function monthKeySortValue(monthKey: string): number {
   const normalized = normalizeMonthKey(monthKey);
   const m = normalized.match(/^(\d{2})\/(\d{4})$/);
@@ -131,6 +166,13 @@ export function todaySaoPaulo(): Date {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
 }
 
+/** Serial de data Google Sheets/Excel → Date local (sem deslocar o dia por fuso). */
+function sheetSerialToDate(serial: number): Date | null {
+  const utc = new Date((serial - 25569) * 86400 * 1000);
+  if (Number.isNaN(utc.getTime())) return null;
+  return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+}
+
 export function parseDate(v: unknown): Date | null {
   if (v === null || v === undefined || v === "") return null;
   if (v instanceof Date && !Number.isNaN(v.getTime())) return v;
@@ -138,8 +180,8 @@ export function parseDate(v: unknown): Date | null {
   if (typeof v === "number" && Number.isFinite(v)) {
     const serial = Math.floor(v);
     if (serial >= 20000 && serial <= 60000) {
-      const d = new Date((serial - 25569) * 86400 * 1000);
-      if (!Number.isNaN(d.getTime())) return d;
+      const d = sheetSerialToDate(serial);
+      if (d) return d;
     }
   }
 
@@ -149,8 +191,8 @@ export function parseDate(v: unknown): Date | null {
   if (/^\d{4,5}$/.test(s)) {
     const serial = parseInt(s, 10);
     if (serial >= 20000 && serial <= 60000) {
-      const d = new Date((serial - 25569) * 86400 * 1000);
-      if (!Number.isNaN(d.getTime())) return d;
+      const d = sheetSerialToDate(serial);
+      if (d) return d;
     }
   }
 
@@ -253,24 +295,30 @@ export function filterRows(
   mes: string,
   unidadeCol: string | null,
   unidade: string,
+  dataCompraCol?: string | null,
 ): Record<string, string>[] {
   let result = rows;
   if (mesCol && mes) {
     const target = normalizeMonthKey(mes);
-    result = result.filter((r) => normalizeMonthKey(String(r[mesCol] || "").trim()) === target);
+    result = result.filter((r) => getRowMonthKey(r, mesCol, dataCompraCol) === target);
   }
   if (unidadeCol && unidade && unidade !== "Todas") {
-    result = result.filter((r) => String(r[unidadeCol] || "").trim() === unidade);
+    const targetUnit = unidade.trim().toLowerCase();
+    result = result.filter((r) => String(r[unidadeCol] || "").trim().toLowerCase() === targetUnit);
   }
   return result;
 }
 
-export function getUniqueMonths(rows: Record<string, string>[], mesCol: string | null): string[] {
+export function getUniqueMonths(
+  rows: Record<string, string>[],
+  mesCol: string | null,
+  dataCompraCol?: string | null,
+): string[] {
   if (!mesCol) return [todayMonthKey()];
   const set = new Set<string>();
   for (const r of rows) {
-    const m = String(r[mesCol] || "").trim();
-    if (m) set.add(m);
+    const key = getRowMonthKey(r, mesCol, dataCompraCol);
+    if (key) set.add(key);
   }
   const months = [...set]
     .map((m) => normalizeMonthKey(m))

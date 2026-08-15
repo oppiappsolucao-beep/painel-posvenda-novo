@@ -9,12 +9,15 @@ import {
   formatDateBr,
   getUniqueMonths,
   getUniqueUnits,
+  getRowMonthKey,
   groupCount,
   groupSum,
   isCpfComplete,
   isError,
   limparNomeArquivo,
+  monthKeyFromDate,
   monthLabelPt,
+  normalizeMonthKey,
   moneyBr,
   norm,
   parseDate,
@@ -121,6 +124,7 @@ function getColumns(rows: Record<string, string>[]) {
   const cols = rows.length ? Object.keys(rows[0]) : [];
   return {
     mes: pickFirstExisting(cols, ["Mês"]),
+    dataCompra: pickFirstExisting(cols, ["Data Compra", "Data compra", "Data da compra"]),
     unidade: pickFirstExisting(cols, ["Unidade", "Cidade", "Cidade do comprador"]),
     raca: pickFirstExisting(cols, ["Raça"]),
     c1: pickFirstExisting(cols, ["1º contato", "1 contato", "Primeiro contato"]),
@@ -136,8 +140,8 @@ function getColumns(rows: Record<string, string>[]) {
 
 function buildOperacaoData(rows: Record<string, string>[], mes: string, unidade: string) {
   const c = getColumns(rows);
-  const fAll = filterRows(rows, null, "", c.unidade, unidade);
-  const fMes = filterRows(rows, c.mes, mes, c.unidade, unidade);
+  const fAll = filterRows(rows, null, "", c.unidade, unidade, c.dataCompra);
+  const fMes = filterRows(rows, c.mes, mes, c.unidade, unidade, c.dataCompra);
 
   let primeiroMes = countMonthAll(fAll, c.c1, mes);
   let segundoMes = countMonthAll(fAll, c.c2, mes);
@@ -169,8 +173,8 @@ function buildOperacaoData(rows: Record<string, string>[], mes: string, unidade:
   const vendasVendedor = c.vendedor ? groupCount(fMes, c.vendedor).slice(0, 12) : [];
 
   return {
-    total: rows.length,
-    meses: getUniqueMonths(rows, c.mes),
+    total: fAll.length,
+    meses: getUniqueMonths(rows, c.mes, c.dataCompra),
     unidades: getUniqueUnits(rows, c.unidade),
     kpis: {
       primeiroHoje: countTodayAll(fAll, c.c1),
@@ -194,7 +198,7 @@ function financeiroFilterUnits(rows: Record<string, string>[], unidadeCol: strin
 
 function buildFinanceiroData(rows: Record<string, string>[], mes: string, unidade: string) {
   const c = getColumns(rows);
-  const fMes = filterRows(rows, c.mes, mes, c.unidade, unidade);
+  const fMes = filterRows(rows, c.mes, mes, c.unidade, unidade, c.dataCompra);
 
   let faturamento = 0;
   for (const r of fMes) {
@@ -215,11 +219,11 @@ function buildFinanceiroData(rows: Record<string, string>[], mes: string, unidad
   const anoRef = extractYearFromMonthKey(mes);
   let faturamentoAnual: { mes: string; faturamento: number }[] = [];
   if (anoRef && c.mes) {
-    const fAno = rows.filter((r) => String(r[c.mes!] || "").includes(anoRef));
-    const fAnoFiltered = filterRows(fAno, null, "", c.unidade, unidade);
+    const fAno = rows.filter((r) => extractYearFromMonthKey(getRowMonthKey(r, c.mes, c.dataCompra)) === anoRef);
+    const fAnoFiltered = filterRows(fAno, null, "", c.unidade, unidade, c.dataCompra);
     const map = new Map<number, number>();
     for (const r of fAnoFiltered) {
-      const mn = extractMonthNumFromMonthKey(String(r[c.mes!] || ""));
+      const mn = extractMonthNumFromMonthKey(getRowMonthKey(r, c.mes, c.dataCompra));
       if (mn) {
         map.set(mn, (map.get(mn) || 0) + (c.valor ? brlToFloat(r[c.valor]) : 0));
       }
@@ -230,8 +234,8 @@ function buildFinanceiroData(rows: Record<string, string>[], mes: string, unidad
   }
 
   return {
-    total: rows.length,
-    meses: getUniqueMonths(rows, c.mes),
+    total: filterRows(rows, null, "", c.unidade, unidade, c.dataCompra).length,
+    meses: getUniqueMonths(rows, c.mes, c.dataCompra),
     unidades: financeiroFilterUnits(rows, c.unidade),
     kpis: {
       faturamentoTotal: faturamento,
@@ -641,6 +645,11 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
 
     const now = todaySaoPaulo();
     contrato["Data preenchimento"] = `${formatDateBr(now)} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+    if (contrato["Mês"]) {
+      contrato["Mês"] = normalizeMonthKey(contrato["Mês"]);
+    } else if (contrato["Data Compra"]) {
+      contrato["Mês"] = normalizeMonthKey(monthKeyFromDate(parseDate(contrato["Data Compra"])));
+    }
 
     const sheetIndex = await saveContractForUser(contrato, req.user!);
     const unitKey = req.user!.unit || getUnitByEmail(req.user!.username)?.key;
