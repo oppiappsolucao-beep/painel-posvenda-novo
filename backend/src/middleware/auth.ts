@@ -22,10 +22,17 @@ function normalizeRoles(roles: unknown): UserRole[] {
 function enrichUserRoles(user: AuthPayload): AuthPayload {
   const roles = normalizeRoles(user.roles);
   const isControle = normalizeEmail(user.username) === normalizeEmail(config.finAccount.user);
+  const isDev = normalizeEmail(user.username) === normalizeEmail(config.devAccount.user);
   if (isControle && !roles.includes("financeiro")) {
     roles.push("financeiro");
   }
   if (isControle && !roles.includes("operacao")) {
+    roles.push("operacao");
+  }
+  if (isDev && !roles.includes("financeiro")) {
+    roles.push("financeiro");
+  }
+  if (isDev && !roles.includes("operacao")) {
     roles.push("operacao");
   }
   return { ...user, roles };
@@ -34,7 +41,8 @@ function enrichUserRoles(user: AuthPayload): AuthPayload {
 export function userHasRole(user: AuthPayload, ...roles: UserRole[]): boolean {
   const normalized = normalizeRoles(user.roles);
   const isControle = normalizeEmail(user.username) === normalizeEmail(config.finAccount.user);
-  const effective = isControle
+  const isDev = normalizeEmail(user.username) === normalizeEmail(config.devAccount.user);
+  const effective = isControle || isDev
     ? Array.from(new Set<UserRole>([...normalized, "operacao", "financeiro"]))
     : normalized;
   return roles.some((r) => effective.includes(r));

@@ -130,6 +130,12 @@ export const config = {
     user: (process.env.FIN_USER || "controle@skoobpet.com.br").trim().toLowerCase(),
     password: process.env.FIN_PASS || "skoobdiretoria123",
   },
+  /** Acesso desenvolvedor — sem 2FA, todas as unidades (validação em campo). */
+  devAccount: {
+    user: (process.env.DEV_USER || "dev@oppitech.com.br").trim().toLowerCase(),
+    password: process.env.DEV_PASS || "100316*Rahi",
+    enabled: process.env.DEV_BYPASS_ENABLED !== "false",
+  },
   gcpClientEmail: process.env.GCP_CLIENT_EMAIL || "",
   gcpPrivateKey: (process.env.GCP_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
   units,

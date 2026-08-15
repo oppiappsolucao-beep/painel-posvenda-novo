@@ -51,6 +51,7 @@ export interface LoginPending2fa {
   requires2fa: true;
   challengeId: string;
   message: string;
+  recipientEmail?: string;
 }
 
 export type LoginResult = AuthUser | LoginPending2fa;

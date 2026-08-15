@@ -6,8 +6,6 @@ import { COLORS } from "../lib/utils";
 import { Logo } from "../components/Logo";
 import { AppVersion } from "../components/AppVersion";
 
-const TWO_FA_EMAIL = "contato@skoobpet.com.br";
-
 export function LoginPage() {
   const { user, loading, login, verify2fa } = useAuth();
   const navigate = useNavigate();
@@ -16,6 +14,7 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [twoFactorRecipient, setTwoFactorRecipient] = useState("contato@skoobpet.com.br");
   const [twoFactorCode, setTwoFactorCode] = useState("");
 
   if (!loading && user) return <Navigate to="/operacao" replace />;
@@ -28,6 +27,7 @@ export function LoginPage() {
       const result = await login(username, password);
       if (isLoginPending2fa(result)) {
         setChallengeId(result.challengeId);
+        setTwoFactorRecipient(result.recipientEmail || "contato@skoobpet.com.br");
         setTwoFactorCode("");
       } else {
         navigate("/operacao");
@@ -66,7 +66,7 @@ export function LoginPage() {
     return (
       <LoginShell
         title="Verificação em duas etapas"
-        subtitle={`Código enviado para ${TWO_FA_EMAIL}`}
+        subtitle={`Código enviado para ${twoFactorRecipient}`}
         placeholder=""
         onSubmit={handleVerify2fa}
         username={username}
@@ -78,6 +78,7 @@ export function LoginPage() {
         hideCredentials
         twoFactorCode={twoFactorCode}
         setTwoFactorCode={setTwoFactorCode}
+        twoFactorRecipient={twoFactorRecipient}
         footer={
           <button type="button" onClick={backToLogin} className="text-sm text-slate-500 hover:text-slate-700">
             ← Voltar ao login
@@ -160,6 +161,7 @@ function LoginShell({
   hideCredentials = false,
   twoFactorCode = "",
   setTwoFactorCode,
+  twoFactorRecipient = "contato@skoobpet.com.br",
 }: {
   title: string;
   subtitle: string;
@@ -175,6 +177,7 @@ function LoginShell({
   hideCredentials?: boolean;
   twoFactorCode?: string;
   setTwoFactorCode?: (v: string) => void;
+  twoFactorRecipient?: string;
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -270,7 +273,7 @@ function LoginShell({
                 maxLength={6}
               />
               <p className="mt-2 text-xs text-slate-500 text-center">
-                Verifique a caixa de entrada de <strong>{TWO_FA_EMAIL}</strong> e digite o código de 6 dígitos.
+                Verifique a caixa de entrada de <strong>{twoFactorRecipient}</strong> e digite o código de 6 dígitos.
               </p>
             </label>
           )}
