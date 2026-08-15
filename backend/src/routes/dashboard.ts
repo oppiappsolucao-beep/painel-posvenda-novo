@@ -59,6 +59,7 @@ import { getConfiguredUnits, getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } 
 import {
   deleteContractRows,
   getContractRow,
+  invalidateSheetRowsCache,
   loadAllUnitRowsWithWarnings,
   loadRowsForUser,
   pruneAllSheetsToDemo,
@@ -87,7 +88,7 @@ import {
   fetchZapSignDocumentPdf,
   isZapSignEnabled,
 } from "../services/zapsign.js";
-import { syncZapSignRowsForStatus } from "../services/zapsignSignatureSync.js";
+import { invalidateZapSignSignatureCache, syncZapSignRowsForStatus } from "../services/zapsignSignatureSync.js";
 import {
   getContractAttachmentBuffers,
   saveContractAttachments,
@@ -475,6 +476,11 @@ router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async 
     const dataInicio = String(req.query.dataInicio || req.query.data || "");
     const dataFim = String(req.query.dataFim || req.query.data || req.query.dataInicio || "");
     const status = String(req.query.status || "todos");
+    const refresh = String(req.query.refresh || "") === "1";
+    if (refresh) {
+      invalidateSheetRowsCache();
+      invalidateZapSignSignatureCache();
+    }
     const loaded = await loadRowsForUser(req.user!);
     const syncedLoaded = await syncZapSignRowsForStatus(loaded);
     const signatures = await loadSignaturesMap();

@@ -276,8 +276,12 @@ export async function fetchStatusAssinatura(params: {
   dataInicio?: string;
   dataFim?: string;
   status?: string;
+  refresh?: boolean;
 }) {
-  const { data } = await api.get<StatusAssinaturaResponse>("/dashboard/status-assinatura", { params });
+  const { refresh, ...query } = params;
+  const { data } = await api.get<StatusAssinaturaResponse>("/dashboard/status-assinatura", {
+    params: { ...query, ...(refresh ? { refresh: "1" } : {}) },
+  });
   return data;
 }
 

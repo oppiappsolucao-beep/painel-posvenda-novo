@@ -104,6 +104,29 @@ export function todayMonthKey(): string {
   return `${mm}/${now.getFullYear()}`;
 }
 
+/** Normaliza "8/2026" / "Agosto/2026" → "08/2026" para bater com a planilha e o filtro da UI. */
+export function normalizeMonthKey(monthKey: string): string {
+  const s = String(monthKey || "").trim();
+  const m = s.match(/^(\d{1,2})\s*\/\s*(\d{4})$/);
+  if (m) {
+    const mm = String(parseInt(m[1], 10)).padStart(2, "0");
+    return `${mm}/${m[2]}`;
+  }
+  const monthNum = extractMonthNumFromMonthKey(s);
+  const yearMatch = s.match(/(\d{4})/);
+  if (monthNum && yearMatch) {
+    return `${String(monthNum).padStart(2, "0")}/${yearMatch[1]}`;
+  }
+  return s;
+}
+
+function monthKeySortValue(monthKey: string): number {
+  const normalized = normalizeMonthKey(monthKey);
+  const m = normalized.match(/^(\d{2})\/(\d{4})$/);
+  if (!m) return 0;
+  return parseInt(m[2], 10) * 100 + parseInt(m[1], 10);
+}
+
 export function todaySaoPaulo(): Date {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
 }
@@ -112,8 +135,30 @@ export function parseDate(v: unknown): Date | null {
   if (v === null || v === undefined || v === "") return null;
   if (v instanceof Date && !Number.isNaN(v.getTime())) return v;
 
+  if (typeof v === "number" && Number.isFinite(v)) {
+    const serial = Math.floor(v);
+    if (serial >= 20000 && serial <= 60000) {
+      const d = new Date((serial - 25569) * 86400 * 1000);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+  }
+
   const s = String(v).replace(/\u00a0/g, " ").trim();
   if (!s || ["nan", "none"].includes(s.toLowerCase())) return null;
+
+  if (/^\d{4,5}$/.test(s)) {
+    const serial = parseInt(s, 10);
+    if (serial >= 20000 && serial <= 60000) {
+      const d = new Date((serial - 25569) * 86400 * 1000);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [yyyy, mm, dd] = s.split("-").map((part) => parseInt(part, 10));
+    const d = new Date(yyyy, mm - 1, dd);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
 
   if (s.includes("-") && /^\d{4}-\d{2}-\d{2}/.test(s)) {
     const d = new Date(s);
@@ -172,7 +217,7 @@ export function countMonthAll(
     if (!d) return false;
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const key = `${mm}/${d.getFullYear()}`;
-    return key === selectedMonth;
+    return normalizeMonthKey(key) === normalizeMonthKey(selectedMonth);
   }).length;
 }
 
@@ -211,7 +256,8 @@ export function filterRows(
 ): Record<string, string>[] {
   let result = rows;
   if (mesCol && mes) {
-    result = result.filter((r) => String(r[mesCol] || "").trim() === mes);
+    const target = normalizeMonthKey(mes);
+    result = result.filter((r) => normalizeMonthKey(String(r[mesCol] || "").trim()) === target);
   }
   if (unidadeCol && unidade && unidade !== "Todas") {
     result = result.filter((r) => String(r[unidadeCol] || "").trim() === unidade);
@@ -226,8 +272,15 @@ export function getUniqueMonths(rows: Record<string, string>[], mesCol: string |
     const m = String(r[mesCol] || "").trim();
     if (m) set.add(m);
   }
-  const months = [...set].sort();
-  return months.length ? months : [todayMonthKey()];
+  const months = [...set]
+    .map((m) => normalizeMonthKey(m))
+    .filter((m, i, arr) => arr.indexOf(m) === i);
+  const current = todayMonthKey();
+  if (!months.some((m) => normalizeMonthKey(m) === current)) {
+    months.push(current);
+  }
+  months.sort((a, b) => monthKeySortValue(a) - monthKeySortValue(b));
+  return months.length ? months : [current];
 }
 
 export function getUniqueUnits(rows: Record<string, string>[], unidadeCol: string | null): string[] {
