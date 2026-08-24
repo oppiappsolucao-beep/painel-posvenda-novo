@@ -1,4 +1,4 @@
-import { getUnitByKey, type UnitKey } from "../config.js";
+import { getCanonicalUnitStoreEmail, getUnitByKey, type UnitKey } from "../config.js";
 import {
   CAMPINAS_CLIENT_DOC_ACK_FIELDS,
   CAMPINAS_CLIENT_FORM_LABELS,
@@ -176,7 +176,7 @@ function mapSignerForTemplateApi(signer: ZapSignTemplateSigner) {
 
 /** Signatários loja (1º) → cliente (2º) para template existente. */
 export function buildCleanTemplateSigners(unitKey: UnitKey) {
-  const lojaEmail = (process.env.ZAPSIGN_LOJA_EMAIL || "contato@skoobpet.com.br").trim();
+  const lojaEmail = getCanonicalUnitStoreEmail(unitKey) || "contato@skoobpet.com.br";
   return [
     {
       name: zapsignStoreSignerName(unitKey),

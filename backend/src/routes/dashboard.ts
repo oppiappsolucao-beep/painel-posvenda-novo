@@ -9,12 +9,15 @@ import {
   formatDateBr,
   getUniqueMonths,
   getUniqueUnits,
+  getRowMonthKey,
   groupCount,
   groupSum,
   isCpfComplete,
   isError,
   limparNomeArquivo,
+  monthKeyFromDate,
   monthLabelPt,
+  normalizeMonthKey,
   moneyBr,
   norm,
   parseDate,
@@ -55,10 +58,12 @@ function camposObrigatoriosFaltando(contrato: Record<string, string>): string[] 
     .filter(([k]) => !String(contrato[k] || "").trim())
     .map(([, label]) => label);
 }
-import { getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } from "../config.js";
+import { getCanonicalUnitStoreEmail, getConfiguredUnits, getUnitByEmail, getUnitByKey, LoadedRow, UnitKey } from "../config.js";
 import {
   deleteContractRows,
   getContractRow,
+  invalidateSheetRowsCache,
+  loadAllUnitRowsWithWarnings,
   loadRowsForUser,
   pruneAllSheetsToDemo,
   saveContract,
@@ -86,7 +91,7 @@ import {
   fetchZapSignDocumentPdf,
   isZapSignEnabled,
 } from "../services/zapsign.js";
-import { syncZapSignRowsForStatus } from "../services/zapsignSignatureSync.js";
+import { invalidateZapSignSignatureCache, syncZapSignRowsForStatus } from "../services/zapsignSignatureSync.js";
 import {
   getContractAttachmentBuffers,
   saveContractAttachments,
@@ -119,6 +124,7 @@ function getColumns(rows: Record<string, string>[]) {
   const cols = rows.length ? Object.keys(rows[0]) : [];
   return {
     mes: pickFirstExisting(cols, ["Mês"]),
+    dataCompra: pickFirstExisting(cols, ["Data Compra", "Data compra", "Data da compra"]),
     unidade: pickFirstExisting(cols, ["Unidade", "Cidade", "Cidade do comprador"]),
     raca: pickFirstExisting(cols, ["Raça"]),
     c1: pickFirstExisting(cols, ["1º contato", "1 contato", "Primeiro contato"]),
@@ -134,8 +140,8 @@ function getColumns(rows: Record<string, string>[]) {
 
 function buildOperacaoData(rows: Record<string, string>[], mes: string, unidade: string) {
   const c = getColumns(rows);
-  const fAll = filterRows(rows, null, "", c.unidade, unidade);
-  const fMes = filterRows(rows, c.mes, mes, c.unidade, unidade);
+  const fAll = filterRows(rows, null, "", c.unidade, unidade, c.dataCompra);
+  const fMes = filterRows(rows, c.mes, mes, c.unidade, unidade, c.dataCompra);
 
   let primeiroMes = countMonthAll(fAll, c.c1, mes);
   let segundoMes = countMonthAll(fAll, c.c2, mes);
@@ -167,8 +173,8 @@ function buildOperacaoData(rows: Record<string, string>[], mes: string, unidade:
   const vendasVendedor = c.vendedor ? groupCount(fMes, c.vendedor).slice(0, 12) : [];
 
   return {
-    total: rows.length,
-    meses: getUniqueMonths(rows, c.mes),
+    total: fAll.length,
+    meses: getUniqueMonths(rows, c.mes, c.dataCompra),
     unidades: getUniqueUnits(rows, c.unidade),
     kpis: {
       primeiroHoje: countTodayAll(fAll, c.c1),
@@ -184,9 +190,15 @@ function buildOperacaoData(rows: Record<string, string>[], mes: string, unidade:
   };
 }
 
+function financeiroFilterUnits(rows: Record<string, string>[], unidadeCol: string | null): string[] {
+  const fromRows = getUniqueUnits(rows, unidadeCol);
+  if (fromRows.length > 1) return fromRows;
+  return ["Todas", ...getConfiguredUnits().map((unit) => unit.label)];
+}
+
 function buildFinanceiroData(rows: Record<string, string>[], mes: string, unidade: string) {
   const c = getColumns(rows);
-  const fMes = filterRows(rows, c.mes, mes, c.unidade, unidade);
+  const fMes = filterRows(rows, c.mes, mes, c.unidade, unidade, c.dataCompra);
 
   let faturamento = 0;
   for (const r of fMes) {
@@ -207,11 +219,11 @@ function buildFinanceiroData(rows: Record<string, string>[], mes: string, unidad
   const anoRef = extractYearFromMonthKey(mes);
   let faturamentoAnual: { mes: string; faturamento: number }[] = [];
   if (anoRef && c.mes) {
-    const fAno = rows.filter((r) => String(r[c.mes!] || "").includes(anoRef));
-    const fAnoFiltered = filterRows(fAno, null, "", c.unidade, unidade);
+    const fAno = rows.filter((r) => extractYearFromMonthKey(getRowMonthKey(r, c.mes, c.dataCompra)) === anoRef);
+    const fAnoFiltered = filterRows(fAno, null, "", c.unidade, unidade, c.dataCompra);
     const map = new Map<number, number>();
     for (const r of fAnoFiltered) {
-      const mn = extractMonthNumFromMonthKey(String(r[c.mes!] || ""));
+      const mn = extractMonthNumFromMonthKey(getRowMonthKey(r, c.mes, c.dataCompra));
       if (mn) {
         map.set(mn, (map.get(mn) || 0) + (c.valor ? brlToFloat(r[c.valor]) : 0));
       }
@@ -222,9 +234,9 @@ function buildFinanceiroData(rows: Record<string, string>[], mes: string, unidad
   }
 
   return {
-    total: rows.length,
-    meses: getUniqueMonths(rows, c.mes),
-    unidades: getUniqueUnits(rows, c.unidade),
+    total: filterRows(rows, null, "", c.unidade, unidade, c.dataCompra).length,
+    meses: getUniqueMonths(rows, c.mes, c.dataCompra),
+    unidades: financeiroFilterUnits(rows, c.unidade),
     kpis: {
       faturamentoTotal: faturamento,
       faturamentoTotalFmt: moneyBr(faturamento),
@@ -441,10 +453,12 @@ router.get("/financeiro", authMiddleware, requireRole("financeiro"), async (req:
   try {
     const mes = String(req.query.mes || todayMonthKey());
     const unidade = String(req.query.unidade || "Todas");
-    const loaded = await loadRowsForUser(req.user!);
-    res.json(buildFinanceiroData(toSheetRows(loaded), mes, unidade));
+    const { rows: loaded, warnings } = await loadAllUnitRowsWithWarnings();
+    const payload = buildFinanceiroData(toSheetRows(loaded), mes, unidade);
+    res.json(warnings.length ? { ...payload, warnings } : payload);
   } catch (e) {
-    res.status(500).json({ error: String(e) });
+    const msg = e instanceof Error ? e.message : String(e);
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -466,6 +480,11 @@ router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async 
     const dataInicio = String(req.query.dataInicio || req.query.data || "");
     const dataFim = String(req.query.dataFim || req.query.data || req.query.dataInicio || "");
     const status = String(req.query.status || "todos");
+    const refresh = String(req.query.refresh || "") === "1";
+    if (refresh) {
+      invalidateSheetRowsCache();
+      invalidateZapSignSignatureCache();
+    }
     const loaded = await loadRowsForUser(req.user!);
     const syncedLoaded = await syncZapSignRowsForStatus(loaded);
     const signatures = await loadSignaturesMap();
@@ -577,6 +596,7 @@ router.post("/contracts/register-zapsign", authMiddleware, requireRole("operacao
     const now = todaySaoPaulo();
     contrato["Data preenchimento"] = `${formatDateBr(now)} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
     contrato["Unidade"] = unit.label;
+    contrato["E-mail Loja"] = getCanonicalUnitStoreEmail(unitKey);
 
     const sheetIndex = await saveContract(contrato, unit);
     const patch = buildZapSignSheetPatch(
@@ -586,9 +606,10 @@ router.post("/contracts/register-zapsign", authMiddleware, requireRole("operacao
         status: "pending",
         emailSent: false,
         storeSignUrl: String(zapsign.storeSignUrl || "").trim() || undefined,
-        storeEmail: String(zapsign.storeEmail || contrato["E-mail Loja"] || "").trim() || undefined,
+        storeEmail: getCanonicalUnitStoreEmail(unitKey),
       },
       contrato,
+      unitKey,
     );
     await updateContractRow(unitKey, sheetIndex, patch);
 
@@ -626,9 +647,19 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
 
     const now = todaySaoPaulo();
     contrato["Data preenchimento"] = `${formatDateBr(now)} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+    if (contrato["Mês"]) {
+      contrato["Mês"] = normalizeMonthKey(contrato["Mês"]);
+    } else if (contrato["Data Compra"]) {
+      contrato["Mês"] = normalizeMonthKey(monthKeyFromDate(parseDate(contrato["Data Compra"])));
+    }
+
+    const saveUnitKey = req.user!.unit || getUnitByEmail(req.user!.username)?.key;
+    if (saveUnitKey) {
+      contrato["E-mail Loja"] = getCanonicalUnitStoreEmail(saveUnitKey);
+    }
 
     const sheetIndex = await saveContractForUser(contrato, req.user!);
-    const unitKey = req.user!.unit || getUnitByEmail(req.user!.username)?.key;
+    const unitKey = saveUnitKey;
 
     if (unitKey && isZapSignEnabled(unitKey)) {
       const zapsignDoc = await createUnitContractDocument(
@@ -636,7 +667,7 @@ router.post("/contracts", authMiddleware, requireRole("operacao"), async (req: A
         contrato,
         `${unitKey}:${sheetIndex}`,
       );
-      await updateContractRow(unitKey, sheetIndex, buildZapSignSheetPatch(zapsignDoc, contrato));
+      await updateContractRow(unitKey, sheetIndex, buildZapSignSheetPatch(zapsignDoc, contrato, unitKey));
 
       const message = zapsignDoc.emailSent && zapsignDoc.clientEmail
         ? `Contrato enviado ao ZapSign. Link de assinatura enviado de contato@skoobpet.com.br para ${zapsignDoc.clientEmail}.`

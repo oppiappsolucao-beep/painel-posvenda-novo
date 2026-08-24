@@ -8,6 +8,52 @@ import { useAuth } from "../context/AuthContext";
 import { fetchFinanceiro, fetchLockedAccounts, unlockAccount } from "../lib/api";
 import { COLORS, monthKeyNow } from "../lib/utils";
 
+type FinanceiroData = {
+  total: number;
+  meses: string[];
+  unidades: string[];
+  kpis: {
+    faturamentoTotal: number;
+    faturamentoTotalFmt: string;
+    totalVendas: number;
+    ticketMedio: number;
+    ticketMedioFmt: string;
+    totalRacas: number;
+  };
+  charts: {
+    faturamentoUnidade: { name: string; total: number }[];
+    faturamentoRaca: { name: string; total: number }[];
+    faturamentoVendedor: { name: string; total: number }[];
+    faturamentoAnual: { mes: string; faturamento: number }[];
+  };
+  tabelaVendedor: { vendedora: string; faturamento: string }[];
+  warnings?: string[];
+};
+
+function emptyFinanceiroData(mes: string): FinanceiroData {
+  return {
+    total: 0,
+    meses: [mes],
+    unidades: ["Todas", "Campinas", "Piracicaba", "Indaiatuba"],
+    kpis: {
+      faturamentoTotal: 0,
+      faturamentoTotalFmt: "R$ 0,00",
+      totalVendas: 0,
+      ticketMedio: 0,
+      ticketMedioFmt: "R$ 0,00",
+      totalRacas: 0,
+    },
+    charts: {
+      faturamentoUnidade: [] as { name: string; total: number }[],
+      faturamentoRaca: [] as { name: string; total: number }[],
+      faturamentoVendedor: [] as { name: string; total: number }[],
+      faturamentoAnual: [] as { mes: string; faturamento: number }[],
+    },
+    tabelaVendedor: [] as { vendedora: string; faturamento: string }[],
+    warnings: [] as string[],
+  };
+}
+
 export function FinanceiroDashboard() {
   const { user, loading, hasRole } = useAuth();
   const queryClient = useQueryClient();
@@ -16,12 +62,15 @@ export function FinanceiroDashboard() {
   const [unlocking, setUnlocking] = useState<string | null>(null);
   const [unlockMessage, setUnlockMessage] = useState("");
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery<FinanceiroData>({
     queryKey: ["financeiro", mes, unidade],
     queryFn: () => fetchFinanceiro(mes, unidade),
     refetchInterval: 10000,
     enabled: !!user && hasRole("financeiro"),
+    placeholderData: (previous) => previous ?? emptyFinanceiroData(mes),
   });
+
+  const financeiro = data ?? emptyFinanceiroData(mes);
 
   const { data: lockedAccounts = [], refetch: refetchLocked } = useQuery({
     queryKey: ["locked-accounts"],
@@ -51,7 +100,7 @@ export function FinanceiroDashboard() {
     <AppLayout
       title="Financeiro SkoobPet"
       emoji="💰"
-      caption={data ? `Total de registros: ${data.total}` : undefined}
+      caption={`Total de registros: ${financeiro.total}${isFetching && !isLoading ? " • atualizando…" : ""}`}
       requireFinance
     >
       {hasRole("financeiro") && (
@@ -93,10 +142,10 @@ export function FinanceiroDashboard() {
         </div>
       )}
 
-      {hasRole("financeiro") && data && (
+      {hasRole("financeiro") && (
         <FilterBar
-          meses={data.meses}
-          unidades={data.unidades}
+          meses={financeiro.meses}
+          unidades={financeiro.unidades}
           mes={mes}
           unidade={unidade}
           onMesChange={setMes}
@@ -104,22 +153,35 @@ export function FinanceiroDashboard() {
         />
       )}
 
-      {hasRole("financeiro") && isLoading && <div className="text-center py-12 text-slate-500">Carregando...</div>}
-      {hasRole("financeiro") && error && <div className="bg-red-50 text-red-700 rounded-xl p-4">Erro ao carregar dados.</div>}
+      {hasRole("financeiro") && error && (
+        <div className="bg-red-50 text-red-700 rounded-xl p-4 text-sm mb-4">
+          Erro ao carregar dados: {error instanceof Error ? error.message : "Erro desconhecido"}
+        </div>
+      )}
+      {hasRole("financeiro") && (financeiro.warnings?.length ?? 0) > 0 && (
+        <div className="bg-amber-50 text-amber-900 rounded-xl p-4 text-sm mb-4">
+          Algumas planilhas não carregaram: {financeiro.warnings?.join(" • ")}
+        </div>
+      )}
+      {hasRole("financeiro") && financeiro.total === 0 && !error && (
+        <div className="bg-slate-50 text-slate-600 rounded-xl p-4 text-sm mb-4">
+          Nenhum contrato nas planilhas ainda — os indicadores abaixo ficam zerados até o primeiro cadastro.
+        </div>
+      )}
 
-      {hasRole("financeiro") && data && (
+      {hasRole("financeiro") && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <KpiCard title="💰 Faturamento total" value={data.kpis.faturamentoTotalFmt} subtitle={mes} accent={COLORS.navy} valueSize={22} />
-            <KpiCard title="🛍️ Vendas no mês" value={data.kpis.totalVendas} subtitle={mes} accent={COLORS.wine2} />
-            <KpiCard title="📊 Ticket médio" value={data.kpis.ticketMedioFmt} subtitle="por venda" accent={COLORS.wine} valueSize={22} />
-            <KpiCard title="🐶 Raças vendidas" value={data.kpis.totalRacas} subtitle="no mês" accent={COLORS.navy2} />
+            <KpiCard title="💰 Faturamento total" value={financeiro.kpis.faturamentoTotalFmt} subtitle={mes} accent={COLORS.navy} valueSize={22} />
+            <KpiCard title="🛍️ Vendas no mês" value={financeiro.kpis.totalVendas} subtitle={mes} accent={COLORS.wine2} />
+            <KpiCard title="📊 Ticket médio" value={financeiro.kpis.ticketMedioFmt} subtitle="por venda" accent={COLORS.wine} valueSize={22} />
+            <KpiCard title="🐶 Raças vendidas" value={financeiro.kpis.totalRacas} subtitle="no mês" accent={COLORS.navy2} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <BarChart data={data.charts.faturamentoUnidade} title="Faturamento por Unidade" emoji="🏬" money />
-            <BarChart data={data.charts.faturamentoRaca} title="Valor por raça" emoji="💵" money />
-            <BarChart data={data.charts.faturamentoVendedor} title="Vendedoras que mais faturaram" emoji="🏆" money />
+            <BarChart data={financeiro.charts.faturamentoUnidade} title="Faturamento por Unidade" emoji="🏬" money />
+            <BarChart data={financeiro.charts.faturamentoRaca} title="Valor por raça" emoji="💵" money />
+            <BarChart data={financeiro.charts.faturamentoVendedor} title="Vendedoras que mais faturaram" emoji="🏆" money />
             <div className="bg-white rounded-2xl shadow-md overflow-hidden">
               <div className="px-5 pt-4 pb-2 border-b border-slate-100">
                 <div className="font-black">🧾 Faturamento por vendedora</div>
@@ -133,21 +195,38 @@ export function FinanceiroDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.tabelaVendedor.map((v: { vendedora: string; faturamento: string }) => (
-                      <tr key={v.vendedora} className="border-b border-slate-50">
-                        <td className="py-2 font-medium">{v.vendedora}</td>
-                        <td className="py-2">{v.faturamento}</td>
+                    {financeiro.tabelaVendedor.length === 0 ? (
+                      <tr>
+                        <td colSpan={2} className="py-4 text-center text-slate-500">
+                          Sem vendas no filtro selecionado.
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      financeiro.tabelaVendedor.map((v) => (
+                        <tr key={v.vendedora} className="border-b border-slate-50">
+                          <td className="py-2 font-medium">{v.vendedora}</td>
+                          <td className="py-2">{v.faturamento}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
 
-          {data.charts.faturamentoAnual?.length > 0 && (
+          {financeiro.charts.faturamentoAnual.length > 0 ? (
             <BarChart
-              data={data.charts.faturamentoAnual.map((d: { mes: string; faturamento: number }) => ({ name: d.mes, total: d.faturamento }))}
+              data={financeiro.charts.faturamentoAnual.map((d) => ({ name: d.mes, total: d.faturamento }))}
+              title="Faturamento total do ano"
+              emoji="📈"
+              subtitle="Mensal conforme crescimento da planilha"
+              money
+              height={420}
+            />
+          ) : (
+            <BarChart
+              data={[]}
               title="Faturamento total do ano"
               emoji="📈"
               subtitle="Mensal conforme crescimento da planilha"

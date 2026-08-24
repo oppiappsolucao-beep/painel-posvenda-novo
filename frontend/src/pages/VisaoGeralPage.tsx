@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout, FilterBar } from "../components/AppLayout";
@@ -10,8 +10,14 @@ import { COLORS, defaultUnitFilter, monthKeyNow } from "../lib/utils";
 
 export function VisaoGeralPage() {
   const { user, loading } = useAuth();
-  const [mes, setMes] = useState(monthKeyNow());
+  const [mes, setMes] = useState(monthKeyNow);
   const [unidade, setUnidade] = useState(() => defaultUnitFilter(user?.unit));
+
+  useEffect(() => {
+    if (!user?.unit) return;
+    const label = defaultUnitFilter(user.unit);
+    if (label !== "Todas") setUnidade(label);
+  }, [user?.unit]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["visao-geral", mes, unidade],
@@ -23,7 +29,15 @@ export function VisaoGeralPage() {
   if (!loading && !user) return <Navigate to="/login" replace />;
 
   return (
-    <AppLayout title="Visão Geral" emoji="📊" caption={data ? `Total de registros: ${data.total}` : undefined}>
+    <AppLayout
+      title="Visão Geral"
+      emoji="📊"
+      caption={
+        data
+          ? `Vendas em ${mes}: ${data.financeiro?.totalVendas ?? data.kpis.vendasMes ?? 0} • ${data.total} registro(s) na unidade`
+          : undefined
+      }
+    >
       {data && (
         <FilterBar meses={data.meses} unidades={data.unidades} mes={mes} unidade={unidade} onMesChange={setMes} onUnidadeChange={setUnidade} />
       )}

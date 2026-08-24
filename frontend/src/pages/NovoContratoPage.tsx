@@ -1,4 +1,4 @@
-import { FormEvent, useState, useEffect, useMemo, useCallback } from "react";
+import { FormEvent, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "../components/AppLayout";
@@ -17,6 +17,7 @@ export function NovoContratoPage() {
   const [success, setSuccess] = useState("");
   const [clientSignUrl, setClientSignUrl] = useState("");
   const [linkCopied, setLinkCopied] = useState(false);
+  const submitSectionRef = useRef<HTMLDivElement>(null);
 
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -51,7 +52,6 @@ export function NovoContratoPage() {
   const [formaPagamento, setFormaPagamento] = useState("");
   const [parcelas, setParcelas] = useState("");
   const [vendedora, setVendedora] = useState("");
-  const [emailLoja, setEmailLoja] = useState("");
   const [mes, setMes] = useState(monthKeyNow());
   const [unidade, setUnidade] = useState(() => defaultUnitFilter(user?.unit) === "Todas" ? "Campinas" : defaultUnitFilter(user?.unit));
 
@@ -129,6 +129,11 @@ export function NovoContratoPage() {
     setVendedora(employees[0].name);
   }, [testePrefill, employees, vendedora]);
 
+  useEffect(() => {
+    const m = dataCompra.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (m) setMes(`${m[2]}/${m[3]}`);
+  }, [dataCompra]);
+
   if (!loading && !user) return <Navigate to="/login" replace />;
   if (!loading && hasRole("financeiro")) return <Navigate to="/financeiro" replace />;
 
@@ -163,7 +168,6 @@ export function NovoContratoPage() {
     setFormaPagamento("");
     setParcelas("");
     setVendedora("");
-    setEmailLoja("");
     setMes(monthKeyNow());
     setLinkCopied(false);
   };
@@ -207,6 +211,7 @@ export function NovoContratoPage() {
 
     if (missing.length) {
       setError(`Preencha os campos obrigatórios: ${missing.join(", ")}`);
+      submitSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
@@ -236,7 +241,6 @@ export function NovoContratoPage() {
       "Forma de pagamento": formaPagamento,
       "Quantidade de parcelas": parcelas,
       Vendedora: vendedora,
-      ...(emailLoja.trim() ? { "E-mail Loja": emailLoja.trim() } : {}),
       "Nome do animal": nomeAnimal,
       Espécie: especie,
       Microchip: microchip,
@@ -264,8 +268,7 @@ export function NovoContratoPage() {
 
   return (
     <AppLayout title="Novo Contrato" emoji="📄" caption="Preencha todos os dados do comprador, filhote e venda.">
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg p-6 md:p-8 space-y-8">
-        {error && <div className="text-red-600 bg-red-50 rounded-xl p-3 text-sm">{error}</div>}
+      <form onSubmit={handleSubmit} noValidate className="bg-white rounded-2xl shadow-lg p-6 md:p-8 space-y-8">
         {success && <div className="text-green-700 bg-green-50 rounded-xl p-3 text-sm">{success}</div>}
         {clientSignUrl && (
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
@@ -392,26 +395,22 @@ export function NovoContratoPage() {
             ) : (
               <Field label="Vendedora" value={vendedora} onChange={setVendedora} placeholder="Cadastre no acesso Controle" />
             )}
-            <Field
-              label="E-mail da loja (assinatura ZapSign)"
-              value={emailLoja}
-              onChange={setEmailLoja}
-              type="email"
-              placeholder="Ex: responsavel@loja.com"
-            />
             <Field label="Mês" value={mes} onChange={setMes} />
             <Field label="Unidade" value={unidade} onChange={setUnidade} readOnly={!!user?.unit} />
           </div>
         </Section>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full py-4 rounded-xl text-white font-bold text-lg disabled:opacity-60"
-          style={{ background: COLORS.navy }}
-        >
-          {submitting ? "Salvando..." : "💾 Salvar Contrato"}
-        </button>
+        <div ref={submitSectionRef} className="space-y-3">
+          {error && <div className="text-red-600 bg-red-50 rounded-xl p-3 text-sm">{error}</div>}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-4 rounded-xl text-white font-bold text-lg disabled:opacity-60"
+            style={{ background: COLORS.navy }}
+          >
+            {submitting ? "Salvando..." : "💾 Salvar Contrato"}
+          </button>
+        </div>
       </form>
     </AppLayout>
   );

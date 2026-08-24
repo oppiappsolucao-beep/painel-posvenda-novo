@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { Navigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "../components/AppLayout";
 import { KpiCard } from "../components/KpiCard";
 import { useAuth } from "../context/AuthContext";
@@ -27,9 +27,11 @@ function formatIsoDateBr(iso: string): string {
 
 export function StatusAssinaturaPage() {
   const { user, loading } = useAuth();
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
   const [nome, setNome] = useState("");
-  const [dataInicio, setDataInicio] = useState(todayIsoDate);
-  const [dataFim, setDataFim] = useState(todayIsoDate);
+  const [dataInicio, setDataInicio] = useState(() => todayIsoDate());
+  const [dataFim, setDataFim] = useState(() => todayIsoDate());
   const [sortMode, setSortMode] = useState<SortMode>("alfabetica");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
@@ -52,12 +54,26 @@ export function StatusAssinaturaPage() {
     [nome, dataInicio, dataFim],
   );
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["status-assinatura", queryParams],
     queryFn: () => fetchStatusAssinatura(queryParams),
     refetchInterval: 10000,
     enabled: !!user,
   });
+
+  const refreshStatus = async (params: typeof queryParams) => {
+    setRefreshing(true);
+    try {
+      const result = await queryClient.fetchQuery({
+        queryKey: ["status-assinatura", params, "refresh"],
+        queryFn: () => fetchStatusAssinatura({ ...params, refresh: true }),
+        staleTime: 0,
+      });
+      queryClient.setQueryData(["status-assinatura", params], result);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const filteredItems = useMemo(() => {
     if (!data?.items) return [];
@@ -99,11 +115,16 @@ export function StatusAssinaturaPage() {
 
   if (!loading && !user) return <Navigate to="/login" replace />;
 
-  const clearFilters = () => {
-    setNome("");
+  const clearFilters = async () => {
     const hoje = todayIsoDate();
+    setNome("");
     setDataInicio(hoje);
     setDataFim(hoje);
+    await refreshStatus({ nome: "", dataInicio: hoje, dataFim: hoje, status: "todos" });
+  };
+
+  const handleRefresh = async () => {
+    await refreshStatus(queryParams);
   };
 
   const closePreview = () => {
@@ -305,17 +326,19 @@ export function StatusAssinaturaPage() {
           <div className="flex gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => refetch()}
-              className="px-4 py-2.5 rounded-xl text-white font-semibold"
+              onClick={() => void handleRefresh()}
+              disabled={isFetching || refreshing}
+              className="px-4 py-2.5 rounded-xl text-white font-semibold disabled:opacity-60"
               style={{ background: COLORS.navy }}
               title="Atualizar"
             >
-              Atualizar
+              {isFetching || refreshing ? "Atualizando..." : "Atualizar"}
             </button>
             <button
               type="button"
-              onClick={clearFilters}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-semibold text-slate-600"
+              onClick={() => void clearFilters()}
+              disabled={isFetching || refreshing}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white font-semibold text-slate-600 disabled:opacity-60"
             >
               Hoje
             </button>

@@ -10,7 +10,7 @@ import {
   removeUnitEmail,
   UnitKey,
 } from "../lib/api";
-import { COLORS } from "../lib/utils";
+import { COLORS, normalizeEmail } from "../lib/utils";
 
 export function ConfiguracoesPage() {
   const { user, loading, hasRole } = useAuth();
@@ -157,29 +157,42 @@ export function ConfiguracoesPage() {
             <div className="text-sm text-slate-500">Nenhum e-mail cadastrado.</div>
           )}
           <ul className="space-y-2">
-            {(data?.items || []).map((item) => (
+            {(data?.items || []).map((item) => {
+              const isPrincipal =
+                data?.canonicalEmail &&
+                normalizeEmail(item.email) === normalizeEmail(data.canonicalEmail);
+              return (
               <li
                 key={item.id}
                 className="flex items-center justify-between gap-4 rounded-2xl border-2 border-slate-200 px-5 py-5 bg-slate-50"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-slate-800 text-lg sm:text-xl break-all">{item.email}</div>
+                  <div className="font-semibold text-slate-800 text-lg sm:text-xl break-all">
+                    {item.email}
+                    {isPrincipal && (
+                      <span className="ml-2 text-xs font-bold uppercase tracking-wide text-[#1B1D6D] bg-blue-50 border border-blue-200 rounded-lg px-2 py-0.5 align-middle">
+                        Assinatura ZapSign
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm sm:text-base text-slate-500 mt-1">Cadastrado em {item.createdAt}</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => void handleRemove(item.id)}
-                  disabled={removingId === item.id || (data?.items.length ?? 0) <= 1}
+                  disabled={removingId === item.id || isPrincipal || (data?.items.length ?? 0) <= 1}
                   className="text-sm sm:text-base font-semibold text-red-600 hover:underline disabled:opacity-40 disabled:no-underline shrink-0 px-2 py-1"
-                  title={(data?.items.length ?? 0) <= 1 ? "Mantenha ao menos um e-mail" : "Excluir"}
+                  title={isPrincipal ? "E-mail fixo da unidade para assinatura" : (data?.items.length ?? 0) <= 1 ? "Mantenha ao menos um e-mail" : "Excluir"}
                 >
                   {removingId === item.id ? "..." : "Excluir"}
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
           <p className="text-xs text-slate-500 mt-3">
-            É necessário manter pelo menos um e-mail por unidade.
+            O e-mail marcado como <strong>Assinatura ZapSign</strong> é fixo por unidade e não pode ser removido.
+            Você pode adicionar outros e-mails para receber notificações de anexos.
           </p>
         </div>
       </div>

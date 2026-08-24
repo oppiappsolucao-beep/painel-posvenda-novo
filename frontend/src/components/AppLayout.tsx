@@ -1,9 +1,9 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Logo } from "./Logo";
 import { AppVersion } from "./AppVersion";
-import { COLORS } from "../lib/utils";
+import { COLORS, normalizeMonthKey, pickBestMonthOption } from "../lib/utils";
 
 interface AppLayoutProps {
   title: string;
@@ -117,12 +117,24 @@ interface FilterBarProps {
 }
 
 export function FilterBar({ meses, unidades, mes, unidade, onMesChange, onUnidadeChange }: FilterBarProps) {
+  useEffect(() => {
+    if (!meses.length) return;
+    const match = meses.find((m) => normalizeMonthKey(m) === normalizeMonthKey(mes));
+    if (!match) {
+      onMesChange(pickBestMonthOption(meses, mes));
+      return;
+    }
+    if (match !== mes) onMesChange(match);
+  }, [meses, mes, onMesChange]);
+
+  const mesValue = meses.find((m) => normalizeMonthKey(m) === normalizeMonthKey(mes)) || mes;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
       <label className="block">
         <span className="text-sm font-semibold text-slate-600 mb-1 block">Mês</span>
         <select
-          value={mes}
+          value={mesValue}
           onChange={(e) => onMesChange(e.target.value)}
           className="w-full rounded-xl border border-slate-200 px-4 py-2.5 bg-white shadow-sm"
         >

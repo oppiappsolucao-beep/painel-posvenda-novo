@@ -51,6 +51,7 @@ export interface LoginPending2fa {
   requires2fa: true;
   challengeId: string;
   message: string;
+  recipientEmail?: string;
 }
 
 export type LoginResult = AuthUser | LoginPending2fa;
@@ -185,8 +186,12 @@ export async function fetchOperacao(mes: string, unidade: string) {
 }
 
 export async function fetchFinanceiro(mes: string, unidade: string) {
-  const { data } = await api.get("/dashboard/financeiro", { params: { mes, unidade } });
-  return data;
+  try {
+    const { data } = await api.get("/dashboard/financeiro", { params: { mes, unidade } });
+    return data;
+  } catch (err) {
+    throwApiError(err, "Erro ao carregar dados financeiros.");
+  }
 }
 
 export async function fetchVisaoGeral(mes: string, unidade: string) {
@@ -272,8 +277,12 @@ export async function fetchStatusAssinatura(params: {
   dataInicio?: string;
   dataFim?: string;
   status?: string;
+  refresh?: boolean;
 }) {
-  const { data } = await api.get<StatusAssinaturaResponse>("/dashboard/status-assinatura", { params });
+  const { refresh, ...query } = params;
+  const { data } = await api.get<StatusAssinaturaResponse>("/dashboard/status-assinatura", {
+    params: { ...query, ...(refresh ? { refresh: "1" } : {}) },
+  });
   return data;
 }
 
@@ -454,10 +463,12 @@ export async function fetchSettingsUnits() {
 }
 
 export async function fetchUnitEmails(unit?: UnitKey) {
-  const { data } = await api.get<{ unitKey: UnitKey; unitLabel: string; items: UnitEmailItem[] }>(
-    "/settings/emails",
-    { params: unit ? { unit } : undefined },
-  );
+  const { data } = await api.get<{
+    unitKey: UnitKey;
+    unitLabel: string;
+    canonicalEmail?: string;
+    items: UnitEmailItem[];
+  }>("/settings/emails", { params: unit ? { unit } : undefined });
   return data;
 }
 

@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { config, getUnitByEmail, normalizeEmail, UnitKey } from "../config.js";
+import { config, getCanonicalUnitStoreEmail, getUnitByEmail, normalizeEmail, UnitKey } from "../config.js";
 import { signToken, authMiddleware, requireRole, AuthRequest } from "../middleware/auth.js";
 import {
   assertNotLocked,
@@ -42,6 +42,24 @@ function isFinanceiroUser(username: string, password: string): boolean {
   );
 }
 
+function isDevUser(username: string, password: string): boolean {
+  if (!config.devAccount.enabled) return false;
+  const pass = config.devAccount.password;
+  if (!pass) return false;
+  return (
+    normalizeEmail(username) === normalizeEmail(config.devAccount.user) &&
+    password === pass
+  );
+}
+
+function twoFactorRecipientForUnit(unitKey?: UnitKey): string {
+  if (unitKey) {
+    const unitEmail = getCanonicalUnitStoreEmail(unitKey);
+    if (unitEmail) return unitEmail;
+  }
+  return config.twoFactorEmail;
+}
+
 function lockoutResponse(res: Response, failure: { locked: boolean; attemptsLeft: number }) {
   if (failure.locked) {
     res.status(403).json({
@@ -70,6 +88,11 @@ router.post("/login", async (req, res) => {
   }
 
   if (role === "financeiro") {
+    if (isDevUser(username, password)) {
+      const email = normalizeEmail(username);
+      issueSession(res, email, ["operacao", "financeiro"]);
+      return;
+    }
     if (!isFinanceiroUser(username, password)) {
       res.status(401).json({ error: "Credenciais financeiras inválidas" });
       return;
@@ -89,6 +112,12 @@ router.post("/login", async (req, res) => {
     return;
   }
 
+  if (isDevUser(username, password)) {
+    clearLoginFailures(email);
+    issueSession(res, email, ["operacao", "financeiro"]);
+    return;
+  }
+
   if (!isOperacaoUser(username, password)) {
     const failure = recordLoginFailure(email);
     lockoutResponse(res, failure);
@@ -104,18 +133,20 @@ router.post("/login", async (req, res) => {
   }
 
   try {
+    const recipientEmail = twoFactorRecipientForUnit(unitConfig?.key);
     const challengeId = await startTwoFactorChallenge({
       username: email,
       roles: ["operacao"],
       unit: unitConfig?.key,
       unitLabel: unitConfig?.label,
-      recipientEmail: config.twoFactorEmail,
+      recipientEmail,
     });
 
     res.json({
       requires2fa: true,
       challengeId,
-      message: `Código enviado para ${config.twoFactorEmail}.`,
+      recipientEmail,
+      message: `Código enviado para ${recipientEmail}.`,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

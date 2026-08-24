@@ -1,7 +1,14 @@
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getUnitByKey, normalizeEmail, SheetRow, UnitKey } from "../config.js";
+import {
+  getCanonicalUnitStoreEmail,
+  getConfiguredUnits,
+  getUnitByKey,
+  normalizeEmail,
+  SheetRow,
+  UnitKey,
+} from "../config.js";
 import { isDatabaseEnabled } from "../db/client.js";
 import {
   dbCountUnitEmails,
@@ -31,6 +38,17 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+export function isCanonicalUnitEmail(unitKey: UnitKey, email: string): boolean {
+  const canonical = getCanonicalUnitStoreEmail(unitKey);
+  if (!canonical) return false;
+  return normalizeEmail(email) === normalizeEmail(canonical);
+}
+
+/** E-mail da loja usado na assinatura ZapSign — sempre o e-mail fixo da unidade. */
+export function getUnitStoreEmailForSigning(unitKey: UnitKey): string {
+  return getCanonicalUnitStoreEmail(unitKey);
+}
+
 async function readFileStore(): Promise<FileStore> {
   await fs.mkdir(DATA_DIR, { recursive: true });
   try {
@@ -55,10 +73,25 @@ async function ensureDefaultEmails(unitKey: UnitKey): Promise<void> {
 
   if (count > 0) return;
 
-  const defaultEmail = getUnitByKey(unitKey)?.storeEmail?.trim();
+  const defaultEmail = getCanonicalUnitStoreEmail(unitKey);
   if (!defaultEmail) return;
 
   await addUnitEmail(unitKey, defaultEmail);
+}
+
+/** Garante que o e-mail principal de cada unidade está cadastrado nas configurações. */
+export async function syncCanonicalUnitEmails(): Promise<void> {
+  for (const unit of getConfiguredUnits()) {
+    const canonical = getCanonicalUnitStoreEmail(unit.key);
+    if (!canonical) continue;
+
+    const items = await listUnitEmails(unit.key);
+    const exists = items.some((item) => isCanonicalUnitEmail(unit.key, item.email));
+    if (!exists) {
+      await addUnitEmail(unit.key, canonical);
+      console.log(`[emails] E-mail principal cadastrado — ${unit.label}: ${canonical}`);
+    }
+  }
 }
 
 export async function listUnitEmails(unitKey: UnitKey): Promise<UnitEmailRecord[]> {
@@ -117,6 +150,11 @@ export async function addUnitEmail(unitKey: UnitKey, rawEmail: string): Promise<
 
 export async function removeUnitEmail(unitKey: UnitKey, id: number): Promise<void> {
   const items = await listUnitEmails(unitKey);
+  const target = items.find((item) => item.id === id);
+  if (target && isCanonicalUnitEmail(unitKey, target.email)) {
+    throw new Error("O e-mail principal da unidade não pode ser removido.");
+  }
+
   if (items.length <= 1) {
     throw new Error("Mantenha ao menos um e-mail cadastrado para esta unidade.");
   }
@@ -137,18 +175,22 @@ export async function removeUnitEmail(unitKey: UnitKey, id: number): Promise<voi
 /** E-mails da loja para notificações (anexos, etc.). */
 export async function getUnitStoreEmailsForNotifications(
   unitKey: UnitKey,
-  contrato?: SheetRow,
+  _contrato?: SheetRow,
 ): Promise<string[]> {
-  const fromSheet = contrato ? String(contrato["E-mail Loja"] || "").trim() : "";
-  if (fromSheet) return [fromSheet];
-
+  const canonical = getCanonicalUnitStoreEmail(unitKey);
   const items = await listUnitEmails(unitKey);
-  if (items.length) return items.map((item) => item.email);
+  const fromSettings = items.map((item) => item.email);
 
-  const fallback = getUnitByKey(unitKey)?.storeEmail?.trim();
-  return fallback ? [fallback] : [];
+  if (fromSettings.length) {
+    const merged = canonical
+      ? [canonical, ...fromSettings.filter((e) => normalizeEmail(e) !== normalizeEmail(canonical))]
+      : fromSettings;
+    return merged;
+  }
+
+  return canonical ? [canonical] : [];
 }
 
 export function getPrimaryUnitStoreEmail(unitKey: UnitKey): string {
-  return getUnitByKey(unitKey)?.storeEmail?.trim() || "";
+  return getCanonicalUnitStoreEmail(unitKey);
 }

@@ -43,6 +43,10 @@ function buildStatusAssinaturaLabel(dataCliente: string, dataLoja: string): stri
   return "Aguardando cliente (ZapSign)";
 }
 
+export function invalidateZapSignSignatureCache(): void {
+  cache.clear();
+}
+
 export async function fetchZapSignSignatureSnapshot(
   docToken: string,
 ): Promise<ZapSignSignatureSnapshot | null> {
@@ -115,23 +119,25 @@ export async function syncZapSignSignatureRow(
 
   const docToken = String(row["Documento ZapSign"] || "").trim();
   const snapshot = await fetchZapSignSignatureSnapshot(docToken);
-  if (!snapshot || !rowNeedsSync(row, snapshot)) return row;
+  if (!snapshot) return row;
 
-  const patch: Record<string, string> = {};
-  if (snapshot.dataCliente && !String(row["Data Assinatura Cliente"] || "").trim()) {
-    patch["Data Assinatura Cliente"] = snapshot.dataCliente;
-  }
-  if (snapshot.dataLoja && !String(row["Data Assinatura Loja"] || "").trim()) {
-    patch["Data Assinatura Loja"] = snapshot.dataLoja;
-  }
-  if (Object.keys(patch).length > 0) {
-    patch["Status Assinatura"] = snapshot.statusAssinatura;
-    await updateContractRow(unitKey, sheetIndex, patch).catch((e) => {
-      console.warn(
-        `[zapsign] sync assinatura ${unitKey}:${sheetIndex}:`,
-        e instanceof Error ? e.message : e,
-      );
-    });
+  if (rowNeedsSync(row, snapshot)) {
+    const patch: Record<string, string> = {};
+    if (snapshot.dataCliente && !String(row["Data Assinatura Cliente"] || "").trim()) {
+      patch["Data Assinatura Cliente"] = snapshot.dataCliente;
+    }
+    if (snapshot.dataLoja && !String(row["Data Assinatura Loja"] || "").trim()) {
+      patch["Data Assinatura Loja"] = snapshot.dataLoja;
+    }
+    if (Object.keys(patch).length > 0) {
+      patch["Status Assinatura"] = snapshot.statusAssinatura;
+      await updateContractRow(unitKey, sheetIndex, patch).catch((e) => {
+        console.warn(
+          `[zapsign] sync assinatura ${unitKey}:${sheetIndex}:`,
+          e instanceof Error ? e.message : e,
+        );
+      });
+    }
   }
 
   return mergeSnapshotIntoRow(row, snapshot);
