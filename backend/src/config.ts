@@ -61,8 +61,8 @@ export const units: UnitConfig[] = [
     user: "piracicaba@skoobpet.com.br",
     password: operPassword("OPER_PASS_PIRACICABA", "skoob123"),
     storeEmail: unitStoreEmail("STORE_EMAIL_PIRACICABA", "skoobpetpiracicaba@outlook.com"),
-    sheetId: unitSheetId("SHEET_ID_PIRACICABA"),
-    sheetName: unitSheetName("SHEET_NAME_PIRACICABA", "Planilha SkoobPet (Piracicaba)"),
+    sheetId: campinasSheetId,
+    sheetName: unitSheetName("SHEET_NAME_CAMPINAS", "Planilha SkoobPet (Campinas)"),
     sheetTab: sharedSheetTab,
   },
   {
@@ -71,8 +71,8 @@ export const units: UnitConfig[] = [
     user: "indaiatuba@skoobpet.com.br",
     password: operPassword("OPER_PASS_INDAIATUBA", "skoob12345"),
     storeEmail: unitStoreEmail("STORE_EMAIL_INDAIATUBA", "skoobpetindaiatuba@outlook.com"),
-    sheetId: unitSheetId("SHEET_ID_INDAIATUBA"),
-    sheetName: unitSheetName("SHEET_NAME_INDAIATUBA", "Planilha SkoobPet (Indaiatuba)"),
+    sheetId: campinasSheetId,
+    sheetName: unitSheetName("SHEET_NAME_CAMPINAS", "Planilha SkoobPet (Campinas)"),
     sheetTab: sharedSheetTab,
   },
 ];
@@ -97,16 +97,36 @@ export function resolveUnitStoreEmail(unitKey: UnitKey, contrato?: SheetRow): st
   return getUnitByKey(unitKey)?.storeEmail || "contato@skoobpet.com.br";
 }
 
+export function normalizeUnitText(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 export function unitKeyFromLabel(label: string): UnitKey | null {
-  const normalized = label.trim().toLowerCase();
+  const normalized = normalizeUnitText(label);
+  if (!normalized) return null;
   const unit = units.find(
-    (u) => u.key === normalized || u.label.toLowerCase() === normalized,
+    (u) => normalizeUnitText(u.key) === normalized || normalizeUnitText(u.label) === normalized,
   );
   return unit?.key ?? null;
 }
 
+/** Linhas antigas de Campinas podem estar sem a coluna Unidade preenchida. */
+export function unitKeyFromSheetRow(row: SheetRow, fallback: UnitKey = "campinas"): UnitKey {
+  return unitKeyFromLabel(String(row["Unidade"] || "")) || fallback;
+}
+
 export function getConfiguredUnits(): UnitConfig[] {
   return units;
+}
+
+export function getSharedSheetUnit(): UnitConfig {
+  const campinas = getUnitByKey("campinas");
+  if (!campinas) throw new Error("Unidade Campinas não configurada.");
+  return campinas;
 }
 
 export interface ResolvedUnitConfig extends UnitConfig {
@@ -163,6 +183,8 @@ export const SIGNATURE_HEADERS = [
   "Status Assinatura",
   "E-mail Loja",
 ];
+
+export const CONTRACT_SHEET_HEADERS = [...DEFAULT_HEADERS, ...SIGNATURE_HEADERS];
 
 export type UserRole = "operacao" | "financeiro";
 

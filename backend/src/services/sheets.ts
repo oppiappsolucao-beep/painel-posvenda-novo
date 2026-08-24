@@ -6,17 +6,23 @@ import { google } from "googleapis";
 import {
   AuthPayload,
   config,
-  DEFAULT_HEADERS,
-  SIGNATURE_HEADERS,
-  getConfiguredUnits,
+  CONTRACT_SHEET_HEADERS,
+  getSharedSheetUnit,
   getUnitByEmail,
   getUnitByKey,
   LoadedRow,
   ResolvedUnitConfig,
   SheetRow,
   UnitConfig,
+  unitKeyFromLabel,
+  unitKeyFromSheetRow,
   UnitKey,
 } from "../config.js";
+import {
+  hydrateCanonicalKeys,
+  missingCanonicalHeaders,
+  valuesForSheetHeaders,
+} from "./sheetHeaders.js";
 
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -47,7 +53,7 @@ function getDrive() {
   return google.drive({ version: "v3", auth: getAuth() });
 }
 
-const resolvedSheetCache = new Map<UnitKey, ResolvedUnitConfig>();
+const resolvedSheetCache = new Map<string, ResolvedUnitConfig>();
 
 const TAB_CANDIDATES = ["Folha1", "Página1", "Pagina1"];
 
@@ -107,14 +113,17 @@ async function findSheetIdByName(name: string, unitKey: UnitKey): Promise<string
 }
 
 export async function resolveUnitSheet(unit: UnitConfig): Promise<ResolvedUnitConfig> {
-  const cached = resolvedSheetCache.get(unit.key);
-  if (cached) return cached;
+  const shared = getSharedSheetUnit();
+  const cached = resolvedSheetCache.get("shared");
+  if (cached) {
+    return { ...unit, resolvedSheetId: cached.resolvedSheetId, resolvedSheetTab: cached.resolvedSheetTab };
+  }
 
-  const resolvedSheetId = unit.sheetId.trim() || await findSheetIdByName(unit.sheetName, unit.key);
-  const resolvedSheetTab = await resolveSheetTab(resolvedSheetId, unit.sheetTab);
-  const resolved = { ...unit, resolvedSheetId, resolvedSheetTab };
-  resolvedSheetCache.set(unit.key, resolved);
-  return resolved;
+  const resolvedSheetId = shared.sheetId.trim() || await findSheetIdByName(shared.sheetName, shared.key);
+  const resolvedSheetTab = await resolveSheetTab(resolvedSheetId, shared.sheetTab);
+  const resolvedShared = { ...shared, resolvedSheetId, resolvedSheetTab };
+  resolvedSheetCache.set("shared", resolvedShared);
+  return { ...unit, resolvedSheetId, resolvedSheetTab };
 }
 
 function assertUnitSheet(unit: ResolvedUnitConfig): void {
@@ -124,10 +133,27 @@ function assertUnitSheet(unit: ResolvedUnitConfig): void {
 }
 
 function withUnitLabel(row: SheetRow, unit: UnitConfig): SheetRow {
+  const fromRow = String(row["Unidade"] || "").trim();
   return {
     ...row,
-    Unidade: String(row["Unidade"] || unit.label).trim() || unit.label,
+    Unidade: fromRow || unit.label,
   };
+}
+
+function valuesForHeaders(contrato: SheetRow, headers: string[]): string[] {
+  return valuesForSheetHeaders(contrato, headers);
+}
+
+function toLoadedRows(rows: SheetRow[]): LoadedRow[] {
+  return rows.map((data, sheetIndex) => {
+    const unitKey = unitKeyFromSheetRow(data, "campinas");
+    const unit = getUnitByKey(unitKey);
+    return {
+      data: withUnitLabel(data, unit || getSharedSheetUnit()),
+      unitKey,
+      sheetIndex,
+    };
+  });
 }
 
 function parseSheetValues(values: string[][]): { headers: string[]; rows: SheetRow[] } {
@@ -142,7 +168,8 @@ function parseSheetValues(values: string[][]): { headers: string[]; rows: SheetR
     headers.forEach((h, idx) => {
       row[h] = rowValues[idx] ?? "";
     });
-    if (Object.values(row).some((v) => String(v).trim())) rows.push(row);
+    const hydrated = hydrateCanonicalKeys(row);
+    if (Object.values(hydrated).some((v) => String(v).trim())) rows.push(hydrated);
   }
 
   return { headers, rows };
@@ -181,30 +208,13 @@ export async function loadUnitSheet(unit: UnitConfig): Promise<SheetRow[]> {
 
 export async function loadUnitRows(unit: UnitConfig): Promise<LoadedRow[]> {
   const rows = await loadUnitSheet(unit);
-  return rows.map((data, sheetIndex) => ({
-    data: withUnitLabel(data, unit),
-    unitKey: unit.key,
-    sheetIndex,
-  }));
+  return toLoadedRows(rows).filter((item) => item.unitKey === unit.key);
 }
 
 export async function loadAllUnitRows(): Promise<LoadedRow[]> {
-  const loaded: LoadedRow[] = [];
-  for (const unit of getConfiguredUnits()) {
-    try {
-      const rows = await loadUnitRows(unit);
-      loaded.push(...rows);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[sheets] ${unit.label}: ${message}`);
-    }
-  }
-
-  if (!loaded.length) {
-    throw new Error("Nenhuma planilha carregada. Verifique SHEET_ID_* ou compartilhe as planilhas com a service account.");
-  }
-
-  return loaded;
+  const shared = getSharedSheetUnit();
+  const rows = await loadUnitSheet(shared);
+  return toLoadedRows(rows);
 }
 
 export async function loadRowsForUser(user: AuthPayload): Promise<LoadedRow[]> {
@@ -242,7 +252,7 @@ async function ensureHeaders(unit: ResolvedUnitConfig): Promise<string[]> {
   });
 
   const current = (res.data.values?.[0] || [])
-    .map((h) => String(h).trim())
+    .map((h) => String(h).replace(/\u00a0/g, " ").trim())
     .filter(Boolean);
 
   if (!current.length) {
@@ -250,13 +260,12 @@ async function ensureHeaders(unit: ResolvedUnitConfig): Promise<string[]> {
       spreadsheetId: unit.resolvedSheetId,
       range: `'${unit.resolvedSheetTab}'!A1`,
       valueInputOption: "USER_ENTERED",
-      requestBody: { values: [DEFAULT_HEADERS] },
+      requestBody: { values: [CONTRACT_SHEET_HEADERS] },
     });
-    return DEFAULT_HEADERS;
+    return CONTRACT_SHEET_HEADERS;
   }
 
-  const requiredHeaders = [...DEFAULT_HEADERS, ...SIGNATURE_HEADERS];
-  const missing = requiredHeaders.filter((h) => !current.includes(h));
+  const missing = missingCanonicalHeaders(current);
   if (missing.length) {
     const newHeaders = [...current, ...missing];
     await sheets.spreadsheets.values.update({
@@ -271,7 +280,10 @@ async function ensureHeaders(unit: ResolvedUnitConfig): Promise<string[]> {
 }
 
 export async function saveContractForUser(contrato: SheetRow, user: AuthPayload): Promise<number> {
-  const unitKey = user.unit || getUnitByEmail(user.username)?.key;
+  const unitKey =
+    user.unit ||
+    unitKeyFromLabel(String(contrato["Unidade"] || "")) ||
+    getUnitByEmail(user.username)?.key;
   if (!unitKey) {
     throw new Error("Unidade não configurada para salvar contrato.");
   }
@@ -281,24 +293,27 @@ export async function saveContractForUser(contrato: SheetRow, user: AuthPayload)
     throw new Error("Unidade inválida.");
   }
 
-  contrato["Unidade"] = contrato["Unidade"] || unit.label;
   return saveContract(contrato, unit);
 }
 
 export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promise<number> {
+  const payload: SheetRow = {
+    ...contrato,
+    Unidade: unit.label,
+  };
   const resolved = await resolveUnitSheet(unit);
   const { rows } = await loadSheetValues(resolved);
   const sheetIndex = rows.length;
 
   if (process.platform === "win32") {
-    await saveContractWindows(contrato, resolved);
+    await saveContractWindows(payload, resolved);
     return sheetIndex;
   }
 
   assertUnitSheet(resolved);
   const sheets = getSheets();
   const headers = await ensureHeaders(resolved);
-  const row = headers.map((h) => contrato[h] ?? "");
+  const row = valuesForHeaders(payload, headers);
   await sheets.spreadsheets.values.append({
     spreadsheetId: resolved.resolvedSheetId,
     range: `'${resolved.resolvedSheetTab}'!A:A`,
@@ -324,10 +339,13 @@ export async function updateContractRow(
   if (sheetIndex < 0 || sheetIndex >= rows.length) {
     throw new Error("Contrato não encontrado na planilha.");
   }
+  if (unitKeyFromSheetRow(rows[sheetIndex], "campinas") !== unitKey) {
+    throw new Error("Contrato não encontrado na planilha.");
+  }
 
-  const merged = { ...rows[sheetIndex], ...updates };
+  const merged = { ...rows[sheetIndex], ...updates, Unidade: unit.label };
   const rowNumber = sheetIndex + 2;
-  const values = [headers.map((h) => merged[h] ?? "")];
+  const values = [valuesForHeaders(merged, headers)];
 
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
@@ -354,18 +372,22 @@ export async function getContractRow(unitKey: UnitKey, sheetIndex: number): Prom
 
   const rows = await loadUnitSheet(unit);
   const row = rows[sheetIndex];
-  return row ? withUnitLabel(row, unit) : null;
+  if (!row) return null;
+  if (unitKeyFromSheetRow(row, "campinas") !== unitKey) return null;
+  return withUnitLabel(row, unit);
 }
 
 export async function deleteContractRows(unitKey: UnitKey, sheetIndices: number[]): Promise<number> {
   const unit = getUnitByKey(unitKey);
   if (!unit) throw new Error("Unidade inválida.");
 
-  const unique = [...new Set(sheetIndices.filter((i) => Number.isFinite(i) && i >= 0))];
-  if (!unique.length) return 0;
-
   const resolved = await resolveUnitSheet(unit);
   assertUnitSheet(resolved);
+  const { rows } = await loadSheetValues(resolved);
+  const unique = [...new Set(sheetIndices.filter((i) => Number.isFinite(i) && i >= 0))]
+    .filter((sheetIndex) => rows[sheetIndex] && unitKeyFromSheetRow(rows[sheetIndex], "campinas") === unitKey);
+  if (!unique.length) return 0;
+
   const sheets = getSheets();
   const meta = await sheets.spreadsheets.get({ spreadsheetId: resolved.resolvedSheetId });
   const tab = meta.data.sheets?.find((s) => s.properties?.title === resolved.resolvedSheetTab);
@@ -468,25 +490,7 @@ export async function pruneUnitSheetToDemo(unit: UnitConfig): Promise<{
 }
 
 export async function pruneAllSheetsToDemo(): Promise<Array<Awaited<ReturnType<typeof pruneUnitSheetToDemo>>>> {
-  const results = [];
-  for (const unit of getConfiguredUnits()) {
-    try {
-      results.push(await pruneUnitSheetToDemo(unit));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      results.push({
-        unitKey: unit.key,
-        label: unit.label,
-        sheetName: unit.sheetName,
-        before: 0,
-        after: 0,
-        kept: [],
-        missing: [unit.key],
-        error: message,
-      });
-    }
-  }
-  return results;
+  return [await pruneUnitSheetToDemo(getSharedSheetUnit())];
 }
 
 /** @deprecated use pruneAllSheetsToDemo */

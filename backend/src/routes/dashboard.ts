@@ -576,7 +576,7 @@ router.post("/contracts/register-zapsign", authMiddleware, requireRole("operacao
 
     const now = todaySaoPaulo();
     contrato["Data preenchimento"] = `${formatDateBr(now)} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-    contrato["Unidade"] = contrato["Unidade"] || unit.label;
+    contrato["Unidade"] = unit.label;
 
     const sheetIndex = await saveContract(contrato, unit);
     const patch = buildZapSignSheetPatch(
