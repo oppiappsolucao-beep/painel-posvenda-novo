@@ -12,8 +12,8 @@ import {
 } from "../db/docFormStore.js";
 import { dbListAllAttachmentLocations, dbRelocateAttachments } from "../db/attachmentsStore.js";
 import { dbListSignatureIdentities } from "../db/signaturesStore.js";
-import { isTodaysTestContractRow } from "./sheets.js";
-import { norm } from "../utils/formatters.js";
+import { isTodaysTestContractRow, norm } from "../utils/formatters.js";
+import { fetchZapSignSignatureSnapshot } from "./zapsignSignatureSync.js";
 import { isDatabaseEnabled } from "../db/client.js";
 import { sendDocFormAttachmentsEmail, sendDocFormRectificationEmail } from "./email.js";
 import {

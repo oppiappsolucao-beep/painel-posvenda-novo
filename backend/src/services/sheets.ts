@@ -23,7 +23,7 @@ import {
   missingCanonicalHeaders,
   valuesForSheetHeaders,
 } from "./sheetHeaders.js";
-import { formatDateBr, parseDate, todaySaoPaulo } from "../utils/formatters.js";
+import { formatDateBr, isTodaysTestContractRow, parseDate, todaySaoPaulo } from "../utils/formatters.js";
 
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -512,23 +512,6 @@ export async function deleteContractRows(unitKey: UnitKey, sheetIndices: number[
 function isSameSaoPauloDay(value: string, day: Date): boolean {
   const parsed = parseDate(value);
   return Boolean(parsed && formatDateBr(parsed) === formatDateBr(day));
-}
-
-export function isTodaysTestContractRow(row: SheetRow, today = todaySaoPaulo()): boolean {
-  const dataCompra = String(row["Data Compra"] || "");
-  const preenchimento = String(row["Data preenchimento"] || "");
-  const fromToday = isSameSaoPauloDay(dataCompra, today) || isSameSaoPauloDay(preenchimento, today);
-  if (!fromToday) return false;
-
-  const nome = String(row["Nome"] || "").trim().toLowerCase();
-  const email = String(row["E-mail"] || row["Email"] || "").trim().toLowerCase();
-  const obs = String(row["Observações"] || row["Observacoes"] || "").toLowerCase();
-  return (
-    obs.includes("teste") ||
-    email.includes("teste") ||
-    nome.includes("ana clara mendes") ||
-    nome.includes("filhote teste")
-  );
 }
 
 export async function purgeTodaysTestContracts(): Promise<{ deleted: number; names: string[] }> {

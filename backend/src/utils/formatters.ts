@@ -327,7 +327,10 @@ export function filterRows(
   }
   if (unidadeCol && unidade && unidade !== "Todas") {
     const targetUnit = unidade.trim().toLowerCase();
-    result = result.filter((r) => String(r[unidadeCol] || "").trim().toLowerCase() === targetUnit);
+    result = result.filter((r) => {
+      const fields = [unidadeCol, "Unidade", "Cidade", "Cidade do comprador"];
+      return fields.some((col) => col && String(r[col] || "").trim().toLowerCase() === targetUnit);
+    });
   }
   return result;
 }
@@ -352,6 +355,25 @@ export function getUniqueMonths(
   }
   months.sort((a, b) => monthKeySortValue(a) - monthKeySortValue(b));
   return months.length ? months : [current];
+}
+
+export function isTodaysTestContractRow(row: Record<string, string>, today = todaySaoPaulo()): boolean {
+  const dataCompra = String(row["Data Compra"] || "");
+  const preenchimento = String(row["Data preenchimento"] || "");
+  const fromToday =
+    (parseDate(dataCompra) && formatDateBr(parseDate(dataCompra)) === formatDateBr(today)) ||
+    (parseDate(preenchimento) && formatDateBr(parseDate(preenchimento)) === formatDateBr(today));
+  if (!fromToday) return false;
+
+  const nome = String(row["Nome"] || "").trim().toLowerCase();
+  const email = String(row["E-mail"] || row["Email"] || "").trim().toLowerCase();
+  const obs = String(row["Observações"] || row["Observacoes"] || "").toLowerCase();
+  return (
+    obs.includes("teste") ||
+    email.includes("teste") ||
+    nome.includes("ana clara mendes") ||
+    nome.includes("filhote teste")
+  );
 }
 
 export function getUniqueUnits(rows: Record<string, string>[], unidadeCol: string | null): string[] {

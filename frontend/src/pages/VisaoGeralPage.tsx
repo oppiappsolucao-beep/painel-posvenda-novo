@@ -10,7 +10,7 @@ import { COLORS, defaultUnitFilter, monthKeyNow } from "../lib/utils";
 
 export function VisaoGeralPage() {
   const { user, loading } = useAuth();
-  const [mes, setMes] = useState(monthKeyNow);
+  const [mes, setMes] = useState(() => monthKeyNow());
   const [unidade, setUnidade] = useState(() => defaultUnitFilter(user?.unit));
 
   useEffect(() => {

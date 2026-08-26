@@ -122,20 +122,27 @@ function defaultUnidade(user: AuthRequest["user"], requested: string): string {
 }
 
 function getColumns(rows: Record<string, string>[]) {
-  const cols = rows.length ? Object.keys(rows[0]) : [];
+  const cols = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const pickPopulated = (candidates: string[]) => {
+    for (const candidate of candidates) {
+      const col = pickFirstExisting(cols, [candidate]);
+      if (col && rows.some((r) => String(r[col] || "").trim())) return col;
+    }
+    return pickFirstExisting(cols, candidates);
+  };
   return {
-    mes: pickFirstExisting(cols, ["Mês"]),
-    dataCompra: pickFirstExisting(cols, ["Data Compra", "Data compra", "Data da compra"]),
-    unidade: pickFirstExisting(cols, ["Unidade", "Cidade", "Cidade do comprador"]),
-    raca: pickFirstExisting(cols, ["Raça"]),
+    mes: pickPopulated(["Mês", "Mes"]),
+    dataCompra: pickPopulated(["Data Compra", "Data compra", "Data da compra"]),
+    unidade: pickPopulated(["Unidade", "Cidade", "Cidade do comprador"]),
+    raca: pickPopulated(["Raça"]),
     c1: pickFirstExisting(cols, ["1º contato", "1 contato", "Primeiro contato"]),
     c2: pickFirstExisting(cols, ["2º contato", "2 contato", "Segundo contato"]),
     c3: pickFirstExisting(cols, ["3º contato", "3 contato", "Terceiro contato"]),
     s1: pickFirstExisting(cols, ["Status 1º contato", "Status 1 contato"]),
     s2: pickFirstExisting(cols, ["Status 2º contato", "Status 2 contato"]),
     s3: pickFirstExisting(cols, ["Status 3º contato", "Status 3 contato"]),
-    valor: pickFirstExisting(cols, ["Valor Filhote", "Valor filhote", "Valor de filhote", "Valor"]),
-    vendedor: pickFirstExisting(cols, ["Vendedora", "Vendedor", "Atendente"]),
+    valor: pickPopulated(["Valor Filhote", "Valor filhote", "Valor de filhote", "Valor"]),
+    vendedor: pickPopulated(["Vendedora", "Vendedor", "Atendente"]),
   };
 }
 
