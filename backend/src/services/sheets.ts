@@ -151,15 +151,20 @@ function valuesForHeaders(contrato: SheetRow, headers: string[]): string[] {
   return valuesForSheetHeaders(contrato, headers);
 }
 
+function isBlankSheetRow(row: SheetRow): boolean {
+  return !Object.values(row).some((v) => String(v || "").trim());
+}
+
 function toLoadedRows(rows: SheetRow[]): LoadedRow[] {
-  return rows.map((data, sheetIndex) => {
+  return rows.flatMap((data, sheetIndex) => {
+    if (isBlankSheetRow(data)) return [];
     const unitKey = unitKeyFromSheetRow(data, "campinas");
     const unit = getUnitByKey(unitKey);
-    return {
+    return [{
       data: withUnitLabel(data, unit || getSharedSheetUnit()),
       unitKey,
       sheetIndex,
-    };
+    }];
   });
 }
 
@@ -175,11 +180,21 @@ function parseSheetValues(values: string[][]): { headers: string[]; rows: SheetR
     headers.forEach((h, idx) => {
       row[h] = rowValues[idx] ?? "";
     });
-    const hydrated = hydrateCanonicalKeys(row);
-    if (Object.values(hydrated).some((v) => String(v).trim())) rows.push(hydrated);
+    rows.push(hydrateCanonicalKeys(row));
   }
 
   return { headers, rows };
+}
+
+let sheetWriteChain: Promise<void> = Promise.resolve();
+
+function withSheetWrite<T>(fn: () => Promise<T>): Promise<T> {
+  const run = sheetWriteChain.then(fn, fn);
+  sheetWriteChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 async function loadSheetWindows(unit: ResolvedUnitConfig): Promise<SheetRow[]> {
@@ -322,33 +337,39 @@ export async function saveContractForUser(contrato: SheetRow, user: AuthPayload)
 }
 
 export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promise<number> {
-  const payload: SheetRow = {
-    ...contrato,
-    Unidade: unit.label,
-  };
-  const resolved = await resolveUnitSheet(unit);
-  const { rows } = await loadSheetValues(resolved);
-  const sheetIndex = rows.length;
+  return withSheetWrite(async () => {
+    const payload: SheetRow = {
+      ...contrato,
+      Unidade: unit.label,
+    };
+    const resolved = await resolveUnitSheet(unit);
+    const { rows } = await loadSheetValues(resolved);
+    let lastUsed = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (!isBlankSheetRow(rows[i])) lastUsed = i;
+    }
+    const sheetIndex = lastUsed + 1;
 
-  if (process.platform === "win32") {
-    await saveContractWindows(payload, resolved);
+    if (process.platform === "win32") {
+      await saveContractWindows(payload, resolved, sheetIndex);
+      invalidateSheetRowsCache();
+      return sheetIndex;
+    }
+
+    assertUnitSheet(resolved);
+    const sheets = getSheets();
+    const headers = await ensureHeaders(resolved);
+    const row = valuesForHeaders(payload, headers);
+    const rowNumber = sheetIndex + 2;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: resolved.resolvedSheetId,
+      range: `'${resolved.resolvedSheetTab}'!A${rowNumber}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [row] },
+    });
     invalidateSheetRowsCache();
     return sheetIndex;
-  }
-
-  assertUnitSheet(resolved);
-  const sheets = getSheets();
-  const headers = await ensureHeaders(resolved);
-  const row = valuesForHeaders(payload, headers);
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: resolved.resolvedSheetId,
-    range: `'${resolved.resolvedSheetTab}'!A:A`,
-    valueInputOption: "USER_ENTERED",
-    insertDataOption: "INSERT_ROWS",
-    requestBody: { values: [row] },
   });
-  invalidateSheetRowsCache();
-  return sheetIndex;
 }
 
 export async function updateContractRow(
@@ -356,40 +377,58 @@ export async function updateContractRow(
   sheetIndex: number,
   updates: SheetRow,
 ): Promise<void> {
-  const unit = getUnitByKey(unitKey);
-  if (!unit) throw new Error("Unidade inválida.");
+  await withSheetWrite(async () => {
+    const unit = getUnitByKey(unitKey);
+    if (!unit) throw new Error("Unidade inválida.");
 
-  const resolved = await resolveUnitSheet(unit);
-  assertUnitSheet(resolved);
-  const headers = await ensureHeaders(resolved);
-  const { rows } = await loadSheetValues(resolved);
-  if (sheetIndex < 0 || sheetIndex >= rows.length) {
-    throw new Error("Contrato não encontrado na planilha.");
-  }
-  if (unitKeyFromSheetRow(rows[sheetIndex], "campinas") !== unitKey) {
-    throw new Error("Contrato não encontrado na planilha.");
-  }
+    const resolved = await resolveUnitSheet(unit);
+    assertUnitSheet(resolved);
+    const headers = await ensureHeaders(resolved);
+    const { rows } = await loadSheetValues(resolved);
+    if (sheetIndex < 0) {
+      throw new Error("Contrato não encontrado na planilha.");
+    }
+    const existing = rows[sheetIndex] || {};
+    if (rows[sheetIndex] && !isBlankSheetRow(existing) && unitKeyFromSheetRow(existing, "campinas") !== unitKey) {
+      throw new Error("Contrato não encontrado na planilha.");
+    }
 
-  const merged = { ...rows[sheetIndex], ...updates, Unidade: unit.label };
-  const rowNumber = sheetIndex + 2;
-  const values = [valuesForHeaders(merged, headers)];
+    const merged = {
+      ...existing,
+      ...updates,
+      Unidade: existing["Unidade"] || updates["Unidade"] || unit.label,
+    };
+    const rowNumber = sheetIndex + 2;
+    const values = [valuesForHeaders(merged, headers)];
 
-  const sheets = getSheets();
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: resolved.resolvedSheetId,
-    range: `'${resolved.resolvedSheetTab}'!A${rowNumber}`,
-    valueInputOption: "USER_ENTERED",
-    requestBody: { values },
+    const sheets = getSheets();
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: resolved.resolvedSheetId,
+      range: `'${resolved.resolvedSheetTab}'!A${rowNumber}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values },
+    });
+    invalidateSheetRowsCache();
   });
-  invalidateSheetRowsCache();
 }
 
-async function saveContractWindows(contrato: SheetRow, unit: ResolvedUnitConfig): Promise<void> {
+async function saveContractWindows(
+  contrato: SheetRow,
+  unit: ResolvedUnitConfig,
+  sheetIndex: number,
+): Promise<void> {
   assertUnitSheet(unit);
   const node = join(process.env.ProgramFiles || "C:\\Program Files", "nodejs", "node.exe");
   await execFileAsync(
     node,
-    ["--use-system-ca", saveScript, unit.resolvedSheetId, unit.resolvedSheetTab, JSON.stringify(contrato)],
+    [
+      "--use-system-ca",
+      saveScript,
+      unit.resolvedSheetId,
+      unit.resolvedSheetTab,
+      JSON.stringify(contrato),
+      String(sheetIndex),
+    ],
     { maxBuffer: 5 * 1024 * 1024, encoding: "utf8", cwd: join(__dirname, "../..") },
   );
 }
@@ -400,7 +439,7 @@ export async function getContractRow(unitKey: UnitKey, sheetIndex: number): Prom
 
   const rows = await loadUnitSheet(unit);
   const row = rows[sheetIndex];
-  if (!row) return null;
+  if (!row || isBlankSheetRow(row)) return null;
   if (unitKeyFromSheetRow(row, "campinas") !== unitKey) return null;
   return withUnitLabel(row, unit);
 }

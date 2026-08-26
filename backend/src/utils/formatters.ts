@@ -130,6 +130,19 @@ export function normalizeMonthKey(monthKey: string): string {
   return s;
 }
 
+function yearFromDataCompra(row: Record<string, string>, dataCompraCol?: string | null): string | null {
+  const dateCols = dataCompraCol
+    ? [dataCompraCol]
+    : ["Data Compra", "Data compra", "Data da compra"];
+  for (const col of dateCols) {
+    const val = row[col];
+    if (!val) continue;
+    const parsed = parseDate(val);
+    if (parsed) return String(parsed.getFullYear());
+  }
+  return null;
+}
+
 /** Mês efetivo da linha: coluna Mês ou fallback pela Data Compra. */
 export function getRowMonthKey(
   row: Record<string, string>,
@@ -139,8 +152,18 @@ export function getRowMonthKey(
   if (mesCol) {
     const raw = String(row[mesCol] || "").trim();
     if (raw) {
+      const fromDate = parseDate(raw);
+      if (fromDate) {
+        const key = monthKeyFromDate(fromDate);
+        if (/^\d{2}\/\d{4}$/.test(key)) return key;
+      }
       const normalized = normalizeMonthKey(raw);
       if (/^\d{2}\/\d{4}$/.test(normalized)) return normalized;
+      const monthNum = extractMonthNumFromMonthKey(raw);
+      const year = extractYearFromMonthKey(raw) || yearFromDataCompra(row, dataCompraCol) || extractYearFromMonthKey(todayMonthKey());
+      if (monthNum && year) {
+        return `${String(monthNum).padStart(2, "0")}/${year}`;
+      }
     }
   }
   const dateCols = dataCompraCol

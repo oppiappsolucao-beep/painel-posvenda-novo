@@ -30,6 +30,7 @@ export function StatusAssinaturaPage() {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [nome, setNome] = useState("");
+  const [unidadeFiltro, setUnidadeFiltro] = useState("Todas");
   const [dataInicio, setDataInicio] = useState(() => todayIsoDate());
   const [dataFim, setDataFim] = useState(() => todayIsoDate());
   const [sortMode, setSortMode] = useState<SortMode>("alfabetica");
@@ -49,9 +50,16 @@ export function StatusAssinaturaPage() {
   const [copyingKey, setCopyingKey] = useState<string | null>(null);
   const linkInputRef = useRef<HTMLInputElement>(null);
 
+  const canFilterUnidade = !user?.unit;
   const queryParams = useMemo(
-    () => ({ nome: nome.trim(), dataInicio, dataFim, status: "todos" as const }),
-    [nome, dataInicio, dataFim],
+    () => ({
+      nome: nome.trim(),
+      dataInicio,
+      dataFim,
+      status: "todos" as const,
+      unidade: canFilterUnidade ? unidadeFiltro : undefined,
+    }),
+    [nome, dataInicio, dataFim, unidadeFiltro, canFilterUnidade],
   );
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
@@ -118,9 +126,16 @@ export function StatusAssinaturaPage() {
   const clearFilters = async () => {
     const hoje = todayIsoDate();
     setNome("");
+    setUnidadeFiltro("Todas");
     setDataInicio(hoje);
     setDataFim(hoje);
-    await refreshStatus({ nome: "", dataInicio: hoje, dataFim: hoje, status: "todos" });
+    await refreshStatus({
+      nome: "",
+      dataInicio: hoje,
+      dataFim: hoje,
+      status: "todos",
+      unidade: canFilterUnidade ? "Todas" : undefined,
+    });
   };
 
   const handleRefresh = async () => {
@@ -304,7 +319,7 @@ export function StatusAssinaturaPage() {
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/20"
             />
           </label>
-          <label className="block sm:w-40 shrink-0">
+          <label className="block sm:w-44 shrink-0">
             <span className="text-sm font-semibold text-slate-600">Data fim</span>
             <input
               type="date"
@@ -313,6 +328,20 @@ export function StatusAssinaturaPage() {
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/20"
             />
           </label>
+          {canFilterUnidade && (
+            <label className="block sm:w-48 shrink-0">
+              <span className="text-sm font-semibold text-slate-600">Unidade</span>
+              <select
+                value={unidadeFiltro}
+                onChange={(e) => setUnidadeFiltro(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[#1B1D6D]/20"
+              >
+                {(data?.unidades || ["Todas", "Campinas", "Indaiatuba", "Piracicaba"]).map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="block flex-1 min-w-0">
             <span className="text-sm font-semibold text-slate-600">Nome do cliente</span>
             <input
@@ -434,7 +463,9 @@ export function StatusAssinaturaPage() {
                       >
                         <td className="px-4 py-3">
                           <div className="font-semibold text-slate-800">{item.nome}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">Compra: {item.dataCompra}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {item.unidade ? `${item.unidade} • ` : ""}Compra: {item.dataCompra}
+                          </div>
                           <button
                             type="button"
                             onClick={(e) => {

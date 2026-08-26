@@ -100,6 +100,7 @@ function missingHeaders(headers) {
 const sheetId = process.argv[2] || process.env.SHEET_ID || "1TTrjf0DZxWkIacYTp7_vcRmTx2-8XrobIaPgIflnyG8";
 const sheetTab = process.argv[3] || process.env.SHEET_TAB || "Folha1";
 const contrato = JSON.parse(process.argv[4] || "{}");
+const sheetIndexArg = process.argv[5];
 
 const auth = new google.auth.JWT({
   email: process.env.GCP_CLIENT_EMAIL,
@@ -129,12 +130,25 @@ if (missing.length) {
 }
 
 const row = valuesForHeaders(contrato, headers);
-await sheets.spreadsheets.values.append({
-  spreadsheetId: sheetId,
-  range: `'${sheetTab}'!A:A`,
-  valueInputOption: "USER_ENTERED",
-  insertDataOption: "INSERT_ROWS",
-  requestBody: { values: [row] },
-});
+const rowNumber = Number.isFinite(Number(sheetIndexArg))
+  ? Number(sheetIndexArg) + 2
+  : null;
+
+if (rowNumber && rowNumber >= 2) {
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: sheetId,
+    range: `'${sheetTab}'!A${rowNumber}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [row] },
+  });
+} else {
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: sheetId,
+    range: `'${sheetTab}'!A:A`,
+    valueInputOption: "USER_ENTERED",
+    insertDataOption: "OVERWRITE",
+    requestBody: { values: [row] },
+  });
+}
 
 console.log("OK");

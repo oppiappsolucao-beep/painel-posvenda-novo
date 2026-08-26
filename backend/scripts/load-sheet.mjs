@@ -37,7 +37,7 @@ for (let i = 1; i < values.length; i++) {
   headers.forEach((h, idx) => {
     row[h] = rowValues[idx] ?? "";
   });
-  if (Object.values(row).some((v) => String(v).trim())) rows.push(row);
+  rows.push(row);
 }
 
 console.log(JSON.stringify(rows));

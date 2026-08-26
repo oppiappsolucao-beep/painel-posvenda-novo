@@ -249,6 +249,7 @@ export interface StatusAssinaturaItem {
   disparoEm: string;
   atualizadoEm: string;
   dataCompra: string;
+  unidade?: string;
   linkAssinatura: string;
   linkAssinaturaLoja?: string;
   docToken?: string;
@@ -262,6 +263,7 @@ export interface StatusAssinaturaItem {
 
 export interface StatusAssinaturaResponse {
   total: number;
+  unidades?: string[];
   resumo: {
     assinados: number;
     pendentes: number;
@@ -277,6 +279,7 @@ export async function fetchStatusAssinatura(params: {
   dataInicio?: string;
   dataFim?: string;
   status?: string;
+  unidade?: string;
   refresh?: boolean;
 }) {
   const { refresh, ...query } = params;

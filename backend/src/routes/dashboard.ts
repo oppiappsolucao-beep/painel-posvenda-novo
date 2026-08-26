@@ -228,9 +228,10 @@ function buildFinanceiroData(rows: Record<string, string>[], mes: string, unidad
         map.set(mn, (map.get(mn) || 0) + (c.valor ? brlToFloat(r[c.valor]) : 0));
       }
     }
-    faturamentoAnual = [...map.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([mn, total]) => ({ mes: monthLabelPt(mn), faturamento: total }));
+    faturamentoAnual = Array.from({ length: 12 }, (_, i) => {
+      const mn = i + 1;
+      return { mes: monthLabelPt(mn), faturamento: map.get(mn) || 0 };
+    });
   }
 
   return {
@@ -320,6 +321,7 @@ function buildStatusAssinaturaData(
   statusFilter: string,
   signatures: Map<string, SignatureRecord>,
   docFormMap: Map<string, import("../services/contractDocForm.js").DocFormStatus>,
+  unidade: string,
 ) {
   const rows = toSheetRows(loaded);
   const cols = rows.length ? Object.keys(rows[0]) : [];
@@ -371,6 +373,7 @@ function buildStatusAssinaturaData(
       disparoEm: disparoEm || "—",
       atualizadoEm: atualizadoEm || "—",
       dataCompra: String(row["Data Compra"] || "").trim() || "—",
+      unidade: getUnitByKey(item.unitKey)?.label || item.unitKey,
       linkAssinatura,
       linkAssinaturaLoja: String(row["Link Assinatura Loja"] || "").trim(),
       docToken: String(row["Documento ZapSign"] || "").trim(),
@@ -387,6 +390,11 @@ function buildStatusAssinaturaData(
 
   if (nomeQuery) {
     filtered = filtered.filter((item) => norm(item.nome).includes(nomeQuery));
+  }
+
+  if (unidade && unidade !== "Todas") {
+    const target = norm(unidade);
+    filtered = filtered.filter((item) => norm(item.unidade) === target);
   }
 
   if (dataInicio || dataFim) {
@@ -428,6 +436,13 @@ function buildStatusAssinaturaData(
 
   return {
     total: items.length,
+    unidades: (() => {
+      const fromRows = getUniqueUnits(loaded.map((item) => item.data), "Unidade");
+      const extras = getConfiguredUnits().map((unit) => unit.label);
+      const set = new Set(fromRows);
+      for (const label of extras) set.add(label);
+      return ["Todas", ...[...set].filter((u) => u !== "Todas").sort()];
+    })(),
     resumo: {
       assinados: items.filter((i) => i.status === "assinado").length,
       pendentes: items.filter((i) => i.status === "pendente").length,
@@ -480,6 +495,7 @@ router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async 
     const dataInicio = String(req.query.dataInicio || req.query.data || "");
     const dataFim = String(req.query.dataFim || req.query.data || req.query.dataInicio || "");
     const status = String(req.query.status || "todos");
+    const unidade = defaultUnidade(req.user, String(req.query.unidade || "Todas"));
     const refresh = String(req.query.refresh || "") === "1";
     if (refresh) {
       invalidateSheetRowsCache();
@@ -491,7 +507,7 @@ router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async 
     const docFormMap = await loadDocFormStatusMap(
       syncedLoaded.map((item) => ({ unitKey: item.unitKey, sheetIndex: item.sheetIndex, contrato: item.data })),
     );
-    res.json(buildStatusAssinaturaData(syncedLoaded, nome, dataInicio, dataFim, status, signatures, docFormMap));
+    res.json(buildStatusAssinaturaData(syncedLoaded, nome, dataInicio, dataFim, status, signatures, docFormMap, unidade));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ error: msg });

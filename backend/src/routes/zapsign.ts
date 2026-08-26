@@ -146,7 +146,12 @@ router.post("/webhook", async (req, res) => {
     }
 
     if (Object.keys(patch).length > 0) {
-      await updateContractRow(unitKey, sheetIndex, patch);
+      try {
+        await updateContractRow(unitKey, sheetIndex, patch);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[zapsign] webhook update ${unitKey}:${sheetIndex}:`, msg);
+      }
     }
 
     res.json({ ok: true });
