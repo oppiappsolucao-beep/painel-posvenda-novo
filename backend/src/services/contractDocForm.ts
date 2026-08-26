@@ -2,15 +2,15 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { getUnitByKey, SheetRow, UnitKey } from "../config.js";
+import { loadAllUnitRows } from "./sheets.js";
 import { getUnitStoreEmailsForNotifications } from "./unitEmails.js";
 import {
   dbGetDocFormEmailSentAt,
   dbLoadDocFormEmailMap,
   dbListAllDocFormLocations,
-  dbRelocateDocForm,
   dbSetDocFormEmailSentAt,
 } from "../db/docFormStore.js";
-import { dbListAllAttachmentLocations, dbRelocateAttachments, dbGetAttachmentsUpdatedAt } from "../db/attachmentsStore.js";
+import { dbListAllAttachmentLocations, dbGetAttachmentsUpdatedAt } from "../db/attachmentsStore.js";
 import { dbListSignatureIdentities } from "../db/signaturesStore.js";
 import { isTodaysTestContractRow, formatDateBr, norm, parseDate } from "../utils/formatters.js";
 import { isDatabaseEnabled, tryReconnectDatabase } from "../db/client.js";
@@ -162,15 +162,17 @@ function storedLocKey(loc: ResolvedLoc): string {
   return `${loc.unitKey}:${loc.sheetIndex}`;
 }
 
-async function moveDocFormData(from: ResolvedLoc, to: ResolvedLoc): Promise<ResolvedLoc> {
-  if (from.unitKey === to.unitKey && from.sheetIndex === to.sheetIndex) return to;
-  const movedAttach = await dbRelocateAttachments(from.unitKey, from.sheetIndex, to.unitKey, to.sheetIndex).catch(
-    () => false,
-  );
-  const movedForm = await dbRelocateDocForm(from.unitKey, from.sheetIndex, to.unitKey, to.sheetIndex).catch(
-    () => false,
-  );
-  return movedAttach || movedForm ? to : from;
+function firstTrailingSheetIndex(items: Array<{ sheetIndex: number }>): number | null {
+  const indices = [...new Set(items.map((item) => item.sheetIndex))].sort((a, b) => a - b);
+  for (let i = 1; i < indices.length; i++) {
+    if (indices[i] - indices[i - 1] > 3) return indices[i];
+  }
+  return null;
+}
+
+function isTrailingSheetRow(sheetIndex: number, trailingStart: number | null): boolean {
+  if (trailingStart != null) return sheetIndex >= trailingStart;
+  return sheetIndex >= 100;
 }
 
 async function resolveDocFormIndexMap(
@@ -192,15 +194,29 @@ async function resolveDocFormIndexMap(
 
   const liveKeys = new Set(items.map((item) => recordKey(item.unitKey, item.sheetIndex)));
   const claimedStored = new Set<string>();
+  const claimedLive = new Set<string>();
+  const trailingStart = firstTrailingSheetIndex(items);
+
+  const liveByUnit = new Map<UnitKey, typeof items>();
+  for (const item of items) {
+    const list = liveByUnit.get(item.unitKey) || [];
+    list.push(item);
+    liveByUnit.set(item.unitKey, list);
+  }
 
   for (const item of items) {
     const liveKey = recordKey(item.unitKey, item.sheetIndex);
-    if (storedByKey.has(liveKey)) continue;
+    if (storedByKey.has(liveKey)) {
+      claimedStored.add(liveKey);
+      claimedLive.add(liveKey);
+      continue;
+    }
+    if (!isTrailingSheetRow(item.sheetIndex, trailingStart)) continue;
     if (isTodaysTestContractRow(item.contrato || {})) continue;
 
     const nome = norm(item.contrato?.Nome || "");
     const email = norm(item.contrato?.["E-mail"] || item.contrato?.Email || "");
-    if (!nome || !email) continue;
+    if (!nome) continue;
 
     const matches = signatures.filter((sig) => {
       const sigKey = `${sig.unitKey}:${sig.sheetIndex}`;
@@ -208,16 +224,62 @@ async function resolveDocFormIndexMap(
       if (!storedByKey.has(sigKey)) return false;
       if (liveKeys.has(sigKey)) return false;
       if (sig.unitKey !== item.unitKey) return false;
-      return norm(sig.nome) === nome && norm(sig.email) === email;
+      if (norm(sig.nome) !== nome) return false;
+      if (email && norm(sig.email) && norm(sig.email) !== email) return false;
+      return true;
     });
     if (matches.length !== 1) continue;
 
     const from = { unitKey: matches[0].unitKey, sheetIndex: matches[0].sheetIndex };
-    resolved.set(liveKey, await moveDocFormData(from, { unitKey: item.unitKey, sheetIndex: item.sheetIndex }));
+    resolved.set(liveKey, from);
     claimedStored.add(storedLocKey(from));
+    claimedLive.add(liveKey);
+  }
+
+  for (const [unitKey, unitItems] of liveByUnit.entries()) {
+    const leftoverLive = unitItems
+      .filter((item) => isTrailingSheetRow(item.sheetIndex, trailingStart))
+      .filter((item) => !claimedLive.has(recordKey(item.unitKey, item.sheetIndex)))
+      .filter((item) => !isTodaysTestContractRow(item.contrato || {}))
+      .sort((a, b) => a.sheetIndex - b.sheetIndex);
+
+    const leftoverStored = [...storedByKey.values()]
+      .filter((loc) => loc.unitKey === unitKey && !claimedStored.has(storedLocKey(loc)) && !liveKeys.has(storedLocKey(loc)))
+      .sort((a, b) => a.sheetIndex - b.sheetIndex);
+
+    const limit = Math.min(leftoverLive.length, leftoverStored.length);
+    for (let i = 0; i < limit; i++) {
+      const live = leftoverLive[i];
+      const from = leftoverStored[i];
+      const liveKey = recordKey(live.unitKey, live.sheetIndex);
+      resolved.set(liveKey, from);
+      claimedStored.add(storedLocKey(from));
+      claimedLive.add(liveKey);
+    }
   }
 
   return resolved;
+}
+
+async function locForContract(
+  unitKey: UnitKey,
+  sheetIndex: number,
+  contrato?: SheetRow,
+): Promise<ResolvedLoc> {
+  const self = { unitKey, sheetIndex };
+  if (!isDatabaseEnabled()) return self;
+  try {
+    const rows = await loadAllUnitRows();
+    const items = rows.map((row) => ({
+      unitKey: row.unitKey,
+      sheetIndex: row.sheetIndex,
+      contrato: row.unitKey === unitKey && row.sheetIndex === sheetIndex ? contrato || row.data : row.data,
+    }));
+    const map = await resolveDocFormIndexMap(items);
+    return map.get(recordKey(unitKey, sheetIndex)) || self;
+  } catch {
+    return self;
+  }
 }
 
 export async function getDocFormStatus(
@@ -225,12 +287,15 @@ export async function getDocFormStatus(
   sheetIndex: number,
   contrato?: SheetRow,
 ): Promise<DocFormStatus> {
-  const buffers = await getContractAttachmentBuffers(unitKey, sheetIndex);
-  const emailSentAt = await getEmailSentAt(unitKey, sheetIndex);
-  const filesStale = await storedFilesAreStale(unitKey, sheetIndex, contrato);
-  const emailForStatus = isStoredBeforeContract(emailSentAt, contrato) ? null : emailSentAt;
+  const loc = await locForContract(unitKey, sheetIndex, contrato);
+  const remapped = loc.unitKey !== unitKey || loc.sheetIndex !== sheetIndex;
+  const buffers = await getContractAttachmentBuffers(loc.unitKey, loc.sheetIndex);
+  const emailSentAt = await getEmailSentAt(loc.unitKey, loc.sheetIndex);
+  const filesStale = remapped ? false : await storedFilesAreStale(loc.unitKey, loc.sheetIndex, contrato);
+  const emailForStatus =
+    remapped || !isStoredBeforeContract(emailSentAt, contrato) ? emailSentAt : null;
   const zapsign = contrato
-    ? await getZapsignAttachmentSyncStatus(unitKey, sheetIndex, contrato)
+    ? await getZapsignAttachmentSyncStatus(loc.unitKey, loc.sheetIndex, contrato)
     : undefined;
   return buildStatusFromBuffers(
     filesStale ? {} : (buffers as Partial<Record<DocFormKind, Buffer>>),
@@ -279,8 +344,10 @@ export async function loadDocFormStatusMap(
       const resolvedKey = recordKey(loc.unitKey, loc.sheetIndex);
       const buffers = await getContractAttachmentBuffers(loc.unitKey, loc.sheetIndex);
       const emailSentAt = emailMap.get(resolvedKey) ?? emailMap.get(key) ?? null;
-      const filesStale = await storedFilesAreStale(loc.unitKey, loc.sheetIndex, item.contrato);
-      const emailForStatus = isStoredBeforeContract(emailSentAt, item.contrato) ? null : emailSentAt;
+      const remapped = loc.unitKey !== item.unitKey || loc.sheetIndex !== item.sheetIndex;
+      const filesStale = remapped ? false : await storedFilesAreStale(loc.unitKey, loc.sheetIndex, item.contrato);
+      const emailForStatus =
+        remapped || !isStoredBeforeContract(emailSentAt, item.contrato) ? emailSentAt : null;
       const zapsign = item.contrato
         ? await getZapsignAttachmentSyncStatus(loc.unitKey, loc.sheetIndex, item.contrato)
         : undefined;
