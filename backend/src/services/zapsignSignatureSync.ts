@@ -80,8 +80,7 @@ export async function fetchZapSignSignatureSnapshot(
 
   const dataCliente = isSignerSigned(clientSigner) ? formatSignedAt(clientSigner?.signed_at) : "";
   const dataLoja = isSignerSigned(storeSigner) ? formatSignedAt(storeSigner?.signed_at) : "";
-  const extraList = data.extra_docs || data.extraDocs || data.extra_documents;
-  const extraDocs = Array.isArray(extraList) ? extraList.length : 0;
+  const extraDocs = countExtraDocs(data as Record<string, unknown>);
 
   const snapshot: ZapSignSignatureSnapshot = {
     dataCliente,
@@ -92,6 +91,14 @@ export async function fetchZapSignSignatureSnapshot(
 
   cache.set(token, { snapshot, expiresAt: Date.now() + CACHE_TTL_MS });
   return snapshot;
+}
+
+function countExtraDocs(data: Record<string, unknown>): number {
+  const lists = [data.extra_docs, data.extraDocs, data.extra_documents, data.attachments, data.docs];
+  for (const list of lists) {
+    if (Array.isArray(list) && list.length) return list.length;
+  }
+  return 0;
 }
 
 function rowNeedsSync(row: SheetRow, snapshot: ZapSignSignatureSnapshot): boolean {

@@ -23,6 +23,7 @@ import {
   missingCanonicalHeaders,
   valuesForSheetHeaders,
 } from "./sheetHeaders.js";
+import { formatDateBr, parseDate, todaySaoPaulo } from "../utils/formatters.js";
 
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -155,8 +156,33 @@ function isBlankSheetRow(row: SheetRow): boolean {
   return !Object.values(row).some((v) => String(v || "").trim());
 }
 
+function fillDownUnidade(rows: SheetRow[]): SheetRow[] {
+  let lastUnidade = "";
+  return rows.map((row) => {
+    if (isBlankSheetRow(row)) {
+      lastUnidade = "";
+      return row;
+    }
+    const explicit = String(row["Unidade"] || "").trim();
+    if (explicit) {
+      lastUnidade = explicit;
+      return row;
+    }
+    const inferred = unitKeyFromSheetRow(row, "campinas");
+    const inferredLabel = getUnitByKey(inferred)?.label || "";
+    if (inferred && inferredLabel && inferred !== "campinas") {
+      lastUnidade = inferredLabel;
+      return { ...row, Unidade: inferredLabel };
+    }
+    if (lastUnidade) {
+      return { ...row, Unidade: lastUnidade };
+    }
+    return row;
+  });
+}
+
 function toLoadedRows(rows: SheetRow[]): LoadedRow[] {
-  return rows.flatMap((data, sheetIndex) => {
+  return fillDownUnidade(rows).flatMap((data, sheetIndex) => {
     if (isBlankSheetRow(data)) return [];
     const unitKey = unitKeyFromSheetRow(data, "campinas");
     const unit = getUnitByKey(unitKey);
@@ -183,7 +209,7 @@ function parseSheetValues(values: string[][]): { headers: string[]; rows: SheetR
     rows.push(hydrateCanonicalKeys(row));
   }
 
-  return { headers, rows };
+  return { headers, rows: fillDownUnidade(rows) };
 }
 
 let sheetWriteChain: Promise<void> = Promise.resolve();
@@ -481,6 +507,88 @@ export async function deleteContractRows(unitKey: UnitKey, sheetIndices: number[
 
   invalidateSheetRowsCache();
   return unique.length;
+}
+
+function isSameSaoPauloDay(value: string, day: Date): boolean {
+  const parsed = parseDate(value);
+  return Boolean(parsed && formatDateBr(parsed) === formatDateBr(day));
+}
+
+export function isTodaysTestContractRow(row: SheetRow, today = todaySaoPaulo()): boolean {
+  const dataCompra = String(row["Data Compra"] || "");
+  const preenchimento = String(row["Data preenchimento"] || "");
+  const fromToday = isSameSaoPauloDay(dataCompra, today) || isSameSaoPauloDay(preenchimento, today);
+  if (!fromToday) return false;
+
+  const nome = String(row["Nome"] || "").trim().toLowerCase();
+  const email = String(row["E-mail"] || row["Email"] || "").trim().toLowerCase();
+  const obs = String(row["Observações"] || row["Observacoes"] || "").toLowerCase();
+  return (
+    obs.includes("teste") ||
+    email.includes("teste") ||
+    nome.includes("ana clara mendes") ||
+    nome.includes("filhote teste")
+  );
+}
+
+export async function purgeTodaysTestContracts(): Promise<{ deleted: number; names: string[] }> {
+  const resolved = await resolveUnitSheet(getSharedSheetUnit());
+  assertUnitSheet(resolved);
+  const { rows } = await loadSheetValues(resolved);
+  const today = todaySaoPaulo();
+
+  const testIndices = rows
+    .map((row, sheetIndex) => ({ row, sheetIndex }))
+    .filter(({ row }) => !isBlankSheetRow(row) && isTodaysTestContractRow(row, today));
+
+  const duplicateToday = new Map<string, number[]>();
+  rows.forEach((row, sheetIndex) => {
+    if (isBlankSheetRow(row)) return;
+    const dataCompra = String(row["Data Compra"] || "");
+    const preenchimento = String(row["Data preenchimento"] || "");
+    if (!isSameSaoPauloDay(dataCompra, today) && !isSameSaoPauloDay(preenchimento, today)) return;
+    const key = `${String(row["CPF"] || "").trim()}|${String(row["Nome"] || "").trim().toLowerCase()}`;
+    if (!key.replace("|", "")) return;
+    const list = duplicateToday.get(key) || [];
+    list.push(sheetIndex);
+    duplicateToday.set(key, list);
+  });
+
+  const extraDupes: number[] = [];
+  for (const indices of duplicateToday.values()) {
+    if (indices.length < 2) continue;
+    extraDupes.push(...indices.slice(1));
+  }
+
+  const unique = [...new Set([...testIndices.map((item) => item.sheetIndex), ...extraDupes])].sort((a, b) => b - a);
+  if (!unique.length) return { deleted: 0, names: [] };
+
+  const names = unique.map((sheetIndex) => String(rows[sheetIndex]?.["Nome"] || `linha ${sheetIndex + 2}`));
+
+  const sheets = getSheets();
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: resolved.resolvedSheetId });
+  const tab = meta.data.sheets?.find((s) => s.properties?.title === resolved.resolvedSheetTab);
+  const sheetGid = tab?.properties?.sheetId;
+  if (sheetGid == null) throw new Error(`Aba "${resolved.resolvedSheetTab}" não encontrada.`);
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: resolved.resolvedSheetId,
+    requestBody: {
+      requests: unique.map((sheetIndex) => ({
+        deleteDimension: {
+          range: {
+            sheetId: sheetGid,
+            dimension: "ROWS" as const,
+            startIndex: sheetIndex + 1,
+            endIndex: sheetIndex + 2,
+          },
+        },
+      })),
+    },
+  });
+
+  invalidateSheetRowsCache();
+  return { deleted: unique.length, names };
 }
 
 async function loadSheetValues(unit: ResolvedUnitConfig): Promise<{ headers: string[]; rows: SheetRow[] }> {

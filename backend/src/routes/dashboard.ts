@@ -66,6 +66,7 @@ import {
   loadAllUnitRowsWithWarnings,
   loadRowsForUser,
   pruneAllSheetsToDemo,
+  purgeTodaysTestContracts,
   saveContract,
   saveContractForUser,
   updateContractRow,
@@ -500,6 +501,11 @@ router.get("/status-assinatura", authMiddleware, requireRole("operacao"), async 
     if (refresh) {
       invalidateSheetRowsCache();
       invalidateZapSignSignatureCache();
+      try {
+        await purgeTodaysTestContracts();
+      } catch (error) {
+        console.warn("[sheets] falha ao excluir testes de hoje:", error instanceof Error ? error.message : error);
+      }
     }
     const loaded = await loadRowsForUser(req.user!);
     const syncedLoaded = await syncZapSignRowsForStatus(loaded);

@@ -117,9 +117,21 @@ export function unitKeyFromLabel(label: string): UnitKey | null {
   return unit?.key ?? null;
 }
 
-/** Linhas antigas de Campinas podem estar sem a coluna Unidade preenchida. */
+/** Linhas antigas podem estar sem Unidade; usa loja, cidade-unidade e preenchimento. */
 export function unitKeyFromSheetRow(row: SheetRow, fallback: UnitKey = "campinas"): UnitKey {
-  return unitKeyFromLabel(String(row["Unidade"] || "")) || fallback;
+  const fromUnidade = unitKeyFromLabel(String(row["Unidade"] || ""));
+  if (fromUnidade) return fromUnidade;
+
+  const storeEmail = normalizeEmail(String(row["E-mail Loja"] || row["Email Loja"] || ""));
+  if (storeEmail) {
+    const byStore = units.find((unit) => normalizeEmail(unit.storeEmail) === storeEmail);
+    if (byStore) return byStore.key;
+  }
+
+  const fromCidade = unitKeyFromLabel(String(row["Cidade"] || ""));
+  if (fromCidade) return fromCidade;
+
+  return fallback;
 }
 
 export function getConfiguredUnits(): UnitConfig[] {

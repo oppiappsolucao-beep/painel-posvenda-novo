@@ -12,7 +12,7 @@ import {
 } from "../db/docFormStore.js";
 import { dbListAllAttachmentLocations, dbRelocateAttachments } from "../db/attachmentsStore.js";
 import { dbListSignatureIdentities } from "../db/signaturesStore.js";
-import { fetchZapSignSignatureSnapshot } from "./zapsignSignatureSync.js";
+import { isTodaysTestContractRow } from "./sheets.js";
 import { norm } from "../utils/formatters.js";
 import { isDatabaseEnabled } from "../db/client.js";
 import { sendDocFormAttachmentsEmail, sendDocFormRectificationEmail } from "./email.js";
@@ -206,26 +206,16 @@ async function resolveDocFormIndexMap(
   for (const [unitKey, unitItems] of liveByUnit.entries()) {
     const leftoverLive = unitItems
       .filter((item) => !claimedLive.has(recordKey(item.unitKey, item.sheetIndex)))
+      .filter((item) => !isTodaysTestContractRow(item.contrato || {}))
       .sort((a, b) => a.sheetIndex - b.sheetIndex);
 
-    for (const live of leftoverLive) {
-      const homeKey = `${unitKey}:${live.sheetIndex}`;
-      if (storedByKey.has(homeKey) && !claimedStored.has(homeKey)) {
-        claimedStored.add(homeKey);
-        claimedLive.add(recordKey(live.unitKey, live.sheetIndex));
-      }
-    }
-
-    const stillLive = leftoverLive.filter(
-      (item) => !claimedLive.has(recordKey(item.unitKey, item.sheetIndex)),
-    );
     const leftoverStored = [...storedByKey.values()]
       .filter((loc) => loc.unitKey === unitKey && !claimedStored.has(storedLocKey(loc)))
       .sort((a, b) => a.sheetIndex - b.sheetIndex);
 
-    const limit = Math.min(stillLive.length, leftoverStored.length);
+    const limit = Math.min(leftoverLive.length, leftoverStored.length);
     for (let i = 0; i < limit; i++) {
-      const live = stillLive[i];
+      const live = leftoverLive[i];
       const from = leftoverStored[i];
       const liveKey = recordKey(live.unitKey, live.sheetIndex);
       const to = { unitKey: live.unitKey, sheetIndex: live.sheetIndex };
