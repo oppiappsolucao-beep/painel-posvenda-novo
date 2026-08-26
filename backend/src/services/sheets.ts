@@ -23,7 +23,6 @@ import {
   missingCanonicalHeaders,
   valuesForSheetHeaders,
 } from "./sheetHeaders.js";
-import { formatDateBr, isTodaysTestContractRow, parseDate, todaySaoPaulo } from "../utils/formatters.js";
 
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -403,7 +402,7 @@ async function ensureSheetGridSize(
   });
 }
 
-/** Próxima linha da sequência do topo (ex.: linha 11), não depois do bloco colado no final. */
+/** Próxima linha vazia da sequência do topo, sem sobrescrever contrato existente. */
 function findNextSequentialSheetIndex(rows: SheetRow[]): number {
   let seenData = false;
   for (let i = 0; i < rows.length; i++) {
@@ -416,6 +415,13 @@ function findNextSequentialSheetIndex(rows: SheetRow[]): number {
   return rows.length;
 }
 
+function nextEmptySheetIndex(rows: SheetRow[], start: number): number {
+  for (let i = Math.max(start, 0); i < rows.length; i++) {
+    if (isBlankSheetRow(rows[i])) return i;
+  }
+  return rows.length;
+}
+
 export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promise<number> {
   return withSheetWrite(async () => {
     const payload: SheetRow = {
@@ -424,7 +430,10 @@ export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promis
     };
     const resolved = await resolveUnitSheet(unit);
     const { rows } = await loadSheetValues(resolved);
-    const sheetIndex = findNextSequentialSheetIndex(rows);
+    let sheetIndex = findNextSequentialSheetIndex(rows);
+    if (rows[sheetIndex] && !isBlankSheetRow(rows[sheetIndex])) {
+      sheetIndex = nextEmptySheetIndex(rows, sheetIndex + 1);
+    }
 
     if (process.platform === "win32") {
       await saveContractWindows(payload, resolved, sheetIndex);
@@ -561,69 +570,8 @@ export async function deleteContractRows(unitKey: UnitKey, sheetIndices: number[
   return unique.length;
 }
 
-function isSameSaoPauloDay(value: string, day: Date): boolean {
-  const parsed = parseDate(value);
-  return Boolean(parsed && formatDateBr(parsed) === formatDateBr(day));
-}
-
 export async function purgeTodaysTestContracts(): Promise<{ deleted: number; names: string[] }> {
-  const resolved = await resolveUnitSheet(getSharedSheetUnit());
-  assertUnitSheet(resolved);
-  const { rows } = await loadSheetValues(resolved);
-  const today = todaySaoPaulo();
-
-  const testIndices = rows
-    .map((row, sheetIndex) => ({ row, sheetIndex }))
-    .filter(({ row }) => !isBlankSheetRow(row) && isTodaysTestContractRow(row, today));
-
-  const duplicateToday = new Map<string, number[]>();
-  rows.forEach((row, sheetIndex) => {
-    if (isBlankSheetRow(row)) return;
-    const dataCompra = String(row["Data Compra"] || "");
-    const preenchimento = String(row["Data preenchimento"] || "");
-    if (!isSameSaoPauloDay(dataCompra, today) && !isSameSaoPauloDay(preenchimento, today)) return;
-    const key = `${String(row["CPF"] || "").trim()}|${String(row["Nome"] || "").trim().toLowerCase()}`;
-    if (!key.replace("|", "")) return;
-    const list = duplicateToday.get(key) || [];
-    list.push(sheetIndex);
-    duplicateToday.set(key, list);
-  });
-
-  const extraDupes: number[] = [];
-  for (const indices of duplicateToday.values()) {
-    if (indices.length < 2) continue;
-    extraDupes.push(...indices.slice(1));
-  }
-
-  const unique = [...new Set([...testIndices.map((item) => item.sheetIndex), ...extraDupes])].sort((a, b) => b - a);
-  if (!unique.length) return { deleted: 0, names: [] };
-
-  const names = unique.map((sheetIndex) => String(rows[sheetIndex]?.["Nome"] || `linha ${sheetIndex + 2}`));
-
-  const sheets = getSheets();
-  const meta = await sheets.spreadsheets.get({ spreadsheetId: resolved.resolvedSheetId });
-  const tab = meta.data.sheets?.find((s) => s.properties?.title === resolved.resolvedSheetTab);
-  const sheetGid = tab?.properties?.sheetId;
-  if (sheetGid == null) throw new Error(`Aba "${resolved.resolvedSheetTab}" não encontrada.`);
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: resolved.resolvedSheetId,
-    requestBody: {
-      requests: unique.map((sheetIndex) => ({
-        deleteDimension: {
-          range: {
-            sheetId: sheetGid,
-            dimension: "ROWS" as const,
-            startIndex: sheetIndex + 1,
-            endIndex: sheetIndex + 2,
-          },
-        },
-      })),
-    },
-  });
-
-  invalidateSheetRowsCache();
-  return { deleted: unique.length, names };
+  return { deleted: 0, names: [] };
 }
 
 async function loadSheetValues(unit: ResolvedUnitConfig): Promise<{ headers: string[]; rows: SheetRow[] }> {
