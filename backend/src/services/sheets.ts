@@ -373,8 +373,8 @@ async function ensureSheetGridSize(
   const sheetGid = tab?.properties?.sheetId;
   if (sheetGid == null) throw new Error(`Aba "${unit.resolvedSheetTab}" não encontrada.`);
 
-  const rowCount = tab.properties?.gridProperties?.rowCount ?? 0;
-  const colCount = tab.properties?.gridProperties?.columnCount ?? 0;
+  const rowCount = tab?.properties?.gridProperties?.rowCount ?? 0;
+  const colCount = tab?.properties?.gridProperties?.columnCount ?? 0;
   const requests: Array<{ appendDimension: { sheetId: number; dimension: "ROWS" | "COLUMNS"; length: number } }> = [];
 
   if (rowNumber > rowCount) {
