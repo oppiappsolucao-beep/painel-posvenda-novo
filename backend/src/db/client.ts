@@ -42,6 +42,24 @@ export async function closePool(): Promise<void> {
   }
 }
 
+export async function tryReconnectDatabase(): Promise<boolean> {
+  if (!process.env.DATABASE_URL?.trim()) return false;
+  try {
+    await query("SELECT 1");
+    markDatabaseReady();
+    return true;
+  } catch {
+    markDatabaseUnavailable();
+    try {
+      await query("SELECT 1");
+      markDatabaseReady();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 export async function query<T = Record<string, unknown>>(
   text: string,
   params?: unknown[],

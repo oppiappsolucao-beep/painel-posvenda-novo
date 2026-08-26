@@ -14,7 +14,7 @@ import { dbListAllAttachmentLocations, dbRelocateAttachments } from "../db/attac
 import { dbListSignatureIdentities } from "../db/signaturesStore.js";
 import { isTodaysTestContractRow, norm } from "../utils/formatters.js";
 import { fetchZapSignSignatureSnapshot } from "./zapsignSignatureSync.js";
-import { isDatabaseEnabled } from "../db/client.js";
+import { isDatabaseEnabled, tryReconnectDatabase } from "../db/client.js";
 import { sendDocFormAttachmentsEmail, sendDocFormRectificationEmail } from "./email.js";
 import {
   DOC_FORM_KINDS,
@@ -259,6 +259,10 @@ export async function loadDocFormStatusMap(
 ): Promise<Map<string, DocFormStatus>> {
   const map = new Map<string, DocFormStatus>();
   if (!items.length) return map;
+
+  if (!isDatabaseEnabled()) {
+    await tryReconnectDatabase();
+  }
 
   const indexMap = await resolveDocFormIndexMap(items);
 

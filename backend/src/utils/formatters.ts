@@ -143,12 +143,24 @@ function yearFromDataCompra(row: Record<string, string>, dataCompraCol?: string 
   return null;
 }
 
-/** Mês efetivo da linha: coluna Mês ou fallback pela Data Compra. */
+/** Mês efetivo da linha: Data da Compra primeiro (vendas), coluna Mês só como fallback. */
 export function getRowMonthKey(
   row: Record<string, string>,
   mesCol: string | null,
   dataCompraCol?: string | null,
 ): string {
+  const dateCols = dataCompraCol
+    ? [dataCompraCol, "Data Compra", "Data compra", "Data da compra"]
+    : ["Data Compra", "Data compra", "Data da compra"];
+  for (const col of [...new Set(dateCols)]) {
+    const val = row[col];
+    if (!val) continue;
+    const parsed = parseDate(val);
+    if (!parsed) continue;
+    const normalized = normalizeMonthKey(monthKeyFromDate(parsed));
+    if (/^\d{2}\/\d{4}$/.test(normalized)) return normalized;
+  }
+
   if (mesCol) {
     const raw = String(row[mesCol] || "").trim();
     if (raw) {
@@ -165,15 +177,6 @@ export function getRowMonthKey(
         return `${String(monthNum).padStart(2, "0")}/${year}`;
       }
     }
-  }
-  const dateCols = dataCompraCol
-    ? [dataCompraCol]
-    : ["Data Compra", "Data compra", "Data da compra"];
-  for (const col of dateCols) {
-    const val = row[col];
-    if (!val) continue;
-    const normalized = normalizeMonthKey(monthKeyFromDate(parseDate(val)));
-    if (/^\d{2}\/\d{4}$/.test(normalized)) return normalized;
   }
   return "";
 }
@@ -226,19 +229,49 @@ export function parseDate(v: unknown): Date | null {
   }
 
   if (s.includes("-") && /^\d{4}-\d{2}-\d{2}/.test(s)) {
-    const d = new Date(s);
+    const [yyyy, mm, dd] = s.slice(0, 10).split("-").map((part) => parseInt(part, 10));
+    const d = new Date(yyyy, mm - 1, dd);
     if (!Number.isNaN(d.getTime())) return d;
+  }
+
+  const brAlt = s.match(/^(\d{1,2})[.\-](\d{1,2})[.\-](\d{2,4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/);
+  if (brAlt && !s.includes("/")) {
+    const dd = parseInt(brAlt[1], 10);
+    const mm = parseInt(brAlt[2], 10);
+    let year = parseInt(brAlt[3], 10);
+    if (year < 100) year += 2000;
+    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+      const d = new Date(year, mm - 1, dd);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
   }
 
   if (s.includes("/")) {
     const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/);
     if (br) {
-      const dd = parseInt(br[1], 10);
-      const mm = parseInt(br[2], 10);
+      let a = parseInt(br[1], 10);
+      let b = parseInt(br[2], 10);
       let year = parseInt(br[3], 10);
       if (year < 100) year += 2000;
+      let dd = a;
+      let mm = b;
+      if (a > 12 && b <= 12) {
+        dd = a;
+        mm = b;
+      } else if (b > 12 && a <= 12) {
+        mm = a;
+        dd = b;
+      }
       const d = new Date(year, mm - 1, dd);
       if (!Number.isNaN(d.getTime())) return d;
+    }
+  }
+
+  if (/^\d{4,5}([.,]\d+)?$/.test(s)) {
+    const serial = Math.floor(parseFloat(s.replace(",", ".")));
+    if (serial >= 20000 && serial <= 60000) {
+      const serialDate = sheetSerialToDate(serial);
+      if (serialDate) return serialDate;
     }
   }
 
@@ -321,7 +354,7 @@ export function filterRows(
   dataCompraCol?: string | null,
 ): Record<string, string>[] {
   let result = rows;
-  if (mesCol && mes) {
+  if (mes) {
     const target = normalizeMonthKey(mes);
     result = result.filter((r) => getRowMonthKey(r, mesCol, dataCompraCol) === target);
   }

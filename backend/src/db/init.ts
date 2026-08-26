@@ -1,4 +1,4 @@
-import { isDatabaseEnabled, markDatabaseReady, markDatabaseUnavailable, query } from "./client.js";
+import { markDatabaseReady, markDatabaseUnavailable, query, tryReconnectDatabase } from "./client.js";
 import { importLegacyFileDataIfNeeded } from "./importLegacy.js";
 import { migrateSchema } from "./migrate.js";
 import { seedDefaultBreedsIfEmpty } from "../services/breeds.js";
@@ -39,11 +39,6 @@ export async function initDatabase(): Promise<void> {
 
 export async function getDatabaseHealth(): Promise<{ enabled: boolean; ok: boolean }> {
   if (!process.env.DATABASE_URL?.trim()) return { enabled: false, ok: true };
-  if (!isDatabaseEnabled()) return { enabled: true, ok: false };
-  try {
-    await query("SELECT 1");
-    return { enabled: true, ok: true };
-  } catch {
-    return { enabled: true, ok: false };
-  }
+  const ok = await tryReconnectDatabase();
+  return { enabled: true, ok };
 }
