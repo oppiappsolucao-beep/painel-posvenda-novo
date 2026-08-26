@@ -53,6 +53,35 @@ export async function dbLoadDocFormEmailMap(
   return map;
 }
 
+export async function dbListDocFormSheetIndices(unitKey: UnitKey): Promise<number[]> {
+  const { rows } = await query<{ sheet_index: number }>(
+    `SELECT sheet_index FROM contract_doc_form
+     WHERE unit_key = $1 AND (email_sent_at IS NOT NULL OR zapsign_sync_json IS NOT NULL)
+     ORDER BY sheet_index`,
+    [unitKey],
+  );
+  return rows.map((row) => row.sheet_index);
+}
+
+export async function dbRelocateDocForm(
+  unitKey: UnitKey,
+  fromIndex: number,
+  toIndex: number,
+): Promise<boolean> {
+  if (fromIndex === toIndex) return false;
+  const result = await query(
+    `UPDATE contract_doc_form
+     SET sheet_index = $3
+     WHERE unit_key = $1 AND sheet_index = $2
+       AND NOT EXISTS (
+         SELECT 1 FROM contract_doc_form other
+         WHERE other.unit_key = $1 AND other.sheet_index = $3
+       )`,
+    [unitKey, fromIndex, toIndex],
+  );
+  return (result.rowCount || 0) > 0;
+}
+
 function parseZapsignSyncJson(raw: string | null | undefined): Partial<Record<DocFormKind, ZapsignKindSyncRecord>> {
   if (!raw) return {};
   try {

@@ -6,8 +6,12 @@ import { getUnitStoreEmailsForNotifications } from "./unitEmails.js";
 import {
   dbGetDocFormEmailSentAt,
   dbLoadDocFormEmailMap,
+  dbListDocFormSheetIndices,
+  dbRelocateDocForm,
   dbSetDocFormEmailSentAt,
 } from "../db/docFormStore.js";
+import { dbListAttachmentSheetIndices, dbRelocateAttachments } from "../db/attachmentsStore.js";
+import { fetchZapSignSignatureSnapshot } from "./zapsignSignatureSync.js";
 import { isDatabaseEnabled } from "../db/client.js";
 import { sendDocFormAttachmentsEmail, sendDocFormRectificationEmail } from "./email.js";
 import {
@@ -92,19 +96,24 @@ function buildStatusFromBuffers(
   buffers: Partial<Record<DocFormKind, Buffer>>,
   emailSentAt: string | null,
   zapsign?: ZapsignAttachmentSyncStatus,
+  extraDocs = 0,
 ): DocFormStatus {
   const anexos = {} as Record<DocFormKind, DocFormKindStatus>;
   const pendentes: DocFormKind[] = [];
 
+  const extrasCompletos = extraDocs >= DOC_FORM_KINDS.length;
+  const emailEnviado = Boolean(emailSentAt) || extrasCompletos;
+
   for (const kind of DOC_FORM_KINDS) {
-    const enviado = Boolean(buffers[kind]?.length);
+    const enviado = Boolean(buffers[kind]?.length) || extrasCompletos || emailEnviado;
     anexos[kind] = { enviado };
     if (!enviado) pendentes.push(kind);
   }
 
-  const enviados = DOC_FORM_KINDS.length - pendentes.length;
-  const completo = pendentes.length === 0;
-  const emailEnviado = Boolean(emailSentAt);
+  const enviados = extrasCompletos || emailEnviado
+    ? DOC_FORM_KINDS.length
+    : Math.max(DOC_FORM_KINDS.length - pendentes.length, extraDocs);
+  const completo = pendentes.length === 0 || extrasCompletos || emailEnviado;
 
   let statusLabel = "Pendente";
   if (completo && emailEnviado) statusLabel = "Anexos enviados";
@@ -114,14 +123,89 @@ function buildStatusFromBuffers(
   return {
     anexos,
     completo,
-    pendentes,
+    pendentes: completo ? [] : pendentes,
     total: DOC_FORM_KINDS.length,
-    enviados,
+    enviados: completo ? DOC_FORM_KINDS.length : enviados,
     emailEnviado,
     emailEnviadoEm: emailSentAt || undefined,
     statusLabel,
     zapsign,
   };
+}
+
+function mapStoredIndicesToLive(liveIndices: number[], storedIndices: number[]): Map<number, number> {
+  const mapping = new Map<number, number>();
+  const usedStored = new Set<number>();
+  const liveSet = new Set(liveIndices);
+
+  for (const live of liveIndices) {
+    if (storedIndices.includes(live)) {
+      mapping.set(live, live);
+      usedStored.add(live);
+    }
+  }
+
+  const leftoverStored = storedIndices.filter((index) => !usedStored.has(index) && !liveSet.has(index));
+  const leftoverLive = liveIndices.filter((index) => !mapping.has(index));
+
+  leftoverStored.sort((a, b) => a - b);
+  leftoverLive.sort((a, b) => a - b);
+
+  const limit = Math.min(leftoverStored.length, leftoverLive.length);
+  for (let i = 0; i < limit; i++) {
+    if (Math.abs(leftoverStored[i] - leftoverLive[i]) <= 25) {
+      mapping.set(leftoverLive[i], leftoverStored[i]);
+    }
+  }
+
+  return mapping;
+}
+
+async function resolveDocFormIndexMap(
+  items: Array<{ unitKey: UnitKey; sheetIndex: number }>,
+): Promise<Map<string, number>> {
+  const resolved = new Map<string, number>();
+  if (!isDatabaseEnabled() || !items.length) {
+    for (const item of items) {
+      resolved.set(recordKey(item.unitKey, item.sheetIndex), item.sheetIndex);
+    }
+    return resolved;
+  }
+
+  const byUnit = new Map<UnitKey, number[]>();
+  for (const item of items) {
+    const list = byUnit.get(item.unitKey) || [];
+    list.push(item.sheetIndex);
+    byUnit.set(item.unitKey, list);
+  }
+
+  for (const [unitKey, liveIndices] of byUnit.entries()) {
+    const uniqueLive = [...new Set(liveIndices)].sort((a, b) => a - b);
+    const storedAttachments = await dbListAttachmentSheetIndices(unitKey);
+    const storedDocForm = await dbListDocFormSheetIndices(unitKey);
+    const stored = [...new Set([...storedAttachments, ...storedDocForm])].sort((a, b) => a - b);
+    const mapping = mapStoredIndicesToLive(uniqueLive, stored);
+
+    for (const live of uniqueLive) {
+      const storedIndex = mapping.get(live) ?? live;
+      if (storedIndex !== live) {
+        const movedAttach = await dbRelocateAttachments(unitKey, storedIndex, live).catch(() => false);
+        const movedForm = await dbRelocateDocForm(unitKey, storedIndex, live).catch(() => false);
+        resolved.set(recordKey(unitKey, live), movedAttach || movedForm ? live : storedIndex);
+      } else {
+        resolved.set(recordKey(unitKey, live), live);
+      }
+    }
+  }
+
+  return resolved;
+}
+
+async function extraDocsForContrato(contrato?: SheetRow): Promise<number> {
+  const docToken = String(contrato?.["Documento ZapSign"] || "").trim();
+  if (!docToken) return 0;
+  const snapshot = await fetchZapSignSignatureSnapshot(docToken);
+  return snapshot?.extraDocs || 0;
 }
 
 export async function getDocFormStatus(
@@ -131,10 +215,16 @@ export async function getDocFormStatus(
 ): Promise<DocFormStatus> {
   const buffers = await getContractAttachmentBuffers(unitKey, sheetIndex);
   const emailSentAt = await getEmailSentAt(unitKey, sheetIndex);
+  const extraDocs = await extraDocsForContrato(contrato);
   const zapsign = contrato
     ? await getZapsignAttachmentSyncStatus(unitKey, sheetIndex, contrato)
     : undefined;
-  return buildStatusFromBuffers(buffers as Partial<Record<DocFormKind, Buffer>>, emailSentAt, zapsign);
+  return buildStatusFromBuffers(
+    buffers as Partial<Record<DocFormKind, Buffer>>,
+    emailSentAt,
+    zapsign,
+    extraDocs,
+  );
 }
 
 export async function loadDocFormStatusMap(
@@ -143,12 +233,19 @@ export async function loadDocFormStatusMap(
   const map = new Map<string, DocFormStatus>();
   if (!items.length) return map;
 
+  const indexMap = await resolveDocFormIndexMap(items);
+
+  const lookupItems = items.map((item) => ({
+    unitKey: item.unitKey,
+    sheetIndex: indexMap.get(recordKey(item.unitKey, item.sheetIndex)) ?? item.sheetIndex,
+  }));
+
   const emailMap = isDatabaseEnabled()
-    ? await dbLoadDocFormEmailMap(items)
+    ? await dbLoadDocFormEmailMap(lookupItems)
     : await (async () => {
         const store = await readFileMetaStore();
         const out = new Map<string, string>();
-        for (const item of items) {
+        for (const item of lookupItems) {
           const key = recordKey(item.unitKey, item.sheetIndex);
           const sent = store[key]?.emailSentAt;
           if (sent) out.set(key, sent);
@@ -159,12 +256,23 @@ export async function loadDocFormStatusMap(
   await Promise.all(
     items.map(async (item) => {
       const key = recordKey(item.unitKey, item.sheetIndex);
-      const buffers = await getContractAttachmentBuffers(item.unitKey, item.sheetIndex);
-      const emailSentAt = emailMap.get(key) ?? null;
+      const resolvedIndex = indexMap.get(key) ?? item.sheetIndex;
+      const resolvedKey = recordKey(item.unitKey, resolvedIndex);
+      const buffers = await getContractAttachmentBuffers(item.unitKey, resolvedIndex);
+      const emailSentAt = emailMap.get(resolvedKey) ?? emailMap.get(key) ?? null;
+      const extraDocs = await extraDocsForContrato(item.contrato);
       const zapsign = item.contrato
-        ? await getZapsignAttachmentSyncStatus(item.unitKey, item.sheetIndex, item.contrato)
+        ? await getZapsignAttachmentSyncStatus(item.unitKey, resolvedIndex, item.contrato)
         : undefined;
-      map.set(key, buildStatusFromBuffers(buffers as Partial<Record<DocFormKind, Buffer>>, emailSentAt, zapsign));
+      map.set(
+        key,
+        buildStatusFromBuffers(
+          buffers as Partial<Record<DocFormKind, Buffer>>,
+          emailSentAt,
+          zapsign,
+          extraDocs,
+        ),
+      );
     }),
   );
 

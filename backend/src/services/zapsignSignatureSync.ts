@@ -16,6 +16,7 @@ export interface ZapSignSignatureSnapshot {
   dataCliente: string;
   dataLoja: string;
   statusAssinatura: string;
+  extraDocs: number;
 }
 
 const CACHE_TTL_MS = 30_000;
@@ -66,18 +67,27 @@ export async function fetchZapSignSignatureSnapshot(
   });
   if (!res.ok) return null;
 
-  const data = (await res.json()) as { signers?: ZapSignDocSigner[]; status?: string };
+  const data = (await res.json()) as {
+    signers?: ZapSignDocSigner[];
+    status?: string;
+    extra_docs?: unknown[];
+    extraDocs?: unknown[];
+    extra_documents?: unknown[];
+  };
   const signers = data.signers || [];
   const clientSigner = findClientSigner(signers);
   const storeSigner = findStoreSigner(signers);
 
   const dataCliente = isSignerSigned(clientSigner) ? formatSignedAt(clientSigner?.signed_at) : "";
   const dataLoja = isSignerSigned(storeSigner) ? formatSignedAt(storeSigner?.signed_at) : "";
+  const extraList = data.extra_docs || data.extraDocs || data.extra_documents;
+  const extraDocs = Array.isArray(extraList) ? extraList.length : 0;
 
   const snapshot: ZapSignSignatureSnapshot = {
     dataCliente,
     dataLoja,
     statusAssinatura: buildStatusAssinaturaLabel(dataCliente, dataLoja),
+    extraDocs,
   };
 
   cache.set(token, { snapshot, expiresAt: Date.now() + CACHE_TTL_MS });

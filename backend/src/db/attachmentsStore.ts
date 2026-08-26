@@ -63,3 +63,35 @@ export async function dbGetContractAttachmentBuffers(
   }
   return result;
 }
+
+export async function dbListAttachmentSheetIndices(unitKey: UnitKey): Promise<number[]> {
+  const { rows } = await query<{ sheet_index: number }>(
+    `SELECT DISTINCT sheet_index FROM contract_attachments
+     WHERE unit_key = $1
+     ORDER BY sheet_index`,
+    [unitKey],
+  );
+  return rows.map((row) => row.sheet_index);
+}
+
+export async function dbRelocateAttachments(
+  unitKey: UnitKey,
+  fromIndex: number,
+  toIndex: number,
+): Promise<boolean> {
+  if (fromIndex === toIndex) return false;
+  const existing = await dbGetContractAttachmentBuffers(unitKey, toIndex);
+  if (Object.keys(existing).length > 0) return false;
+
+  const result = await query(
+    `UPDATE contract_attachments
+     SET sheet_index = $3
+     WHERE unit_key = $1 AND sheet_index = $2
+       AND NOT EXISTS (
+         SELECT 1 FROM contract_attachments other
+         WHERE other.unit_key = $1 AND other.sheet_index = $3
+       )`,
+    [unitKey, fromIndex, toIndex],
+  );
+  return (result.rowCount || 0) > 0;
+}
