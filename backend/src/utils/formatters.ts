@@ -404,6 +404,7 @@ export function isTodaysTestContractRow(row: Record<string, string>, today = tod
   return (
     obs.includes("teste") ||
     email.includes("teste") ||
+    nome.includes("teste") ||
     nome.includes("ana clara mendes") ||
     nome.includes("filhote teste")
   );

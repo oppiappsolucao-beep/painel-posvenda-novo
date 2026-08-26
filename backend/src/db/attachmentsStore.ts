@@ -4,7 +4,7 @@ import {
   ATTACHMENT_KINDS,
   ContractAttachmentImages,
 } from "../services/contractAttachments.js";
-import { formatDateBr, todaySaoPaulo } from "../utils/formatters.js";
+import { formatDateBr, parseDate, todaySaoPaulo } from "../utils/formatters.js";
 import { query } from "./client.js";
 
 interface AttachmentRow {
@@ -43,6 +43,27 @@ export async function dbSaveContractAttachments(
       [unitKey, sheetIndex, kind, mime, buffer, updatedAt],
     );
   }
+}
+
+export async function dbGetAttachmentsUpdatedAt(
+  unitKey: UnitKey,
+  sheetIndex: number,
+): Promise<string | null> {
+  const { rows } = await query<{ updated_at: string | null }>(
+    "SELECT updated_at FROM contract_attachments WHERE unit_key = $1 AND sheet_index = $2",
+    [unitKey, sheetIndex],
+  );
+  let latest: Date | null = null;
+  let latestRaw: string | null = null;
+  for (const row of rows) {
+    const parsed = parseDate(row.updated_at || "");
+    if (!parsed) continue;
+    if (!latest || parsed.getTime() > latest.getTime()) {
+      latest = parsed;
+      latestRaw = row.updated_at;
+    }
+  }
+  return latestRaw;
 }
 
 export async function dbGetContractAttachmentBuffers(
