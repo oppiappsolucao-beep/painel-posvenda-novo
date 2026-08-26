@@ -362,6 +362,60 @@ export async function saveContractForUser(contrato: SheetRow, user: AuthPayload)
   return saveContract(contrato, unit);
 }
 
+async function ensureSheetGridSize(
+  unit: ResolvedUnitConfig,
+  rowNumber: number,
+  columnCount: number,
+): Promise<void> {
+  const sheets = getSheets();
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: unit.resolvedSheetId });
+  const tab = meta.data.sheets?.find((s) => s.properties?.title === unit.resolvedSheetTab);
+  const sheetGid = tab?.properties?.sheetId;
+  if (sheetGid == null) throw new Error(`Aba "${unit.resolvedSheetTab}" não encontrada.`);
+
+  const rowCount = tab.properties?.gridProperties?.rowCount ?? 0;
+  const colCount = tab.properties?.gridProperties?.columnCount ?? 0;
+  const requests: Array<{ appendDimension: { sheetId: number; dimension: "ROWS" | "COLUMNS"; length: number } }> = [];
+
+  if (rowNumber > rowCount) {
+    requests.push({
+      appendDimension: {
+        sheetId: sheetGid,
+        dimension: "ROWS",
+        length: Math.max(rowNumber - rowCount + 200, 200),
+      },
+    });
+  }
+  if (columnCount > colCount) {
+    requests.push({
+      appendDimension: {
+        sheetId: sheetGid,
+        dimension: "COLUMNS",
+        length: Math.max(columnCount - colCount + 5, 5),
+      },
+    });
+  }
+  if (!requests.length) return;
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: unit.resolvedSheetId,
+    requestBody: { requests },
+  });
+}
+
+/** Próxima linha da sequência do topo (ex.: linha 11), não depois do bloco colado no final. */
+function findNextSequentialSheetIndex(rows: SheetRow[]): number {
+  let seenData = false;
+  for (let i = 0; i < rows.length; i++) {
+    if (!isBlankSheetRow(rows[i])) {
+      seenData = true;
+      continue;
+    }
+    if (seenData) return i;
+  }
+  return rows.length;
+}
+
 export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promise<number> {
   return withSheetWrite(async () => {
     const payload: SheetRow = {
@@ -370,11 +424,7 @@ export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promis
     };
     const resolved = await resolveUnitSheet(unit);
     const { rows } = await loadSheetValues(resolved);
-    let lastUsed = -1;
-    for (let i = 0; i < rows.length; i++) {
-      if (!isBlankSheetRow(rows[i])) lastUsed = i;
-    }
-    const sheetIndex = lastUsed + 1;
+    const sheetIndex = findNextSequentialSheetIndex(rows);
 
     if (process.platform === "win32") {
       await saveContractWindows(payload, resolved, sheetIndex);
@@ -383,10 +433,11 @@ export async function saveContract(contrato: SheetRow, unit: UnitConfig): Promis
     }
 
     assertUnitSheet(resolved);
-    const sheets = getSheets();
     const headers = await ensureHeaders(resolved);
     const row = valuesForHeaders(payload, headers);
     const rowNumber = sheetIndex + 2;
+    await ensureSheetGridSize(resolved, rowNumber, headers.length);
+    const sheets = getSheets();
     await sheets.spreadsheets.values.update({
       spreadsheetId: resolved.resolvedSheetId,
       range: `'${resolved.resolvedSheetTab}'!A${rowNumber}`,
@@ -427,6 +478,7 @@ export async function updateContractRow(
     const rowNumber = sheetIndex + 2;
     const values = [valuesForHeaders(merged, headers)];
 
+    await ensureSheetGridSize(resolved, rowNumber, headers.length);
     const sheets = getSheets();
     await sheets.spreadsheets.values.update({
       spreadsheetId: resolved.resolvedSheetId,

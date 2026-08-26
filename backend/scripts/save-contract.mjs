@@ -135,6 +135,25 @@ const rowNumber = Number.isFinite(Number(sheetIndexArg))
   : null;
 
 if (rowNumber && rowNumber >= 2) {
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
+  const tab = meta.data.sheets?.find((s) => s.properties?.title === sheetTab);
+  const sheetGid = tab?.properties?.sheetId;
+  const rowCount = tab?.properties?.gridProperties?.rowCount ?? 0;
+  const colCount = tab?.properties?.gridProperties?.columnCount ?? 0;
+  const grow = [];
+  if (sheetGid != null && rowNumber > rowCount) {
+    grow.push({
+      appendDimension: { sheetId: sheetGid, dimension: "ROWS", length: Math.max(rowNumber - rowCount + 200, 200) },
+    });
+  }
+  if (sheetGid != null && headers.length > colCount) {
+    grow.push({
+      appendDimension: { sheetId: sheetGid, dimension: "COLUMNS", length: Math.max(headers.length - colCount + 5, 5) },
+    });
+  }
+  if (grow.length) {
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId: sheetId, requestBody: { requests: grow } });
+  }
   await sheets.spreadsheets.values.update({
     spreadsheetId: sheetId,
     range: `'${sheetTab}'!A${rowNumber}`,
