@@ -13,7 +13,6 @@ import {
 import { dbListAllAttachmentLocations, dbRelocateAttachments } from "../db/attachmentsStore.js";
 import { dbListSignatureIdentities } from "../db/signaturesStore.js";
 import { isTodaysTestContractRow, norm } from "../utils/formatters.js";
-import { fetchZapSignSignatureSnapshot } from "./zapsignSignatureSync.js";
 import { isDatabaseEnabled, tryReconnectDatabase } from "../db/client.js";
 import { sendDocFormAttachmentsEmail, sendDocFormRectificationEmail } from "./email.js";
 import {
@@ -98,24 +97,19 @@ function buildStatusFromBuffers(
   buffers: Partial<Record<DocFormKind, Buffer>>,
   emailSentAt: string | null,
   zapsign?: ZapsignAttachmentSyncStatus,
-  extraDocs = 0,
 ): DocFormStatus {
   const anexos = {} as Record<DocFormKind, DocFormKindStatus>;
   const pendentes: DocFormKind[] = [];
 
-  const extrasCompletos = extraDocs >= DOC_FORM_KINDS.length;
-  const emailEnviado = Boolean(emailSentAt) || extrasCompletos;
-
   for (const kind of DOC_FORM_KINDS) {
-    const enviado = Boolean(buffers[kind]?.length) || extrasCompletos || emailEnviado;
+    const enviado = Boolean(buffers[kind]?.length);
     anexos[kind] = { enviado };
     if (!enviado) pendentes.push(kind);
   }
 
-  const enviados = extrasCompletos || emailEnviado
-    ? DOC_FORM_KINDS.length
-    : Math.max(DOC_FORM_KINDS.length - pendentes.length, extraDocs);
-  const completo = pendentes.length === 0 || extrasCompletos || emailEnviado;
+  const enviados = DOC_FORM_KINDS.length - pendentes.length;
+  const completo = pendentes.length === 0;
+  const emailEnviado = completo && Boolean(emailSentAt);
 
   let statusLabel = "Pendente";
   if (completo && emailEnviado) statusLabel = "Anexos enviados";
@@ -228,13 +222,6 @@ async function resolveDocFormIndexMap(
   return resolved;
 }
 
-async function extraDocsForContrato(contrato?: SheetRow): Promise<number> {
-  const docToken = String(contrato?.["Documento ZapSign"] || "").trim();
-  if (!docToken) return 0;
-  const snapshot = await fetchZapSignSignatureSnapshot(docToken);
-  return snapshot?.extraDocs || 0;
-}
-
 export async function getDocFormStatus(
   unitKey: UnitKey,
   sheetIndex: number,
@@ -242,7 +229,6 @@ export async function getDocFormStatus(
 ): Promise<DocFormStatus> {
   const buffers = await getContractAttachmentBuffers(unitKey, sheetIndex);
   const emailSentAt = await getEmailSentAt(unitKey, sheetIndex);
-  const extraDocs = await extraDocsForContrato(contrato);
   const zapsign = contrato
     ? await getZapsignAttachmentSyncStatus(unitKey, sheetIndex, contrato)
     : undefined;
@@ -250,7 +236,6 @@ export async function getDocFormStatus(
     buffers as Partial<Record<DocFormKind, Buffer>>,
     emailSentAt,
     zapsign,
-    extraDocs,
   );
 }
 
@@ -294,7 +279,6 @@ export async function loadDocFormStatusMap(
       const resolvedKey = recordKey(loc.unitKey, loc.sheetIndex);
       const buffers = await getContractAttachmentBuffers(loc.unitKey, loc.sheetIndex);
       const emailSentAt = emailMap.get(resolvedKey) ?? emailMap.get(key) ?? null;
-      const extraDocs = await extraDocsForContrato(item.contrato);
       const zapsign = item.contrato
         ? await getZapsignAttachmentSyncStatus(loc.unitKey, loc.sheetIndex, item.contrato)
         : undefined;
@@ -304,7 +288,6 @@ export async function loadDocFormStatusMap(
           buffers as Partial<Record<DocFormKind, Buffer>>,
           emailSentAt,
           zapsign,
-          extraDocs,
         ),
       );
     }),
