@@ -75,23 +75,32 @@ export async function dbListAttachmentSheetIndices(unitKey: UnitKey): Promise<nu
 }
 
 export async function dbRelocateAttachments(
-  unitKey: UnitKey,
+  fromUnit: UnitKey,
   fromIndex: number,
+  toUnit: UnitKey,
   toIndex: number,
 ): Promise<boolean> {
-  if (fromIndex === toIndex) return false;
-  const existing = await dbGetContractAttachmentBuffers(unitKey, toIndex);
+  if (fromUnit === toUnit && fromIndex === toIndex) return false;
+  const existing = await dbGetContractAttachmentBuffers(toUnit, toIndex);
   if (Object.keys(existing).length > 0) return false;
 
   const result = await query(
     `UPDATE contract_attachments
-     SET sheet_index = $3
+     SET unit_key = $3, sheet_index = $4
      WHERE unit_key = $1 AND sheet_index = $2
        AND NOT EXISTS (
          SELECT 1 FROM contract_attachments other
-         WHERE other.unit_key = $1 AND other.sheet_index = $3
+         WHERE other.unit_key = $3 AND other.sheet_index = $4
        )`,
-    [unitKey, fromIndex, toIndex],
+    [fromUnit, fromIndex, toUnit, toIndex],
   );
   return (result.rowCount || 0) > 0;
+}
+
+export async function dbListAllAttachmentLocations(): Promise<Array<{ unitKey: UnitKey; sheetIndex: number }>> {
+  const { rows } = await query<{ unit_key: UnitKey; sheet_index: number }>(
+    `SELECT DISTINCT unit_key, sheet_index FROM contract_attachments
+     ORDER BY unit_key, sheet_index`,
+  );
+  return rows.map((row) => ({ unitKey: row.unit_key, sheetIndex: row.sheet_index }));
 }

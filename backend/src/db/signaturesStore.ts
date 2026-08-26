@@ -36,6 +36,23 @@ function mapRow(row: SignatureRow): SignatureRecord {
   };
 }
 
+export async function dbListSignatureIdentities(): Promise<
+  Array<{ unitKey: UnitKey; sheetIndex: number; nome: string; email: string }>
+> {
+  const { rows } = await query<{
+    unit_key: UnitKey;
+    sheet_index: number;
+    cliente_nome: string;
+    cliente_email: string;
+  }>("SELECT unit_key, sheet_index, cliente_nome, cliente_email FROM contract_signatures");
+  return rows.map((row) => ({
+    unitKey: row.unit_key,
+    sheetIndex: row.sheet_index,
+    nome: row.cliente_nome,
+    email: row.cliente_email,
+  }));
+}
+
 export async function dbLoadSignaturesMap(): Promise<Map<string, SignatureRecord>> {
   const { rows } = await query<SignatureRow>("SELECT * FROM contract_signatures");
   return new Map(rows.map((row) => [`${row.unit_key}:${row.sheet_index}`, mapRow(row)]));

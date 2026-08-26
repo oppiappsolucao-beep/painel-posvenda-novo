@@ -6,12 +6,14 @@ import { getUnitStoreEmailsForNotifications } from "./unitEmails.js";
 import {
   dbGetDocFormEmailSentAt,
   dbLoadDocFormEmailMap,
-  dbListDocFormSheetIndices,
+  dbListAllDocFormLocations,
   dbRelocateDocForm,
   dbSetDocFormEmailSentAt,
 } from "../db/docFormStore.js";
-import { dbListAttachmentSheetIndices, dbRelocateAttachments } from "../db/attachmentsStore.js";
+import { dbListAllAttachmentLocations, dbRelocateAttachments } from "../db/attachmentsStore.js";
+import { dbListSignatureIdentities } from "../db/signaturesStore.js";
 import { fetchZapSignSignatureSnapshot } from "./zapsignSignatureSync.js";
+import { norm } from "../utils/formatters.js";
 import { isDatabaseEnabled } from "../db/client.js";
 import { sendDocFormAttachmentsEmail, sendDocFormRectificationEmail } from "./email.js";
 import {
@@ -133,68 +135,103 @@ function buildStatusFromBuffers(
   };
 }
 
-function mapStoredIndicesToLive(liveIndices: number[], storedIndices: number[]): Map<number, number> {
-  const mapping = new Map<number, number>();
-  const usedStored = new Set<number>();
-  const liveSet = new Set(liveIndices);
+type ResolvedLoc = { unitKey: UnitKey; sheetIndex: number };
 
-  for (const live of liveIndices) {
-    if (storedIndices.includes(live)) {
-      mapping.set(live, live);
-      usedStored.add(live);
-    }
-  }
+function storedLocKey(loc: ResolvedLoc): string {
+  return `${loc.unitKey}:${loc.sheetIndex}`;
+}
 
-  const leftoverStored = storedIndices.filter((index) => !usedStored.has(index) && !liveSet.has(index));
-  const leftoverLive = liveIndices.filter((index) => !mapping.has(index));
-
-  leftoverStored.sort((a, b) => a - b);
-  leftoverLive.sort((a, b) => a - b);
-
-  const limit = Math.min(leftoverStored.length, leftoverLive.length);
-  for (let i = 0; i < limit; i++) {
-    if (Math.abs(leftoverStored[i] - leftoverLive[i]) <= 25) {
-      mapping.set(leftoverLive[i], leftoverStored[i]);
-    }
-  }
-
-  return mapping;
+async function moveDocFormData(from: ResolvedLoc, to: ResolvedLoc): Promise<ResolvedLoc> {
+  if (from.unitKey === to.unitKey && from.sheetIndex === to.sheetIndex) return to;
+  const movedAttach = await dbRelocateAttachments(from.unitKey, from.sheetIndex, to.unitKey, to.sheetIndex).catch(
+    () => false,
+  );
+  const movedForm = await dbRelocateDocForm(from.unitKey, from.sheetIndex, to.unitKey, to.sheetIndex).catch(
+    () => false,
+  );
+  return movedAttach || movedForm ? to : from;
 }
 
 async function resolveDocFormIndexMap(
-  items: Array<{ unitKey: UnitKey; sheetIndex: number }>,
-): Promise<Map<string, number>> {
-  const resolved = new Map<string, number>();
-  if (!isDatabaseEnabled() || !items.length) {
-    for (const item of items) {
-      resolved.set(recordKey(item.unitKey, item.sheetIndex), item.sheetIndex);
-    }
-    return resolved;
-  }
-
-  const byUnit = new Map<UnitKey, number[]>();
+  items: Array<{ unitKey: UnitKey; sheetIndex: number; contrato?: SheetRow }>,
+): Promise<Map<string, ResolvedLoc>> {
+  const resolved = new Map<string, ResolvedLoc>();
   for (const item of items) {
-    const list = byUnit.get(item.unitKey) || [];
-    list.push(item.sheetIndex);
-    byUnit.set(item.unitKey, list);
+    resolved.set(recordKey(item.unitKey, item.sheetIndex), { unitKey: item.unitKey, sheetIndex: item.sheetIndex });
+  }
+  if (!isDatabaseEnabled() || !items.length) return resolved;
+
+  const signatures = await dbListSignatureIdentities();
+  const storedLocs = [
+    ...(await dbListAllAttachmentLocations()),
+    ...(await dbListAllDocFormLocations()),
+  ];
+  const storedByKey = new Map<string, ResolvedLoc>();
+  for (const loc of storedLocs) storedByKey.set(storedLocKey(loc), loc);
+
+  const claimedStored = new Set<string>();
+  const claimedLive = new Set<string>();
+
+  const liveByUnit = new Map<UnitKey, typeof items>();
+  for (const item of items) {
+    const list = liveByUnit.get(item.unitKey) || [];
+    list.push(item);
+    liveByUnit.set(item.unitKey, list);
   }
 
-  for (const [unitKey, liveIndices] of byUnit.entries()) {
-    const uniqueLive = [...new Set(liveIndices)].sort((a, b) => a - b);
-    const storedAttachments = await dbListAttachmentSheetIndices(unitKey);
-    const storedDocForm = await dbListDocFormSheetIndices(unitKey);
-    const stored = [...new Set([...storedAttachments, ...storedDocForm])].sort((a, b) => a - b);
-    const mapping = mapStoredIndicesToLive(uniqueLive, stored);
+  for (const item of items) {
+    const liveKey = recordKey(item.unitKey, item.sheetIndex);
+    const nome = norm(item.contrato?.Nome || "");
+    const email = norm(item.contrato?.["E-mail"] || item.contrato?.Email || "");
+    if (!nome && !email) continue;
 
-    for (const live of uniqueLive) {
-      const storedIndex = mapping.get(live) ?? live;
-      if (storedIndex !== live) {
-        const movedAttach = await dbRelocateAttachments(unitKey, storedIndex, live).catch(() => false);
-        const movedForm = await dbRelocateDocForm(unitKey, storedIndex, live).catch(() => false);
-        resolved.set(recordKey(unitKey, live), movedAttach || movedForm ? live : storedIndex);
-      } else {
-        resolved.set(recordKey(unitKey, live), live);
+    const match = signatures.find((sig) => {
+      const sigKey = `${sig.unitKey}:${sig.sheetIndex}`;
+      if (claimedStored.has(sigKey)) return false;
+      if (!storedByKey.has(sigKey)) return false;
+      const sameUnit = sig.unitKey === item.unitKey;
+      const nomeOk = Boolean(nome) && norm(sig.nome) === nome;
+      const emailOk = Boolean(email) && norm(sig.email) === email;
+      return (nomeOk || emailOk) && (sameUnit || nomeOk);
+    });
+    if (!match) continue;
+
+    const from = { unitKey: match.unitKey, sheetIndex: match.sheetIndex };
+    const to = { unitKey: item.unitKey, sheetIndex: item.sheetIndex };
+    resolved.set(liveKey, await moveDocFormData(from, to));
+    claimedStored.add(storedLocKey(from));
+    claimedLive.add(liveKey);
+  }
+
+  for (const [unitKey, unitItems] of liveByUnit.entries()) {
+    const leftoverLive = unitItems
+      .filter((item) => !claimedLive.has(recordKey(item.unitKey, item.sheetIndex)))
+      .sort((a, b) => a.sheetIndex - b.sheetIndex);
+
+    for (const live of leftoverLive) {
+      const homeKey = `${unitKey}:${live.sheetIndex}`;
+      if (storedByKey.has(homeKey) && !claimedStored.has(homeKey)) {
+        claimedStored.add(homeKey);
+        claimedLive.add(recordKey(live.unitKey, live.sheetIndex));
       }
+    }
+
+    const stillLive = leftoverLive.filter(
+      (item) => !claimedLive.has(recordKey(item.unitKey, item.sheetIndex)),
+    );
+    const leftoverStored = [...storedByKey.values()]
+      .filter((loc) => loc.unitKey === unitKey && !claimedStored.has(storedLocKey(loc)))
+      .sort((a, b) => a.sheetIndex - b.sheetIndex);
+
+    const limit = Math.min(stillLive.length, leftoverStored.length);
+    for (let i = 0; i < limit; i++) {
+      const live = stillLive[i];
+      const from = leftoverStored[i];
+      const liveKey = recordKey(live.unitKey, live.sheetIndex);
+      const to = { unitKey: live.unitKey, sheetIndex: live.sheetIndex };
+      resolved.set(liveKey, await moveDocFormData(from, to));
+      claimedStored.add(storedLocKey(from));
+      claimedLive.add(liveKey);
     }
   }
 
@@ -235,18 +272,21 @@ export async function loadDocFormStatusMap(
 
   const indexMap = await resolveDocFormIndexMap(items);
 
-  const lookupItems = items.map((item) => ({
-    unitKey: item.unitKey,
-    sheetIndex: indexMap.get(recordKey(item.unitKey, item.sheetIndex)) ?? item.sheetIndex,
-  }));
+  const lookupItems = items.map((item) => {
+    const loc = indexMap.get(recordKey(item.unitKey, item.sheetIndex)) || {
+      unitKey: item.unitKey,
+      sheetIndex: item.sheetIndex,
+    };
+    return loc;
+  });
 
   const emailMap = isDatabaseEnabled()
     ? await dbLoadDocFormEmailMap(lookupItems)
     : await (async () => {
         const store = await readFileMetaStore();
         const out = new Map<string, string>();
-        for (const item of lookupItems) {
-          const key = recordKey(item.unitKey, item.sheetIndex);
+        for (const loc of lookupItems) {
+          const key = recordKey(loc.unitKey, loc.sheetIndex);
           const sent = store[key]?.emailSentAt;
           if (sent) out.set(key, sent);
         }
@@ -256,13 +296,13 @@ export async function loadDocFormStatusMap(
   await Promise.all(
     items.map(async (item) => {
       const key = recordKey(item.unitKey, item.sheetIndex);
-      const resolvedIndex = indexMap.get(key) ?? item.sheetIndex;
-      const resolvedKey = recordKey(item.unitKey, resolvedIndex);
-      const buffers = await getContractAttachmentBuffers(item.unitKey, resolvedIndex);
+      const loc = indexMap.get(key) || { unitKey: item.unitKey, sheetIndex: item.sheetIndex };
+      const resolvedKey = recordKey(loc.unitKey, loc.sheetIndex);
+      const buffers = await getContractAttachmentBuffers(loc.unitKey, loc.sheetIndex);
       const emailSentAt = emailMap.get(resolvedKey) ?? emailMap.get(key) ?? null;
       const extraDocs = await extraDocsForContrato(item.contrato);
       const zapsign = item.contrato
-        ? await getZapsignAttachmentSyncStatus(item.unitKey, resolvedIndex, item.contrato)
+        ? await getZapsignAttachmentSyncStatus(loc.unitKey, loc.sheetIndex, item.contrato)
         : undefined;
       map.set(
         key,

@@ -64,22 +64,32 @@ export async function dbListDocFormSheetIndices(unitKey: UnitKey): Promise<numbe
 }
 
 export async function dbRelocateDocForm(
-  unitKey: UnitKey,
+  fromUnit: UnitKey,
   fromIndex: number,
+  toUnit: UnitKey,
   toIndex: number,
 ): Promise<boolean> {
-  if (fromIndex === toIndex) return false;
+  if (fromUnit === toUnit && fromIndex === toIndex) return false;
   const result = await query(
     `UPDATE contract_doc_form
-     SET sheet_index = $3
+     SET unit_key = $3, sheet_index = $4
      WHERE unit_key = $1 AND sheet_index = $2
        AND NOT EXISTS (
          SELECT 1 FROM contract_doc_form other
-         WHERE other.unit_key = $1 AND other.sheet_index = $3
+         WHERE other.unit_key = $3 AND other.sheet_index = $4
        )`,
-    [unitKey, fromIndex, toIndex],
+    [fromUnit, fromIndex, toUnit, toIndex],
   );
   return (result.rowCount || 0) > 0;
+}
+
+export async function dbListAllDocFormLocations(): Promise<Array<{ unitKey: UnitKey; sheetIndex: number }>> {
+  const { rows } = await query<{ unit_key: UnitKey; sheet_index: number }>(
+    `SELECT unit_key, sheet_index FROM contract_doc_form
+     WHERE email_sent_at IS NOT NULL OR zapsign_sync_json IS NOT NULL
+     ORDER BY unit_key, sheet_index`,
+  );
+  return rows.map((row) => ({ unitKey: row.unit_key, sheetIndex: row.sheet_index }));
 }
 
 function parseZapsignSyncJson(raw: string | null | undefined): Partial<Record<DocFormKind, ZapsignKindSyncRecord>> {
